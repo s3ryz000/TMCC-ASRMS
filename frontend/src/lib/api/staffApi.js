@@ -35,6 +35,28 @@ export const staffApi = {
     return data;
   },
 
+  getPendingProfileUpdates: async () => {
+    const { data } = await apiClient.get('/staff/pending-profile-updates');
+    return data;
+  },
+
+  approveProfileUpdate: async (id) => {
+    const { data } = await apiClient.patch(`/staff/pending-profile-updates/${id}/approve`);
+    return data;
+  },
+
+  rejectProfileUpdate: async (id, payload = {}) => {
+    const { data } = await apiClient.patch(`/staff/pending-profile-updates/${id}/reject`, payload);
+    return data;
+  },
+
+  downloadProfileUpdateDocument: async (id) => {
+    const response = await apiClient.get(`/staff/pending-profile-updates/${id}/supporting-document`, {
+      responseType: 'blob',
+    });
+    return response;
+  },
+
   releaseDocument: async (requestId) => {
     const { data } = await apiClient.post('/staff/transactions', {
       request_id: requestId,
@@ -70,6 +92,11 @@ export const staffApi = {
   /** Program list for staff filters (course dropdown). Cached client-side via React Query. */
   getPrograms: async () => {
     const { data } = await apiClient.get('/staff/programs');
+    return data;
+  },
+
+  getProgramCurriculum: async (programId) => {
+    const { data } = await apiClient.get(`/staff/programs/${programId}/curriculum`);
     return data;
   },
 
@@ -114,6 +141,20 @@ export const staffApi = {
     return data;
   },
 
+  /** Change student's active program. Requires: new_program_id, reason. Optional: remarks. */
+  updateStudentProgram: async (studentId, payload) => {
+    const { data } = await apiClient.patch(`/staff/students/${studentId}/program`, payload);
+    return data;
+  },
+
+  /** Fetch curriculum subjects for a program filtered by year_level and semester */
+  getProgramCurriculumFiltered: async (programId, yearLevel, semester) => {
+    const { data } = await apiClient.get(`/staff/programs/${programId}/curriculum`, {
+      params: { year_level: yearLevel, semester },
+    });
+    return data;
+  },
+
   /** List subjects for dropdowns (staff/admin). Per thesis: subject code, title, units. */
   getSubjects: async () => {
     const { data } = await apiClient.get('/staff/subjects');
@@ -131,8 +172,11 @@ export const staffApi = {
     return data;
   },
 
-  deleteEnrollment: async (studentId, enrollmentId) => {
-    const { data } = await apiClient.delete(`/staff/students/${studentId}/enrollments/${enrollmentId}`);
+  deleteEnrollment: async (studentId, enrollmentId, payload = {}) => {
+    // DELETE with body — axios supports this via `data` config key
+    const { data } = await apiClient.delete(`/staff/students/${studentId}/enrollments/${enrollmentId}`, {
+      data: payload,
+    });
     return data;
   },
 
@@ -154,6 +198,31 @@ export const staffApi = {
 
   archiveStudent: async (studentId, payload) => {
     const { data } = await apiClient.post(`/staff/students/${studentId}/archive`, payload);
+    return data;
+  },
+
+  // ── Academic Progression endpoints ──
+
+  /** Get full academic progress for a student (staff/admin). */
+  getAcademicProgress: async (studentId) => {
+    const { data } = await apiClient.get(`/staff/students/${studentId}/academic-progress`);
+    return data;
+  },
+
+  getAcademicSummary: async (studentId) => {
+    const { data } = await apiClient.get(`/staff/students/${studentId}/academic-summary`);
+    return data.summary;
+  },
+
+  /** Add enrollment for the next allowed term. Backend computes term. */
+  addNextTerm: async (studentId, payload) => {
+    const { data } = await apiClient.post(`/staff/students/${studentId}/enrollments/add-next-term`, payload);
+    return data;
+  },
+
+  /** Bulk update grades for enrolled subjects. */
+  bulkUpdateGrades: async (studentId, payload) => {
+    const { data } = await apiClient.put(`/staff/students/${studentId}/grades/bulk-update`, payload);
     return data;
   },
 };

@@ -10,8 +10,20 @@ export const studentApi = {
     return data;
   },
 
+  getAcademicSummary: async () => {
+    const { data } = await apiClient.get('/student/academic-summary');
+    return data;
+  },
+
   /** Update authenticated student's SIS/SIUF fields (own record only). */
   updateSIS: async (payload) => {
+    if (payload instanceof FormData) {
+      payload.append('_method', 'PUT');
+      const { data } = await apiClient.post('/student/sis', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data;
+    }
     const { data } = await apiClient.put('/student/sis', payload);
     return data;
   },
@@ -47,6 +59,13 @@ export const studentApi = {
 
   downloadApprovalSlip: async (id) => {
     const response = await apiClient.get(`/student/record-requests/${id}/approval-slip`, {
+      responseType: 'blob',
+    });
+    return response;
+  },
+
+  downloadTranscript: async (id) => {
+    const response = await apiClient.get(`/student/record-requests/${id}/transcript`, {
       responseType: 'blob',
     });
     return response;

@@ -24,10 +24,12 @@ import StaffDocumentReleasePage from '../pages/StaffDocumentReleasePage';
 import StaffReportsPage from '../pages/StaffReportsPage';
 import StaffNewStudentPage from '../pages/StaffNewStudentPage';
 import StaffEditStudentPage from '../pages/StaffEditStudentPage';
+import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
 import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
 import StudentSISPage from '../pages/StudentSISPage';
+import StudentAcademicRecordsPage from '../pages/StudentAcademicRecordsPage';
 import { AuthProvider, useAuth, ROLE_ROUTES } from '../contexts/AuthContext';
 import { queryClient } from '../lib/react-query/queryClient';
 import AdminSystemLogsPage from '../pages/admin/AdminSystemLogsPage';
@@ -98,6 +100,7 @@ const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <StudentDashboard /> },
+          { path: 'academic-records', element: <StudentAcademicRecordsPage /> },
           { path: 'request', element: <StudentRequestRecordPage /> },
           { path: 'sis', element: <StudentSISPage /> },
         ],
@@ -112,6 +115,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <StaffDashboardPage /> },
           { path: 'requests', element: <StaffPendingRequestsPage /> },
+          { path: 'profile-updates', element: <StaffPendingProfileUpdatesPage /> },
           { path: 'students', element: <StaffStudentRecordsPage /> },
           { path: 'view-records', element: <ViewRecordsPage /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },

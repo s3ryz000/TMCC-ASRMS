@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiArrowRight, FiCheck } from "react-icons/fi";
 import { staffToast } from "../lib/notifications";
@@ -13,18 +13,20 @@ const defaultForm = {
   first_name: "",
   last_name: "",
   date_of_birth: "",
+  sex: "",
   email: "",
   contact_number: "",
   address: "",
   enrollment_date: new Date().toISOString().slice(0, 10),
   graduation_date: "",
-  GPA: "",
+
+  program_id: "",
+  subject_ids: [],
   record_type: "",
   cabinet_no: "",
   shelf_no: "",
   folder_code: "",
   document_status: "",
-  is_archived: true,
 };
 
 const TOTAL_PHASES = 4;
@@ -39,9 +41,53 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   const [loading, setLoading] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(1);
 
+  const { data: programsData, isLoading: loadingPrograms } = useQuery({
+    queryKey: ["programs"],
+    queryFn: staffApi.getPrograms,
+  });
+
+  const { data: curriculumData, isLoading: loadingCurriculum } = useQuery({
+    queryKey: ["curriculum", form.program_id],
+    queryFn: () => staffApi.getProgramCurriculum(form.program_id),
+    enabled: !!form.program_id,
+  });
+
+  React.useEffect(() => {
+    if (curriculumData?.curriculum) {
+      // Default auto-select 1st year, 1st semester subjects
+      const firstSemSubjects = curriculumData.curriculum
+        .filter((c) => c.year_level === 1 && c.semester === 1)
+        .map((c) => c.subject_id);
+      setForm((prev) => ({ ...prev, subject_ids: firstSemSubjects }));
+    }
+  }, [curriculumData]);
+
+  const toggleSubject = (subjectId) => {
+    setForm((prev) => {
+      const isSelected = prev.subject_ids.includes(subjectId);
+      if (isSelected) {
+        return { ...prev, subject_ids: prev.subject_ids.filter((id) => id !== subjectId) };
+      }
+      return { ...prev, subject_ids: [...prev.subject_ids, subjectId] };
+    });
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    
+    if (name === 'enrollment_date') {
+      setForm((prev) => {
+        const newForm = { ...prev, enrollment_date: value };
+        if (newForm.graduation_date && value > newForm.graduation_date) {
+          newForm.graduation_date = '';
+          staffToast.warning('Date conflict resolved', 'Graduation date cleared because it cannot be earlier than the new enrollment date.');
+        }
+        return newForm;
+      });
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
+    
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
     if (submitStatus) setSubmitStatus(null);
   };
@@ -54,6 +100,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
       if (!form.first_name?.trim()) err.first_name = "First name is required.";
       if (!form.last_name?.trim()) err.last_name = "Last name is required.";
       if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
+      if (!form.sex) err.sex = "Sex is required.";
     }
     if (phase === 2) {
       if (!form.email?.trim()) err.email = "Email is required.";
@@ -61,16 +108,25 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         err.email = "Enter a valid email.";
     }
     if (phase === 3) {
-      if (!form.enrollment_date)
+      if (!form.program_id) err.program_id = "Program is required.";
+      if (!form.enrollment_date) {
         err.enrollment_date = "Enrollment date is required.";
-      if (
-        form.GPA !== "" &&
-        (isNaN(parseFloat(form.GPA)) ||
-          parseFloat(form.GPA) < 0 ||
-          parseFloat(form.GPA) > 5)
-      ) {
-        err.GPA = "GPA must be between 0 and 5.00.";
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        if (form.enrollment_date > today) {
+          err.enrollment_date = "Enrollment date cannot be later than today.";
+        }
       }
+      if (form.graduation_date && form.enrollment_date && form.graduation_date < form.enrollment_date) {
+        err.graduation_date = "Graduation date cannot be earlier than enrollment date.";
+      }
+    }
+    if (phase === 4) {
+      if (!form.record_type?.trim()) err.record_type = "Record type is required.";
+      if (!form.cabinet_no?.trim()) err.cabinet_no = "Cabinet no. is required.";
+      if (!form.shelf_no?.trim()) err.shelf_no = "Shelf no. is required.";
+      if (!form.folder_code?.trim()) err.folder_code = "Folder code is required.";
+      if (!form.document_status?.trim()) err.document_status = "Document status is required.";
     }
     setErrors(err);
     return Object.keys(err).length === 0;
@@ -83,19 +139,27 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     if (!form.first_name?.trim()) err.first_name = "First name is required.";
     if (!form.last_name?.trim()) err.last_name = "Last name is required.";
     if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
+    if (!form.sex) err.sex = "Sex is required.";
     if (!form.email?.trim()) err.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       err.email = "Enter a valid email.";
-    if (!form.enrollment_date)
+    if (!form.program_id) err.program_id = "Program is required.";
+    if (!form.enrollment_date) {
       err.enrollment_date = "Enrollment date is required.";
-    if (
-      form.GPA !== "" &&
-      (isNaN(parseFloat(form.GPA)) ||
-        parseFloat(form.GPA) < 0 ||
-        parseFloat(form.GPA) > 5)
-    ) {
-      err.GPA = "GPA must be between 0 and 5.00.";
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      if (form.enrollment_date > today) {
+        err.enrollment_date = "Enrollment date cannot be later than today.";
+      }
     }
+    if (form.graduation_date && form.enrollment_date && form.graduation_date < form.enrollment_date) {
+      err.graduation_date = "Graduation date cannot be earlier than enrollment date.";
+    }
+    if (!form.record_type?.trim()) err.record_type = "Record type is required.";
+    if (!form.cabinet_no?.trim()) err.cabinet_no = "Cabinet no. is required.";
+    if (!form.shelf_no?.trim()) err.shelf_no = "Shelf no. is required.";
+    if (!form.folder_code?.trim()) err.folder_code = "Folder code is required.";
+    if (!form.document_status?.trim()) err.document_status = "Document status is required.";
     setErrors(err);
     return Object.keys(err).length === 0;
   };
@@ -128,15 +192,16 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         address: form.address?.trim() || null,
         enrollment_date: form.enrollment_date,
         graduation_date: form.graduation_date || null,
-        GPA: form.GPA !== "" ? parseFloat(form.GPA) : null,
-        record_type: form.record_type?.trim() || null,
-        cabinet_no: form.cabinet_no?.trim() || null,
-        shelf_no: form.shelf_no?.trim() || null,
-        folder_code: form.folder_code?.trim() || null,
-        document_status: form.document_status?.trim() || null,
-        is_archived: form.is_archived,
+
+        sex: form.sex,
+        program_id: form.program_id,
+        subject_ids: form.subject_ids,
+        record_type: form.record_type.trim(),
+        cabinet_no: form.cabinet_no.trim(),
+        shelf_no: form.shelf_no.trim(),
+        folder_code: form.folder_code.trim(),
+        document_status: form.document_status.trim(),
       };
-      console.log('payload: ' , payload);
       const res = await staffApi.createStudent(payload);
       queryClient.invalidateQueries({
         queryKey: [...queryKeys.staff.all, "students"],
@@ -156,13 +221,26 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
       );
     } catch (err) {
       const parsed = parseApiError(err);
-      setSubmitStatus(parsed.message || "Failed to create student.");
       if (parsed.errors) {
         const errMap = {};
         Object.keys(parsed.errors).forEach((k) => {
           errMap[k] = parsed.errors[k][0];
         });
         setErrors(errMap);
+        // Jump to the first step that has an error
+        const phase1Fields = ["student_number", "first_name", "last_name", "date_of_birth"];
+        const phase2Fields = ["email", "contact_number", "address"];
+        const phase3Fields = ["program_id", "enrollment_date", "graduation_date"];
+        const phase4Fields = ["record_type", "cabinet_no", "shelf_no", "folder_code", "document_status"];
+        const errorKeys = Object.keys(errMap);
+        if (errorKeys.some((k) => phase1Fields.includes(k))) setCurrentPhase(1);
+        else if (errorKeys.some((k) => phase2Fields.includes(k))) setCurrentPhase(2);
+        else if (errorKeys.some((k) => phase3Fields.includes(k))) setCurrentPhase(3);
+        else if (errorKeys.some((k) => phase4Fields.includes(k))) setCurrentPhase(4);
+        const allMessages = Object.values(errMap).join(" · ");
+        staffToast.error("Student not created", allMessages || parsed.message || "Please fix the highlighted fields.");
+      } else {
+        staffToast.error("Student not created", parsed.message || "Failed to create student.");
       }
     } finally {
       setLoading(false);
@@ -227,39 +305,29 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
               )}
             </div>
           )}
-          {submitStatus && submitStatus !== "success" && (
-            <div
-              className="py-3 px-4 rounded-lg mb-4 bg-red-100 text-red-800 border border-red-200 text-sm"
-              role="alert"
-            >
-              {submitStatus}
-            </div>
-          )}
-
           {/* Phase stepper */}
           <div
             className="flex items-center justify-center gap-0 py-4 mb-6 bg-gray-50 rounded-lg"
             aria-label="Form phases"
           >
-            {[1, 2, 3, 4].map((phase) => (
-              <div key={phase} className="flex items-center gap-2">
+            {[1, 2, 3, 4].map((step) => (
+              <div key={step} className="flex items-center gap-2">
                 <span
-                  className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
-                    currentPhase === phase || currentPhase > phase
+                  className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentPhase === step || currentPhase > step
                       ? "bg-tmcc text-white"
                       : "bg-gray-200 text-gray-600"
-                  }`}
+                    }`}
                 >
-                  {phase}
+                  {step}
                 </span>
                 <span
-                  className={`text-sm mr-2 ${currentPhase === phase ? "text-tmcc font-semibold" : "text-gray-600"}`}
+                  className={`text-sm mr-2 ${currentPhase === step ? "text-tmcc font-semibold" : "text-gray-600"}`}
                 >
-                  Phase {phase}
+                  Step {step}
                 </span>
-                {phase < 4 && (
+                {step < 4 && (
                   <span
-                    className={`w-10 h-0.5 mx-1 ${currentPhase > phase ? "bg-tmcc" : "bg-gray-200"}`}
+                    className={`w-8 h-0.5 mx-1 ${currentPhase > step ? "bg-tmcc" : "bg-gray-200"}`}
                   />
                 )}
               </div>
@@ -271,7 +339,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
               <div className="mb-8 p-6 bg-white rounded-xl border-l-4 border-tmcc shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-gray-100">
                 <h4 className="flex items-center gap-3 m-0 mb-5 pb-3 text-base font-semibold text-gray-800 border-b-2 border-gray-200">
                   <span className="inline-flex items-center justify-center min-w-[4.5rem] py-1.5 px-3 bg-tmcc text-white text-sm font-bold rounded-md tracking-wide">
-                    Phase 1
+                    Step 1
                   </span>
                   Personal Information
                 </h4>
@@ -320,6 +388,29 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       <span className="text-xs text-red-600">
                         {errors.date_of_birth}
                       </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="sex"
+                      className="text-sm font-medium text-gray-600"
+                    >
+                      Sex *
+                    </label>
+                    <select
+                      id="sex"
+                      name="sex"
+                      value={form.sex}
+                      onChange={handleChange}
+                      className={`${inputBase} ${errors.sex ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.sex}
+                    >
+                      <option value="">Select sex</option>
+                      <option value="M">Male</option>
+                      <option value="F">Female</option>
+                    </select>
+                    {errors.sex && (
+                      <span className="text-xs text-red-600">{errors.sex}</span>
                     )}
                   </div>
                 </div>
@@ -380,7 +471,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
               <div className="mb-8 p-6 bg-white rounded-xl border-l-4 border-tmcc shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-gray-100">
                 <h4 className="flex items-center gap-3 m-0 mb-5 pb-3 text-base font-semibold text-gray-800 border-b-2 border-gray-200">
                   <span className="inline-flex items-center justify-center min-w-[4.5rem] py-1.5 px-3 bg-tmcc text-white text-sm font-bold rounded-md tracking-wide">
-                    Phase 2
+                    Step 2
                   </span>
                   Contact Information
                 </h4>
@@ -398,7 +489,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       type="email"
                       value={form.email}
                       onChange={handleChange}
-                      placeholder="student@tmcc.edu.ph"
+                      placeholder="[EMAIL_ADDRESS]"
                       maxLength={100}
                       className={`${inputBase} ${errors.email ? inputError : inputNormal}`}
                       aria-invalid={!!errors.email}
@@ -453,7 +544,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
               <div className="mb-8 p-6 bg-white rounded-xl border-l-4 border-tmcc shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-gray-100">
                 <h4 className="flex items-center gap-3 m-0 mb-5 pb-3 text-base font-semibold text-gray-800 border-b-2 border-gray-200">
                   <span className="inline-flex items-center justify-center min-w-[4.5rem] py-1.5 px-3 bg-tmcc text-white text-sm font-bold rounded-md tracking-wide">
-                    Phase 3
+                    Step 3
                   </span>
                   Enrollment Information
                 </h4>
@@ -465,6 +556,35 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                   <span><strong>Password:</strong> <code className="px-1.5 py-0.5 rounded bg-amber-100 font-mono">password123</code> <span className="text-amber-700">(mock, auto-generated later)</span></span>
                 </div>
               </div> */}
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-6">
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label htmlFor="program_id" className="text-sm font-medium text-gray-600">
+                      Program *
+                    </label>
+                    <select
+                      id="program_id"
+                      name="program_id"
+                      value={form.program_id}
+                      onChange={handleChange}
+                      className={`${inputBase} ${errors.program_id ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.program_id}
+                      disabled={loadingPrograms}
+                    >
+                      <option value="">
+                        {loadingPrograms ? "Loading programs..." : "Select program"}
+                      </option>
+                      {programsData?.programs?.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code} - {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.program_id && (
+                      <span className="text-xs text-red-600">{errors.program_id}</span>
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -479,6 +599,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       type="date"
                       value={form.enrollment_date}
                       onChange={handleChange}
+                      max={new Date().toISOString().slice(0, 10)}
                       className={`${inputBase} ${errors.enrollment_date ? inputError : inputNormal}`}
                       aria-invalid={!!errors.enrollment_date}
                     />
@@ -501,161 +622,125 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       type="date"
                       value={form.graduation_date}
                       onChange={handleChange}
+                      min={form.enrollment_date || ''}
                       className={`${inputBase} ${inputNormal}`}
                     />
-                  </div>
-                  <div className="flex flex-col gap-1.5 max-w-[120px]">
-                    <label
-                      htmlFor="GPA"
-                      className="text-sm font-medium text-gray-600"
-                    >
-                      GPA
-                    </label>
-                    <input
-                      id="GPA"
-                      name="GPA"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="5"
-                      value={form.GPA}
-                      onChange={handleChange}
-                      placeholder="0.00–5.00"
-                      className={`${inputBase} ${errors.GPA ? inputError : inputNormal}`}
-                      aria-invalid={!!errors.GPA}
-                    />
-                    {errors.GPA && (
-                      <span className="text-xs text-red-600">{errors.GPA}</span>
-                    )}
                   </div>
                 </div>
               </div>
             )}
 
             {currentPhase === 4 && (
-              <>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="is_archived"
-                    id="is_archived"
-                    value={form.is_archived}
-                    className="mr-2"
-                    onChange={(e) => setForm((prev) => ({ ...prev, is_archived: e.target.checked }))}
-                  />
-                  <label htmlFor="is_archived">Archive</label>
-                </div>
-                {form.is_archived && (
-                  <div className="mb-8 p-6 bg-white rounded-xl border-l-4 border-tmcc shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-gray-100">
-                    <h4 className="flex items-center gap-3 m-0 mb-5 pb-3 text-base font-semibold text-gray-800 border-b-2 border-gray-200">
-                      <span className="inline-flex items-center justify-center min-w-[4.5rem] py-1.5 px-3 bg-tmcc text-white text-sm font-bold rounded-md tracking-wide">
-                        Phase 4
-                      </span>
-                      Meta Data
-                    </h4>
-
-                    <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                      {/* Record Type */}
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="record_type"
-                          className="text-sm font-medium text-gray-600"
-                        >
-                          Record Type
-                        </label>
-                        <input
-                          id="record_type"
-                          name="record_type"
-                          type="text"
-                          value={form.record_type}
-                          onChange={handleChange}
-                          placeholder="e.g. Student File"
-                          className={`${inputBase} ${inputNormal}`}
-                        />
-                      </div>
-
-                      {/* Cabinet No */}
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="cabinet_no"
-                          className="text-sm font-medium text-gray-600"
-                        >
-                          Cabinet No
-                        </label>
-                        <input
-                          id="cabinet_no"
-                          name="cabinet_no"
-                          type="text"
-                          value={form.cabinet_no}
-                          onChange={handleChange}
-                          placeholder="e.g. CAB-01"
-                          className={`${inputBase} ${inputNormal}`}
-                        />
-                      </div>
-
-                      {/* Shelf No */}
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="shelf_no"
-                          className="text-sm font-medium text-gray-600"
-                        >
-                          Shelf No
-                        </label>
-                        <input
-                          id="shelf_no"
-                          name="shelf_no"
-                          type="text"
-                          value={form.shelf_no}
-                          onChange={handleChange}
-                          placeholder="e.g. SH-02"
-                          className={`${inputBase} ${inputNormal}`}
-                        />
-                      </div>
-
-                      {/* Folder Code */}
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="folder_code"
-                          className="text-sm font-medium text-gray-600"
-                        >
-                          Folder Code
-                        </label>
-                        <input
-                          id="folder_code"
-                          name="folder_code"
-                          type="text"
-                          value={form.folder_code}
-                          onChange={handleChange}
-                          placeholder="e.g. F-2024-001"
-                          className={`${inputBase} ${inputNormal}`}
-                        />
-                      </div>
-
-                      {/* Document Status */}
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="document_status"
-                          className="text-sm font-medium text-gray-600"
-                        >
-                          Document Status
-                        </label>
-                        <select
-                          id="document_status"
-                          name="document_status"
-                          value={form.document_status}
-                          onChange={handleChange}
-                          className={`${inputBase} ${inputNormal}`}
-                        >
-                          <option value="">Select Status</option>
-                          <option value="complete">Complete</option>
-                          <option value="pending">Pending</option>
-                          <option value="missing">Missing</option>
-                        </select>
-                      </div>
-                    </div>
+              <div className="mb-8 p-6 bg-white rounded-xl border-l-4 border-tmcc shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-gray-100">
+                <h4 className="flex items-center gap-3 m-0 mb-5 pb-3 text-base font-semibold text-gray-800 border-b-2 border-gray-200">
+                  <span className="inline-flex items-center justify-center min-w-[4.5rem] py-1.5 px-3 bg-tmcc text-white text-sm font-bold rounded-md tracking-wide">
+                    Step 4
+                  </span>
+                  Archive Record
+                </h4>
+                <p className="text-sm text-gray-500 mb-4 mt-0">
+                  Physical filing metadata for this student record. All fields are required.
+                </p>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="record_type" className="text-sm font-medium text-gray-600">
+                      Record Type *
+                    </label>
+                    <input
+                      id="record_type"
+                      name="record_type"
+                      type="text"
+                      value={form.record_type}
+                      onChange={handleChange}
+                      placeholder="e.g. Student Record"
+                      maxLength={100}
+                      className={`${inputBase} ${errors.record_type ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.record_type}
+                    />
+                    {errors.record_type && (
+                      <span className="text-xs text-red-600">{errors.record_type}</span>
+                    )}
                   </div>
-                )}
-              </>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="document_status" className="text-sm font-medium text-gray-600">
+                      Document Status *
+                    </label>
+                    <input
+                      id="document_status"
+                      name="document_status"
+                      type="text"
+                      value={form.document_status}
+                      onChange={handleChange}
+                      placeholder="e.g. Active"
+                      maxLength={50}
+                      className={`${inputBase} ${errors.document_status ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.document_status}
+                    />
+                    {errors.document_status && (
+                      <span className="text-xs text-red-600">{errors.document_status}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="cabinet_no" className="text-sm font-medium text-gray-600">
+                      Cabinet No. *
+                    </label>
+                    <input
+                      id="cabinet_no"
+                      name="cabinet_no"
+                      type="text"
+                      value={form.cabinet_no}
+                      onChange={handleChange}
+                      placeholder="e.g. CAB-01"
+                      maxLength={50}
+                      className={`${inputBase} ${errors.cabinet_no ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.cabinet_no}
+                    />
+                    {errors.cabinet_no && (
+                      <span className="text-xs text-red-600">{errors.cabinet_no}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="shelf_no" className="text-sm font-medium text-gray-600">
+                      Shelf No. *
+                    </label>
+                    <input
+                      id="shelf_no"
+                      name="shelf_no"
+                      type="text"
+                      value={form.shelf_no}
+                      onChange={handleChange}
+                      placeholder="e.g. SH-03"
+                      maxLength={50}
+                      className={`${inputBase} ${errors.shelf_no ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.shelf_no}
+                    />
+                    {errors.shelf_no && (
+                      <span className="text-xs text-red-600">{errors.shelf_no}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="folder_code" className="text-sm font-medium text-gray-600">
+                      Folder Code *
+                    </label>
+                    <input
+                      id="folder_code"
+                      name="folder_code"
+                      type="text"
+                      value={form.folder_code}
+                      onChange={handleChange}
+                      placeholder="e.g. FLD-2025-001"
+                      maxLength={50}
+                      className={`${inputBase} ${errors.folder_code ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.folder_code}
+                    />
+                    {errors.folder_code && (
+                      <span className="text-xs text-red-600">{errors.folder_code}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             <div className="flex gap-4 mt-6 pt-4 border-t border-gray-200">

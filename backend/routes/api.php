@@ -46,11 +46,19 @@ Route::get('/settings/current', [SystemSettingsController::class, 'current'])
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
     Route::get('/subjects', [StudentController::class, 'subjects']);
     Route::get('/programs', [StudentController::class, 'programs']);
+    Route::get('/programs/{id}/curriculum', [StudentController::class, 'programSubjects']);
     
+
+    // Academic Progression endpoints (defined first to prevent wildcard parameter conflict)
+    Route::get('/students/{id}/academic-progress', [StudentController::class, 'academicProgress']);
+    Route::get('/students/{id}/academic-summary', [StudentController::class, 'academicSummary']);
+    Route::post('/students/{id}/enrollments/add-next-term', [StudentController::class, 'addNextTerm']);
+    Route::put('/students/{id}/grades/bulk-update', [StudentController::class, 'bulkUpdateGrades']);
 
     Route::get('/students', [StudentController::class, 'index']);
     Route::post('/students', [StudentController::class, 'store']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archiveStudent']);
+    Route::patch('/students/{id}/program', [StudentController::class, 'updateProgram']);
     Route::get('/students/{id}/transcript', [StudentController::class, 'downloadTranscript']);
     Route::get('/students/{id}', [StudentController::class, 'show']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
@@ -60,6 +68,17 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
     Route::post('/students/{id}/grades', [StudentController::class, 'storeGrade']);
     Route::put('/students/{id}/grades/{gradeId}', [StudentController::class, 'updateGrade']);
     Route::delete('/students/{id}/grades/{gradeId}', [StudentController::class, 'destroyGrade']);
+});
+
+use App\Http\Controllers\Api\PendingStudentUpdateController;
+
+// ---- Staff & Admin: Profile Updates (pending, approve, reject) ----
+Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
+    Route::get('/pending-profile-updates', [PendingStudentUpdateController::class, 'index']);
+    Route::get('/pending-profile-updates/{id}', [PendingStudentUpdateController::class, 'show']);
+    Route::get('/pending-profile-updates/{id}/supporting-document', [PendingStudentUpdateController::class, 'downloadDocument']);
+    Route::patch('/pending-profile-updates/{id}/approve', [PendingStudentUpdateController::class, 'approve']);
+    Route::patch('/pending-profile-updates/{id}/reject', [PendingStudentUpdateController::class, 'reject']);
 });
 
 // ---- Staff & Admin: Record requests (pending, approve, reject, approved list, release) ----
@@ -90,6 +109,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::get('/logs', [SystemLogController::class, 'index']);
+    Route::get('/logs/export-pdf', [SystemLogController::class, 'exportPdf']);
 });
 
 // ---- Admin only: System settings ----
@@ -110,7 +130,8 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::get('/subjects', [StudentProfileController::class, 'subjects']);
     Route::get('/grades', [StudentProfileController::class, 'grades']);
     Route::get('/curriculum', [StudentProfileController::class, 'curriculum']);
-    Route::put('/sis', [StudentProfileController::class, 'updateSis']);
+    Route::get('/academic-summary', [StudentProfileController::class, 'academicSummary']);
+    Route::match(['put', 'post'], '/sis', [StudentProfileController::class, 'updateSis']);
 });
 
 // ---- Student: Own record requests ----
@@ -118,5 +139,6 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::get('/record-requests', [RecordRequestController::class, 'index']);
     Route::post('/record-requests', [RecordRequestController::class, 'store']);
     Route::get('/record-requests/{id}', [RecordRequestController::class, 'show']);
+    Route::get('/record-requests/{id}/transcript', [RecordRequestController::class, 'downloadTranscript']);
     Route::get('/record-requests/{id}/approval-slip', [RequestController::class, 'downloadApprovalSlipStudent']);
 });

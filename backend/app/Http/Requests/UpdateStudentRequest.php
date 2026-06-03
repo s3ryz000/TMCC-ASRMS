@@ -44,7 +44,7 @@ class UpdateStudentRequest extends FormRequest
             'contact_number' => ['nullable', 'string', 'max:15'],
             'address' => ['nullable', 'string', 'max:150'],
             'place_of_birth' => ['nullable', 'string', 'max:120'],
-            'sex' => ['nullable', 'string', 'max:10', 'in:Male,Female,male,female'],
+            'sex' => ['nullable', 'string', 'in:M,F'],
             'guardian_name' => ['nullable', 'string', 'max:120'],
             'citizenship' => ['nullable', 'string', 'max:60'],
             'elementary_school' => ['nullable', 'string', 'max:150'],
@@ -53,9 +53,9 @@ class UpdateStudentRequest extends FormRequest
             'high_school_year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
             'previous_school' => ['nullable', 'string', 'max:150'],
             'previous_course' => ['nullable', 'string', 'max:150'],
-            'enrollment_date' => ['required', 'date'],
+            'enrollment_date' => ['required', 'date', 'before_or_equal:today'],
             'graduation_date' => ['nullable', 'date', 'after_or_equal:enrollment_date'],
-            'GPA' => ['nullable', 'numeric', 'min:0', 'max:5.00'],
+
         ];
     }
 
