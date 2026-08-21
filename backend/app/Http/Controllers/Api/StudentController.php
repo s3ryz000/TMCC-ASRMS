@@ -10,6 +10,9 @@ use App\Models\ArchiveRecord;
 use App\Models\Curriculum;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\AcademicProgressionService;
+use App\Services\Enrollment\EnrollmentPolicy;
+use App\Services\Enrollment\EnrollmentService;
+use App\Services\Enrollment\EnrollmentTerm;
 use App\Models\Enrollment;
 use App\Models\EnrollmentAuditLog;
 use App\Models\Grade;
@@ -25,6 +28,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StudentController extends Controller
@@ -114,7 +118,7 @@ class StudentController extends Controller
         $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         $email = $validated['email'];
         $exactPassword = User::generatePassword();
-        $student = DB::transaction(function () use ($validated, $studentNumber, $name, $email, $exactPassword, $subjectIds) {
+        $student = DB::transaction(function () use ($validated, $studentNumber, $name, $email, $exactPassword, $subjectIds, $user) {
             $account = User::create([
                 'name' => $name,
                 'email' => $email,
@@ -131,27 +135,31 @@ class StudentController extends Controller
 
             if (!empty($subjectIds)) {
                 $academicYear = \App\Models\SystemSetting::getValue('academic_year') ?: date('Y') . '-' . (date('Y') + 1);
-                $semesterStr = \App\Models\SystemSetting::getValue('semester') ?: '1st Semester';
-                $semester = (strpos(strtolower($semesterStr), '2nd') !== false) ? 2 : 1;
 
-                foreach ($subjectIds as $subjectId) {
-                    Enrollment::create([
-                        'student_id' => $student->student_id,
-                        'subject_id' => $subjectId,
-                        'academic_year' => $academicYear,
-                        'semester' => $semester,
-                        'status' => 'enrolled',
+                // A newly created student starts at Year 1, Semester 1 of their
+                // program. Subjects outside that term are a data-entry error, so
+                // they fail the whole creation rather than being recorded.
+                $term = new EnrollmentTerm(
+                    yearLevel: 1,
+                    semester: 1,
+                    academicYear: $academicYear,
+                );
+
+                $result = app(EnrollmentService::class)->enroll(
+                    $student,
+                    $term,
+                    $subjectIds,
+                    EnrollmentPolicy::newStudent(),
+                    $user,
+                );
+
+                // Thrown inside the transaction so the student, account and
+                // archive rows all roll back together.
+                if ($result->failed()) {
+                    throw ValidationException::withMessages([
+                        'subject_ids' => $result->errors(),
                     ]);
                 }
-
-                \App\Models\ProgramMapping::create([
-                    'student_id' => $student->student_id,
-                    'program_id' => $student->program_id,
-                    'academic_year' => $academicYear,
-                    'semester' => $semester,
-                    'status' => 'enrolled',
-                    'year_level' => 1,
-                ]);
             }
 
             ArchiveRecord::create([
@@ -179,6 +187,9 @@ class StudentController extends Controller
                 'password' => $exactPassword,
             ],
         ], 201);
+        } catch (ValidationException $e) {
+            // Curriculum violations are a 422 with usable messages, not a 500.
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Failed to create student and account: ' . $e->getMessage());
            return response()->json(['message' => 'Failed to create student and account.'], 500);
@@ -462,8 +473,14 @@ class StudentController extends Controller
     }
 
     /**
-     * Store enrollment for a student.
-     * Fixed: per-subject duplicate check (ignores soft-deleted), additive to existing semester groups.
+     * Add subjects to a student's record for an explicitly chosen term.
+     *
+     * The rules live in App\Services\Enrollment and are shared with every other
+     * path that can create an enrollment; this method only translates HTTP in
+     * and out. The previous hand-rolled implementation was unreachable in
+     * practice: its transaction closure referenced $passedSubjectIds without
+     * importing it, so every call raised a TypeError and returned 500 without
+     * enrolling anyone.
      */
     public function storeEnrollment(Request $request, int $id): JsonResponse
     {
@@ -473,12 +490,12 @@ class StudentController extends Controller
         if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
             return $err;
         }
+
         $student = Student::find($id);
         if (! $student) {
             return response()->json(['message' => 'Student not found.'], 404);
         }
 
-        // Student must already have an active program
         if (! $student->program_id) {
             return response()->json(['message' => 'Student has no active program set. Please set a program first.'], 422);
         }
@@ -496,166 +513,60 @@ class StudentController extends Controller
             'year_level.required'    => 'Year level is required.',
         ]);
 
-        $programId   = $student->program_id;
-        $studentId   = $student->student_id;
-        $academicYear = $validated['academic_year'];
-        $statusVal    = $validated['status'] ?? 'enrolled';
-        $yearLevel    = $validated['year_level'];
-
-        $SEMESTER_MAPPING = ['1st' => 1, '2nd' => 2];
-        $semesterInt = $SEMESTER_MAPPING[$validated['semester']] ?? 1;
-
-        // Validate subjects belong to program/year/semester
-        if (!empty($validated['subject_ids'])) {
-            $validSubjectIds = Curriculum::where('program_id', $programId)
-                ->where('year_level', $yearLevel)
-                ->where('semester', $semesterInt)
-                ->pluck('subject_id')
-                ->toArray();
-
-            $invalidIds = array_diff($validated['subject_ids'], $validSubjectIds);
-            if (!empty($invalidIds)) {
-                return response()->json([
-                    'message' => 'Some subjects do not belong to the student\'s active program curriculum for the selected year and semester.',
-                    'errors'  => ['subject_ids' => ['Invalid subjects for this program/year/semester.']],
-                ], 422);
-            }
-            $subjectsToEnroll = $validated['subject_ids'];
-        } else {
-            $subjectsToEnroll = Curriculum::where('program_id', $programId)
-                ->where('year_level', $yearLevel)
-                ->where('semester', $semesterInt)
-                ->pluck('subject_id')
-                ->toArray();
-        }
-
-        if (empty($subjectsToEnroll)) {
-            return response()->json(['message' => 'No subjects found for the selected program, year level, and semester.'], 422);
-        }
-
-        // ── Prerequisite validation ───────────────────────────────────────────
-        // For every subject being enrolled, if the curriculum entry declares a
-        // prerequisite the student must already have a passing grade in it.
-        // No same-batch bypass: enrolling prereq + dependent together is blocked.
-        $prereqEntries = Curriculum::with(['subject', 'prerequisites'])
-            ->where('program_id', $programId)
-            ->whereIn('subject_id', $subjectsToEnroll)
-            ->get();
-
-        $prereqEntries = $prereqEntries->filter(function ($entry) {
-            return $entry->prerequisites->isNotEmpty();
-        });
-
-        if ($prereqEntries->isNotEmpty()) {
-            $passedSubjectIds = Grade::where('student_id', $studentId)
-                ->where(function ($q) {
-                    $q->where(function ($inner) {
-                        $inner->whereNotNull('grade_value')
-                              ->where('grade_value', '>=', 1.00)
-                              ->where('grade_value', '<=', 3.00);
-                    })->orWhere(function ($inner) {
-                        $inner->whereNull('grade_value')
-                              ->where('remarks', 'PASSED');
-                    });
-                })
-                ->pluck('subject_id')
-                ->toArray();
-
-            $prereqErrors = [];
-            foreach ($prereqEntries as $entry) {
-                $requiredPrereqIds = $entry->prerequisites->pluck('id')->toArray();
-                $missingIds = array_diff($requiredPrereqIds, $passedSubjectIds);
-
-                if (!empty($missingIds)) {
-                    $missingCodes = [];
-                    foreach ($entry->prerequisites as $prereqSubject) {
-                        if (in_array($prereqSubject->id, $missingIds)) {
-                            $missingCodes[] = $prereqSubject->code;
-                        }
-                    }
-                    $missingDisplay = implode(', ', $missingCodes);
-                    $currentCode = $entry->subject?->code ?? "Subject #{$entry->subject_id}";
-                    $prereqErrors[] = "{$missingDisplay} must be completed before enrolling in {$currentCode}.";
-                }
-            }
-
-            if (! empty($prereqErrors)) {
-                return response()->json([
-                    'message' => 'Enrollment failed: prerequisite requirements not met.',
-                    'errors'  => ['prerequisites' => $prereqErrors],
-                ], 422);
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────────
-
-        // Per-subject duplicate check: only active (non-soft-deleted) enrollments count.
-        // This allows re-adding subjects that were previously archived/soft-deleted.
-        $duplicateSubjects = [];
-        $enrolledCount = 0;
-
-        DB::transaction(function () use (
-            $subjectsToEnroll, $studentId, $programId, $academicYear, $semesterInt,
-            $statusVal, $yearLevel, &$duplicateSubjects, &$enrolledCount
-        ) {
-            foreach ($subjectsToEnroll as $subjectId) {
-                // Must not be already passed/credited
-                if (in_array($subjectId, $passedSubjectIds)) {
-                    $duplicateSubjects[] = $subjectId;
-                    continue;
-                }
-
-                // Check for active enrollment in ANY term, not just the selected one
-                $activeExists = Enrollment::where('student_id', $studentId)
-                    ->where('subject_id', $subjectId)
-                    ->whereNotIn('status', [
-                        'archived', 'Archived', 
-                        'cancelled', 'Cancelled', 
-                        'failed', 'Failed', 
-                        'withdrawn', 'Withdrawn', 
-                        'fda', 'FDA',
-                        'dropped', 'Dropped'
-                    ])
-                    ->whereNull('deleted_at')
-                    ->exists();
-
-                if ($activeExists) {
-                    $duplicateSubjects[] = $subjectId;
-                    continue; // skip this one, don't fail the whole batch
-                }
-
-                Enrollment::create([
-                    'student_id'    => $studentId,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $academicYear,
-                    'semester'      => $semesterInt,
-                    'status'        => 'enrolled',
-                ]);
-                $enrolledCount++;
-            }
-
-            // Upsert the ProgramMapping (semester group tracker).
-            // If one already exists (from a prior additive enrollment), just update it.
-            // This prevents the old block that rejected the whole batch.
-            ProgramMapping::updateOrCreate(
-                [
-                    'student_id'    => $studentId,
-                    'program_id'    => $programId,
-                    'academic_year' => $academicYear,
-                    'semester'      => $semesterInt,
-                ],
-                [
-                    'status'     => $statusVal,
-                    'year_level' => $yearLevel,
-                ]
-            );
-        });
-
-        if ($enrolledCount === 0 && !empty($duplicateSubjects)) {
-            // Every subject was already actively enrolled
+        // Refuse an unrecognised semester instead of silently recording it as
+        // 1st, which is what the old "?? 1" fallback did.
+        $semester = EnrollmentTerm::normaliseSemester($validated['semester']);
+        if ($semester === null) {
             return response()->json([
-                'message' => 'All selected subjects are already actively enrolled for this student in the selected academic year and semester.',
-                'errors'  => ['subject_ids' => ['All selected subjects are duplicate active enrollments.']],
-                'duplicate_subject_ids' => $duplicateSubjects,
+                'message' => 'Semester must be 1st or 2nd.',
+                'errors'  => ['semester' => ['Semester must be 1st or 2nd.']],
+            ], 422);
+        }
+
+        $term = new EnrollmentTerm(
+            yearLevel: (int) $validated['year_level'],
+            semester: $semester,
+            academicYear: $validated['academic_year'],
+        );
+
+        // An empty selection means "enroll the whole term".
+        $subjectIds = $validated['subject_ids'] ?? [];
+        if (empty($subjectIds)) {
+            $subjectIds = Curriculum::where('program_id', $student->program_id)
+                ->where('year_level', $term->yearLevel)
+                ->where('semester', $term->semester)
+                ->pluck('subject_id')
+                ->all();
+        }
+
+        if (empty($subjectIds)) {
+            return response()->json([
+                'message' => 'No subjects found for the selected program, year level, and semester.',
+            ], 422);
+        }
+
+        $result = app(EnrollmentService::class)->enroll(
+            $student,
+            $term,
+            $subjectIds,
+            EnrollmentPolicy::manualEntry(),
+            $request->user(),
+        );
+
+        if ($result->failed()) {
+            return response()->json([
+                'message' => 'Enrollment failed: the selection does not satisfy the curriculum rules.',
+                'errors'  => ['subject_ids' => $result->errors()],
+            ], 422);
+        }
+
+        $skipped = $result->skippedSubjectIds();
+
+        if ($result->enrolledCount === 0) {
+            return response()->json([
+                'message' => 'All selected subjects are already actively enrolled or already completed.',
+                'errors'  => ['subject_ids' => $result->outcome->skipReasons],
+                'duplicate_subject_ids' => $skipped,
             ], 422);
         }
 
@@ -665,16 +576,16 @@ class StudentController extends Controller
             'role'    => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
         ]);
 
-        $responseMsg = "Enrollment added successfully. {$enrolledCount} subject(s) enrolled.";
-        if (!empty($duplicateSubjects)) {
-            $responseMsg .= ' ' . count($duplicateSubjects) . ' subject(s) were already actively enrolled and skipped.';
+        $message = "Enrollment added successfully. {$result->enrolledCount} subject(s) enrolled.";
+        if (! empty($skipped)) {
+            $message .= ' ' . count($skipped) . ' subject(s) were already enrolled or completed and were skipped.';
         }
 
         return response()->json([
-            'message'               => $responseMsg,
-            'enrolled_count'        => $enrolledCount,
-            'skipped_duplicates'    => count($duplicateSubjects),
-            'duplicate_subject_ids' => $duplicateSubjects,
+            'message'               => $message,
+            'enrolled_count'        => $result->enrolledCount,
+            'skipped_duplicates'    => count($skipped),
+            'duplicate_subject_ids' => $skipped,
         ], 201);
     }
 
@@ -698,6 +609,47 @@ class StudentController extends Controller
             'semester' => ['sometimes', 'required', 'string', 'max:20'],
             'status' => ['nullable', 'string', 'max:20', 'in:enrolled,completed,dropped'],
         ]);
+
+        // Moving an enrollment to another term used to bypass every rule, which
+        // let a subject be relocated into a term where its prerequisites are not
+        // satisfied. Re-check it before accepting the change.
+        $newAcademicYear = $validated['academic_year'] ?? $enrollment->academic_year;
+        $newSemester = EnrollmentTerm::normaliseSemester($validated['semester'] ?? $enrollment->semester);
+
+        if ($newSemester === null) {
+            return response()->json([
+                'message' => 'Semester must be 1st or 2nd.',
+                'errors'  => ['semester' => ['Semester must be 1st or 2nd.']],
+            ], 422);
+        }
+
+        $termChanged = $newAcademicYear !== $enrollment->academic_year
+            || $newSemester !== (int) $enrollment->semester;
+
+        if ($termChanged) {
+            $student = Student::where('student_id', $enrollment->student_id)->first();
+
+            if ($student && $student->program_id) {
+                $outcome = app(\App\Services\Enrollment\EnrollmentValidator::class)->validate(
+                    $student,
+                    new EnrollmentTerm(
+                        yearLevel: (int) ($enrollment->year_level ?? 1),
+                        semester: $newSemester,
+                        academicYear: $newAcademicYear,
+                    ),
+                    [$enrollment->subject_id],
+                    EnrollmentPolicy::termCorrection(),
+                );
+
+                if (! $outcome->isValid()) {
+                    return response()->json([
+                        'message' => 'Enrollment cannot be moved to that term.',
+                        'errors'  => ['academic_year' => $outcome->errors],
+                    ], 422);
+                }
+            }
+        }
+
         $enrollment->update($validated);
         $enrollment->load('subject');
         SystemLog::create([
@@ -1171,103 +1123,26 @@ class StudentController extends Controller
         $enrolledCount = 0;
         $retakeCount   = 0;
 
-        DB::transaction(function () use ($student, $data, $user, $role, &$enrolledCount, &$retakeCount) {
+        // Persistence is shared with every other enrollment path, so the
+        // Enrollment / Grade / audit-log trio is always written together.
+        $term = new EnrollmentTerm(
+            yearLevel: (int) $data['year_level'],
+            semester: (int) $data['semester'],
+            academicYear: $data['academic_year'],
+        );
 
-            // ── Regular subjects ──────────────────────────────────────────────
-            foreach ($data['subject_ids'] as $subjectId) {
-                $enrollment = Enrollment::create([
-                    'student_id'    => $student->student_id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'year_level'    => $data['year_level'],
-                    'status'        => 'Enrolled',
-                    'is_retake'     => false,
-                ]);
+        $enrollmentService = app(EnrollmentService::class);
 
-                Grade::create([
-                    'student_id'    => $student->student_id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'enrollment_id' => $enrollment->id,
-                    'status'        => 'Enrolled',
-                    'grade_value'   => null,
-                    'remarks'       => null,
-                ]);
-
-                EnrollmentAuditLog::create([
-                    'student_id'    => $student->student_id,
-                    'enrollment_id' => $enrollment->id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'old_status'    => null,
-                    'new_status'    => 'Enrolled',
-                    'changed_by'    => $user->id,
-                    'action'        => 'enrollment_created',
-                    'reason'        => null,
-                    'had_grade'     => false,
-                    'user_role'     => $role,
-                ]);
-
-                $enrolledCount++;
-            }
-
-            // ── Retake subjects ───────────────────────────────────────────────
-            foreach ($data['retake_ids'] as $subjectId) {
-                $enrollment = Enrollment::create([
-                    'student_id'    => $student->student_id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'year_level'    => $data['year_level'],
-                    'status'        => 'Enrolled',
-                    'is_retake'     => true,
-                ]);
-
-                Grade::create([
-                    'student_id'    => $student->student_id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'enrollment_id' => $enrollment->id,
-                    'status'        => 'Enrolled',
-                    'grade_value'   => null,
-                    'remarks'       => null,
-                ]);
-
-                EnrollmentAuditLog::create([
-                    'student_id'    => $student->student_id,
-                    'enrollment_id' => $enrollment->id,
-                    'subject_id'    => $subjectId,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                    'old_status'    => null,
-                    'new_status'    => 'Enrolled',
-                    'changed_by'    => $user->id,
-                    'action'        => 'retake_enrollment_created',
-                    'reason'        => 'Retake of previously Failed/Withdrawn/FDA attempt.',
-                    'had_grade'     => false,
-                    'user_role'     => $role,
-                ]);
-
-                $retakeCount++;
-            }
-
-            // ── Upsert ProgramMapping ─────────────────────────────────────────
-            ProgramMapping::updateOrCreate(
-                [
-                    'student_id'    => $student->student_id,
-                    'program_id'    => $student->program_id,
-                    'academic_year' => $data['academic_year'],
-                    'semester'      => $data['semester'],
-                ],
-                [
-                    'status'     => 'enrolled',
-                    'year_level' => $data['year_level'],
-                ]
+        DB::transaction(function () use ($enrollmentService, $student, $term, $data, $user, &$enrolledCount, &$retakeCount) {
+            $enrolledCount = $enrollmentService->persistMany(
+                $student, $term, $data['subject_ids'], $user, false
             );
+
+            $retakeCount = $enrollmentService->persistMany(
+                $student, $term, $data['retake_ids'], $user, true
+            );
+
+            $enrollmentService->upsertProgramMapping($student, $term);
         });
 
         $total = $enrolledCount + $retakeCount;

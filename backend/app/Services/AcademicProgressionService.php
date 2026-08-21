@@ -9,6 +9,9 @@ use App\Models\Student;
 use App\Models\Subject;
 use Carbon\Carbon;
 use App\Services\AcademicResidencyValidationService;
+use App\Services\Enrollment\EnrollmentPolicy;
+use App\Services\Enrollment\EnrollmentTerm;
+use App\Services\Enrollment\EnrollmentValidator;
 
 class AcademicProgressionService
 {
@@ -958,131 +961,30 @@ class AcademicProgressionService
         $allRetakeIds = array_values(array_unique(array_merge($autoDetectedRetakeIds, $retakeSubjectIds)));
         // ─────────────────────────────────────────────────────────────────────
 
-        // ── Regular subjects ─────────────────────────────────────────────────
-        // 5th-year extension: any remaining curriculum subject (from any year/semester)
-        // is valid since the student is completing outstanding requirements.
-        if ($yearLevel >= 5) {
-            $validCurriculumIds = Curriculum::where('program_id', $student->program_id)
-                ->pluck('subject_id')
-                ->toArray();
-        } else {
-            $validCurriculumIds = Curriculum::where('program_id', $student->program_id)
-                ->where('year_level', $yearLevel)
-                ->where('semester', $semester)
-                ->pluck('subject_id')
-                ->toArray();
-        }
-
-        $passedSubjectIds = $this->getPassedSubjectIds($student);
+        // ── Regular subjects ────────────────────────────────────
+        // Delegated to the shared rule set in App\Services\Enrollment so this
+        // path, the manual staff form and student creation cannot drift apart
+        // again.
+        //
+        // 5th-year extension: a student completing outstanding requirements may
+        // take any remaining curriculum subject, from any year and semester.
         $errors = [];
         $validatedIds = [];
 
-        foreach ($regularSubjectIds as $subjectId) {
-            $subject = Subject::find($subjectId);
-            $code = $subject?->code ?? "Subject #{$subjectId}";
+        if (!empty($regularSubjectIds)) {
+            $outcome = app(EnrollmentValidator::class)->validate(
+                $student,
+                new EnrollmentTerm(
+                    yearLevel: (int) $yearLevel,
+                    semester: (int) $semester,
+                    academicYear: $academicYear,
+                ),
+                $regularSubjectIds,
+                EnrollmentPolicy::guidedNextTerm(allowAnyCurriculumTerm: $yearLevel >= 5),
+            );
 
-            // Must belong to curriculum for this term
-            if (!in_array($subjectId, $validCurriculumIds)) {
-                $errors[] = "{$code} does not belong to the curriculum for Year {$yearLevel}, Semester {$semester}.";
-                continue;
-            }
-
-            // Must not be already passed/credited
-            if (in_array($subjectId, $passedSubjectIds)) {
-                $errors[] = "{$code} has already been passed or credited.";
-                continue;
-            }
-
-            // Must not have active enrollment in the same AY + semester
-            $activeExists = Enrollment::where('student_id', $student->student_id)
-                ->where('subject_id', $subjectId)
-                ->where('academic_year', $academicYear)
-                ->where('semester', $semester)
-                ->whereNull('deleted_at')
-                ->whereNotIn('status', ['Cancelled', 'archived'])
-                ->exists();
-
-            if ($activeExists) {
-                $errors[] = "{$code} already has an active enrollment for A.Y. {$academicYear}, Semester {$semester}.";
-                continue;
-            }
-
-            // Prerequisite check
-            $prereqEntry = Curriculum::with(['prerequisites', 'prerequisite'])
-                ->where('program_id', $student->program_id)
-                ->where('subject_id', $subjectId)
-                ->first();
-
-            if ($prereqEntry) {
-                $unresolvedPrereqs = $prereqEntry->unresolved_prerequisites ?? [];
-                if (!empty($unresolvedPrereqs)) {
-                    $unresolvedDisplay = implode(', ', $unresolvedPrereqs);
-                    $errors[] = "{$code} cannot be enrolled: unresolved prerequisite(s) '{$unresolvedDisplay}'. " .
-                        "Registrar must verify curriculum mapping.";
-                    continue;
-                }
-
-                if ($prereqEntry->prerequisites->isNotEmpty()) {
-                    $requiredPrereqIds = $prereqEntry->prerequisites->pluck('id')->toArray();
-                    $prereqSubjects = $prereqEntry->prerequisites;
-                } else {
-                    $legacyId = $prereqEntry->getAttributes()['prerequisite'] ?? null;
-                    if ($legacyId) {
-                        $legacySubject = $prereqEntry->getRelationValue('prerequisite') ?? Subject::find($legacyId);
-                        if ($legacySubject) {
-                            $requiredPrereqIds = [$legacyId];
-                            $prereqSubjects = collect([$legacySubject]);
-                        } else {
-                            $requiredPrereqIds = [];
-                            $prereqSubjects = collect();
-                        }
-                    } else {
-                        $requiredPrereqIds = [];
-                        $prereqSubjects = collect();
-                    }
-                }
-
-                if ($prereqSubjects->isNotEmpty()) {
-                    $prereqLogic = $prereqEntry->prerequisite_logic ?? 'AND';
-
-                    if ($prereqLogic === 'OR') {
-                        $passedPrereqs = array_intersect($requiredPrereqIds, $passedSubjectIds);
-                        if (!empty($passedPrereqs)) {
-                            $missingIds = [];
-                        } else {
-                            $missingIds = $requiredPrereqIds;
-                        }
-                    } else {
-                        $missingIds = array_diff($requiredPrereqIds, $passedSubjectIds);
-                    }
-
-                    if (!empty($missingIds)) {
-                        $missingCodes = [];
-                        foreach ($prereqSubjects as $prereqSubject) {
-                            if (in_array($prereqSubject->id, $missingIds)) {
-                                $missingCodes[] = $prereqSubject->code;
-                            }
-                        }
-
-                        if (count($missingCodes) > 1) {
-                            if ($prereqLogic === 'OR') {
-                                $missingDisplay = implode(' or ', $missingCodes);
-                            } else {
-                                $last = array_pop($missingCodes);
-                                $missingDisplay = implode(' and ', $missingCodes) . " and " . $last;
-                                $missingCodes[] = $last; // Restore
-                            }
-                        } else {
-                            $missingDisplay = implode('', $missingCodes);
-                        }
-
-                        $errors[] = "{$missingDisplay} must be completed (Passed/Credited) before enrolling in {$code}.";
-                        continue;
-                    }
-                }
-            }
-
-            $validatedIds[] = $subjectId;
+            $validatedIds = $outcome->validSubjectIds;
+            $errors = $outcome->errors;
         }
 
         // ── Retake subjects ──────────────────────────────────────────────────
