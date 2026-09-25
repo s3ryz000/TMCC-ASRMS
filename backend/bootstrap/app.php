@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -42,11 +43,25 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // Must be handled explicitly: AuthenticationException is not an
+        // HttpException, so the catch-all below would report an expired or
+        // missing token as a 500. The SPA keys its auto-logout off a 401
+        // (see frontend/src/lib/api/client.js), so a 500 here left users
+        // staring at "an internal error occurred" instead of the login screen.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['message' => 'Unauthenticated.'], 401);
+            }
+        });
+
         $exceptions->render(function (\Throwable $e, Request $request) {
             if (! $request->is('api/*') && ! $request->expectsJson()) {
                 return null;
             }
-            if ($e instanceof ValidationException || $e instanceof NotFoundHttpException) {
+            if ($e instanceof ValidationException
+                || $e instanceof NotFoundHttpException
+                || $e instanceof AuthenticationException
+            ) {
                 return null;
             }
             $status = $e instanceof HttpException ? $e->getStatusCode() : 500;

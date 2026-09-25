@@ -9,6 +9,7 @@ use App\Models\RecordTransaction;
 use App\Models\Staff;
 use App\Models\SystemLog;
 use App\Services\OfficialTranscriptExportService;
+use App\Services\QrCodeGenerator;
 use App\Services\StaffService;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
@@ -495,7 +496,11 @@ class RequestController extends Controller
         $status = Str::upper((string) $recordRequest->status);
 
         $selfUrl = $request->fullUrl();
-        $qrUrl = 'https://quickchart.io/qr?size=220&text=' . rawurlencode($selfUrl);
+
+        // Encoded locally rather than fetched from an image service: the system
+        // runs on an isolated campus LAN, so a remote QR URL would render as a
+        // broken image on every deployed machine.
+        $qrUrl = QrCodeGenerator::pngDataUri($selfUrl);
 
         $html = '
             <!doctype html>
@@ -594,7 +599,9 @@ class RequestController extends Controller
             now()->addDays(30),
             ['id' => $recordRequest->id]
         );
-        $qrUrl = 'https://quickchart.io/qr?size=220&text=' . rawurlencode($verificationUrl);
+        // Local encoding also means Dompdf never needs remote image fetching
+        // enabled to render the slip.
+        $qrUrl = QrCodeGenerator::pngDataUri($verificationUrl);
 
         $html = '
             <html>

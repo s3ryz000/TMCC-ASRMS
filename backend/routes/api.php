@@ -42,25 +42,34 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::get('/settings/current', [SystemSettingsController::class, 'current'])
     ->middleware(['auth:sanctum', 'role:staff,admin,student']);
 
-// ---- Staff & Admin: Students ----
+// ---- Staff & Admin: Students (READ-ONLY) ----
+// Admins may read and report on student records but may not modify them. Per
+// the capstone scope (§1.4), administrators are "limited only to system
+// administration functions ... and are not permitted to perform CRUD
+// operations on student academic records". Writes therefore live in the
+// registrar-only group below, and each controller re-checks the role.
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
     Route::get('/subjects', [StudentController::class, 'subjects']);
     Route::get('/programs', [StudentController::class, 'programs']);
     Route::get('/programs/{id}/curriculum', [StudentController::class, 'programSubjects']);
-    
 
-    // Academic Progression endpoints (defined first to prevent wildcard parameter conflict)
+    // Academic Progression reads (defined first to prevent wildcard parameter conflict)
     Route::get('/students/{id}/academic-progress', [StudentController::class, 'academicProgress']);
     Route::get('/students/{id}/academic-summary', [StudentController::class, 'academicSummary']);
+
+    Route::get('/students', [StudentController::class, 'index']);
+    Route::get('/students/{id}/transcript', [StudentController::class, 'downloadTranscript']);
+    Route::get('/students/{id}', [StudentController::class, 'show']);
+});
+
+// ---- Registrar staff only: Student record CRUD ----
+Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(function () {
     Route::post('/students/{id}/enrollments/add-next-term', [StudentController::class, 'addNextTerm']);
     Route::put('/students/{id}/grades/bulk-update', [StudentController::class, 'bulkUpdateGrades']);
 
-    Route::get('/students', [StudentController::class, 'index']);
     Route::post('/students', [StudentController::class, 'store']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archiveStudent']);
     Route::patch('/students/{id}/program', [StudentController::class, 'updateProgram']);
-    Route::get('/students/{id}/transcript', [StudentController::class, 'downloadTranscript']);
-    Route::get('/students/{id}', [StudentController::class, 'show']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
     Route::post('/students/{id}/enrollments', [StudentController::class, 'storeEnrollment']);
     Route::put('/students/{id}/enrollments/{enrollmentId}', [StudentController::class, 'updateEnrollment']);
@@ -72,11 +81,16 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;
 
-// ---- Staff & Admin: Profile Updates (pending, approve, reject) ----
+// ---- Staff & Admin: Profile Updates (read + oversight) ----
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
     Route::get('/pending-profile-updates', [PendingStudentUpdateController::class, 'index']);
     Route::get('/pending-profile-updates/{id}', [PendingStudentUpdateController::class, 'show']);
     Route::get('/pending-profile-updates/{id}/supporting-document', [PendingStudentUpdateController::class, 'downloadDocument']);
+});
+
+// ---- Registrar staff only: acting on profile updates ----
+// Approving writes the change onto the student record, so it is record-keeping.
+Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(function () {
     Route::patch('/pending-profile-updates/{id}/approve', [PendingStudentUpdateController::class, 'approve']);
     Route::patch('/pending-profile-updates/{id}/reject', [PendingStudentUpdateController::class, 'reject']);
 });

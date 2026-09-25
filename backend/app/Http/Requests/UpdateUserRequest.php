@@ -22,6 +22,12 @@ class UpdateUserRequest extends FormRequest
             'role' => ['required', 'string', 'in:student,staff,admin'],
             'department' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
+
+            // Optional administrative password reset. The system is deployed on
+            // an isolated LAN with no mail server, so a self-service "forgot
+            // password" e-mail is not possible; the administrator resetting the
+            // credential in person is the recovery path (§3.9.1).
+            'password' => ['sometimes', 'nullable', 'string', 'min:8', 'confirmed'],
         ];
     }
 }

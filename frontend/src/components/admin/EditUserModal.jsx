@@ -17,6 +17,8 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     role: 'staff',
     department: '',
     status: 'active',
+    password: '',
+    passwordConfirmation: '',
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -29,6 +31,9 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
         role: user.role || 'staff',
         department: user.department || '',
         status: user.status || 'active',
+        // Never pre-filled: an empty field means "leave the password alone".
+        password: '',
+        passwordConfirmation: '',
       });
     }
   }, [user]);
@@ -41,6 +46,13 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     if (['staff', 'admin'].includes(form.role) && !form.department?.trim()) {
       err.department = 'Department is required for staff/admin.';
     }
+    if (form.password) {
+      if (form.password.length < 8) {
+        err.password = 'Password must be at least 8 characters.';
+      } else if (form.password !== form.passwordConfirmation) {
+        err.password_confirmation = 'Passwords do not match.';
+      }
+    }
     setErrors(err);
     return Object.keys(err).length === 0;
   };
@@ -51,15 +63,28 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     if (!validate()) return;
     setLoading(true);
     try {
+      const passwordWasReset = Boolean(form.password);
+
       await adminApi.updateUser(user.id, {
         name: form.name.trim(),
         email: form.email.trim(),
         role: form.role,
         department: ['staff', 'admin'].includes(form.role) ? form.department?.trim() || null : null,
         status: form.status,
+        // Only sent when the administrator actually typed a new password, so a
+        // routine edit never touches the stored credential.
+        ...(passwordWasReset && {
+          password: form.password,
+          password_confirmation: form.passwordConfirmation,
+        }),
       });
       onClose();
-      adminToast.success('User updated', `${form.name} has been updated successfully.`);
+      adminToast.success(
+        'User updated',
+        passwordWasReset
+          ? `${form.name} has been updated and their password was reset.`
+          : `${form.name} has been updated successfully.`
+      );
       onSuccess?.();
     } catch (err) {
       const parsed = parseApiError(err);
@@ -154,6 +179,51 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+          </div>
+
+          <div className="pt-4 border-t border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-800">Reset password</h3>
+            <p className="mt-1 mb-3 text-xs text-gray-500">
+              Optional. Leave both fields blank to keep the current password. Use this
+              when a user has forgotten theirs and needs access restored.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="edit-user-password" className="block text-sm font-medium text-gray-700 mb-1">
+                  New password
+                </label>
+                <input
+                  id="edit-user-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.password}
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  className={errors.password ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
+                  placeholder="At least 8 characters"
+                  aria-invalid={!!errors.password}
+                />
+                {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="edit-user-password-confirm" className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm new password
+                </label>
+                <input
+                  id="edit-user-password-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.passwordConfirmation}
+                  onChange={(e) => setForm((f) => ({ ...f, passwordConfirmation: e.target.value }))}
+                  className={errors.password_confirmation ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
+                  aria-invalid={!!errors.password_confirmation}
+                />
+                {errors.password_confirmation && (
+                  <p className="mt-1 text-xs text-red-600">{errors.password_confirmation}</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex gap-3 mt-6 justify-end">
