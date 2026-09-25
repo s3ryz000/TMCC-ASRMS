@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Staff;
+use App\Models\SystemLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -144,10 +145,29 @@ class UserController extends Controller
         }
 
         $validated = $request->validated();
+
+        // A blank password field means "leave the credential alone"; only hash
+        // and store when the administrator actually supplied a new one.
+        $passwordWasReset = filled($validated['password'] ?? null);
+
+        if ($passwordWasReset) {
+            $validated['password'] = bcrypt($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
+
         $user->update($validated);
 
         if (isset($validated['role'])) {
             $user->syncRoles([$validated['role']]);
+        }
+
+        if ($passwordWasReset) {
+            SystemLog::create([
+                'action'  => "Password reset for user {$user->username} ({$user->email}) by administrator",
+                'user_id' => $request->user()->id,
+                'role'    => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
+            ]);
         }
 
         $user->load('roles');

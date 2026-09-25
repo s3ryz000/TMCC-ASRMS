@@ -56,13 +56,16 @@ class PendingStudentUpdateController extends Controller
 
     /**
      * Approve a pending update.
+     *
+     * Registrar staff only: approving writes the change onto the student
+     * record, which is record-keeping rather than system governance.
      */
     public function approve(Request $request, int $id): JsonResponse
     {
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 
@@ -110,13 +113,15 @@ class PendingStudentUpdateController extends Controller
 
     /**
      * Reject a pending update.
+     *
+     * Registrar staff only, for the same reason as approve().
      */
     public function reject(Request $request, int $id): JsonResponse
     {
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 

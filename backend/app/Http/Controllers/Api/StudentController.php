@@ -94,7 +94,11 @@ class StudentController extends Controller
     }
 
     /**
-     * Store a newly created student and their login account (staff/admin only).
+     * Store a newly created student and their login account (registrar staff only).
+     *
+     * Admins are deliberately excluded from every write in this controller:
+     * their role is system governance, not record-keeping. Reads stay open to
+     * them so they can still oversee and report on what the registrar entered.
      */
     public function store(StoreStudentRequest $request): JsonResponse
     {
@@ -104,8 +108,8 @@ class StudentController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $role = $user->roles->first()?->name ?? $user->role ?? null;
-        if (! in_array($role, ['staff', 'admin'], true)) {
-            return response()->json(['message' => 'Forbidden. Staff or Admin only.'], 403);
+        if (! in_array($role, ['staff'], true)) {
+            return response()->json(['message' => 'Forbidden. Registrar staff only.'], 403);
         }
 
         $validated = $request->validated();
@@ -251,7 +255,7 @@ class StudentController extends Controller
     }
 
     /**
-     * Update the specified student (staff/admin only).
+     * Update the specified student (registrar staff only).
      */
     public function update(UpdateStudentRequest $request, int $id): JsonResponse
     {
@@ -261,8 +265,8 @@ class StudentController extends Controller
         }
 
         $role = $user->roles->first()?->name ?? $user->role ?? null;
-        if (! in_array($role, ['staff', 'admin'], true)) {
-            return response()->json(['message' => 'Forbidden. Staff or Admin only.'], 403);
+        if (! in_array($role, ['staff'], true)) {
+            return response()->json(['message' => 'Forbidden. Registrar staff only.'], 403);
         }
 
         $student = Student::find($id);
@@ -357,8 +361,8 @@ class StudentController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $role = $user->roles->first()?->name ?? $user->role ?? null;
-        if (! in_array($role, ['staff', 'admin'], true)) {
-            return response()->json(['message' => 'Forbidden.'], 403);
+        if (! in_array($role, ['staff'], true)) {
+            return response()->json(['message' => 'Forbidden. Registrar staff only.'], 403);
         }
 
         $student = Student::find($id);
@@ -487,7 +491,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 
@@ -597,7 +601,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
         $enrollment = Enrollment::where('student_id', $id)->where('id', $enrollmentId)->first();
@@ -672,7 +676,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 
@@ -793,7 +797,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
         $student = Student::find($id);
@@ -849,7 +853,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
         $grade = Grade::where('student_id', $id)->where('id', $gradeId)->first();
@@ -891,7 +895,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
         $grade = Grade::where('student_id', $id)->where('id', $gradeId)->first();
@@ -924,7 +928,7 @@ class StudentController extends Controller
             if ($err = $this->requireAuth()) {
                 return $err;
             }
-            if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+            if ($err = $this->requireRoles($request->user(), ['staff'])) {
                 return $err;
             }
             $student = Student::find($id);
@@ -1048,7 +1052,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 
@@ -1177,7 +1181,7 @@ class StudentController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
             return $err;
         }
 
