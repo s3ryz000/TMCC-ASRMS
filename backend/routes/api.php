@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\StudentDocumentController;
 use App\Http\Controllers\auth\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
@@ -59,6 +60,8 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 
     Route::get('/students', [StudentController::class, 'index']);
     Route::get('/students/{id}/transcript', [StudentController::class, 'downloadTranscript']);
+    Route::get('/students/{id}/documents', [StudentDocumentController::class, 'index']);
+    Route::get('/students/{id}/documents/{documentId}/download', [StudentDocumentController::class, 'download']);
     Route::get('/students/{id}', [StudentController::class, 'show']);
 });
 
@@ -77,6 +80,8 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::post('/students/{id}/grades', [StudentController::class, 'storeGrade']);
     Route::put('/students/{id}/grades/{gradeId}', [StudentController::class, 'updateGrade']);
     Route::delete('/students/{id}/grades/{gradeId}', [StudentController::class, 'destroyGrade']);
+    Route::post('/students/{id}/documents', [StudentDocumentController::class, 'store']);
+    Route::delete('/students/{id}/documents/{documentId}', [StudentDocumentController::class, 'destroy']);
 });
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;

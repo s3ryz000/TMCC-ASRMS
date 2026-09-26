@@ -1,14 +1,14 @@
 # Table 4: Data Dictionary (regenerated from the migrations)
 
-Generated September 26, 2026 from the 38 migration files. Column types are the MySQL types declared in the
+Generated September 26, 2026 from the 39 migration files. Column types are the MySQL types declared in the
 migrations (§3.11.1.4); keys, nullability and defaults are introspected from the
 migrated schema.
 
-**19 application tables** (205 columns), plus 6 framework-managed tables listed at the end.
+**20 application tables** (216 columns), plus 6 framework-managed tables listed at the end.
 
 ## Tables absent from the manuscript's current Table 4
 
-The existing dictionary documents 13 modules. These 6 are implemented but undocumented:
+The existing dictionary documents 13 modules. These 7 are implemented but undocumented:
 
 - `curriculum_prerequisites` — 5 columns
 - `enrollment_audit_logs` — 18 columns
@@ -16,6 +16,7 @@ The existing dictionary documents 13 modules. These 6 are implemented but undocu
 - `program_change_logs` — 10 columns
 - `record_requests` — 17 columns
 - `record_transactions` — 8 columns
+- `student_documents` — 11 columns (staff document upload, §3.9.2)
 
 
 ## archive_records
@@ -237,6 +238,22 @@ The existing dictionary documents 13 modules. These 6 are implemented but undocu
 | updated_at | TIMESTAMP | Yes | — | NULL | — |
 | user_id | BIGINT UNSIGNED | Yes | — | FK, NULL | users(id) |
 
+## student_documents
+
+| Field Name | Data Type | Nullable | Default | Constraints / Keys | Relationships |
+|---|---|---|---|---|---|
+| id | BIGINT UNSIGNED | No | — | PK, NOT NULL, AUTO_INCREMENT | — |
+| student_id | BIGINT UNSIGNED | No | — | FK, NOT NULL | students(student_id) |
+| uploaded_by | BIGINT UNSIGNED | Yes | — | FK, NULL | users(id) |
+| document_type | VARCHAR(100) | No | — | NOT NULL | — |
+| description | TEXT | Yes | — | NULL | — |
+| file_path | VARCHAR(255) | No | — | NOT NULL | — |
+| original_name | VARCHAR(255) | No | — | NOT NULL | — |
+| mime | VARCHAR(255) | No | — | NOT NULL | — |
+| size | BIGINT UNSIGNED | No | — | NOT NULL | — |
+| created_at | TIMESTAMP | Yes | — | NULL | — |
+| updated_at | TIMESTAMP | Yes | — | NULL | — |
+
 ## students
 
 | Field Name | Data Type | Nullable | Default | Constraints / Keys | Relationships |
@@ -337,12 +354,13 @@ The existing dictionary documents 13 modules. These 6 are implemented but undocu
 | record_transactions | 8 | **No — add** |
 | reports | 6 | Yes |
 | staff | 8 | Yes |
+| student_documents | 11 | **No — add** |
 | students | 26 | Yes |
 | subjects | 7 | Yes |
 | system_logs | 6 | Yes |
 | system_settings | 5 | Yes |
 | users | 12 | Yes |
-| **Total** | **205** | **6 to add** |
+| **Total** | **216** | **7 to add** |
 
 
 ## Framework-managed tables (not part of the records model)

@@ -81,7 +81,12 @@ class Student extends Model
     {
         return $this->hasMany(RecordRequest::class, 'student_id', 'student_id');
     }
-    
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(StudentDocument::class, 'student_id', 'student_id');
+    }
+
     public function archiveRecords(): HasOne
     {
         return $this->hasOne(ArchiveRecord::class, 'student_id', 'student_id');
