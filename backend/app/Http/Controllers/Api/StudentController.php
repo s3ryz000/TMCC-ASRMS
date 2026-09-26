@@ -340,22 +340,6 @@ class StudentController extends Controller
     }
 
     /**
-     * List programs for staff filters (course dropdown).
-     */
-    public function programs(): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles(request()->user(), ['staff', 'admin'])) {
-            return $err;
-        }
-        $programs = Program::orderBy('code')->get(['id', 'code', 'name']);
-
-        return response()->json(['programs' => $programs]);
-    }
-
-    /**
      * Update (or set) a student's active program. Archives old program enrollments.
      * Requires: new_program_id, reason. Optional: remarks.
      */
@@ -466,21 +450,6 @@ class StudentController extends Controller
         $curriculum = $query->get();
 
         return response()->json(['curriculum' => $curriculum]);
-    }
-
-    /**
-     * List subjects for dropdowns (staff/admin). Per thesis: subject code, title, units.
-     */
-    public function subjects(): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles(request()->user(), ['staff', 'admin'])) {
-            return $err;
-        }
-        $subjects = Subject::orderBy('code')->get(['id', 'code', 'title', 'units']);
-        return response()->json(['subjects' => $subjects]);
     }
 
     /**
