@@ -2,11 +2,9 @@
 
 namespace App\Services\Enrollment\Rules;
 
-use App\Models\Subject;
 use App\Services\Enrollment\EnrollmentContext;
 use App\Services\Enrollment\EnrollmentRule;
 use App\Services\Enrollment\RuleCategory;
-use Illuminate\Support\Collection;
 
 /**
  * Every prerequisite declared for the subject must already be passed or
@@ -50,64 +48,15 @@ class PrerequisitesSatisfiedRule implements EnrollmentRule
                 . 'Registrar must verify curriculum mapping.';
         }
 
-        $prereqSubjects = $this->resolvePrerequisites($entry);
+        $missing = $entry->missingPrerequisites($context->passedSubjectIds);
 
-        if ($prereqSubjects->isEmpty()) {
+        if ($missing->isEmpty()) {
             return null;
         }
 
-        $requiredIds = $prereqSubjects->pluck('id')->all();
-        $logic = $entry->prerequisite_logic ?? 'AND';
-
-        if ($logic === 'OR') {
-            // Any one satisfied prerequisite clears the subject.
-            $missingIds = array_intersect($requiredIds, $context->passedSubjectIds)
-                ? []
-                : $requiredIds;
-        } else {
-            $missingIds = array_diff($requiredIds, $context->passedSubjectIds);
-        }
-
-        if (empty($missingIds)) {
-            return null;
-        }
-
-        $missingCodes = $prereqSubjects
-            ->filter(fn ($subject) => in_array($subject->id, $missingIds, true))
-            ->pluck('code')
-            ->all();
-
-        return $this->describe($missingCodes, $logic)
+        // OR reports every alternative; AND reports only the unmet ones.
+        return $this->describe($missing->pluck('code')->all(), $entry->prerequisite_logic ?? 'AND')
             . " must be completed (Passed/Credited) before enrolling in {$code}.";
-    }
-
-    /**
-     * Prefer the many-to-many prerequisites; fall back to the deprecated single
-     * `curriculum.prerequisite` column for any row not yet migrated.
-     *
-     * @return Collection<int, Subject>
-     */
-    private function resolvePrerequisites($entry): Collection
-    {
-        if ($entry->relationLoaded('prerequisites') && $entry->prerequisites->isNotEmpty()) {
-            return $entry->prerequisites;
-        }
-
-        if (! $entry->relationLoaded('prerequisites')) {
-            $entry->load('prerequisites');
-            if ($entry->prerequisites->isNotEmpty()) {
-                return $entry->prerequisites;
-            }
-        }
-
-        $legacyId = $entry->getAttributes()['prerequisite'] ?? null;
-        if (! $legacyId) {
-            return collect();
-        }
-
-        $legacySubject = $entry->getRelationValue('prerequisite') ?? Subject::find($legacyId);
-
-        return $legacySubject ? collect([$legacySubject]) : collect();
     }
 
     /**

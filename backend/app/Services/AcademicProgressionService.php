@@ -471,6 +471,7 @@ class AcademicProgressionService
                     'prerequisite_code' => $unresolvedDisplay,
                     'prerequisite_status' => 'unresolved',
                     'prerequisite_codes' => $unresolvedPrereqs,
+                    'prerequisite_logic' => $entry->prerequisite_logic ?? 'AND',
                     'prerequisite_display' => $unresolvedDisplay,
                     'missing_prerequisites' => $unresolvedPrereqs,
                     'eligible' => false,
@@ -621,6 +622,7 @@ class AcademicProgressionService
                 'prerequisite_code' => $prereqDisplay, // Legacy compatibility
                 'prerequisite_status' => $prereqStatus, // Legacy compatibility
                 'prerequisite_codes' => $prereqCodes,
+                'prerequisite_logic' => $entry->prerequisite_logic ?? 'AND',
                 'prerequisite_display' => $prereqDisplay,
                 'missing_prerequisites' => $missingPrereqs,
                 'eligible' => $eligible && !$isActivelyEnrolled,
