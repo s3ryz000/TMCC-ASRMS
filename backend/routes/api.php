@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\Route;
 
 
 // ---- Authentication (rate-limited to mitigate brute force) ----
+// There is deliberately no public registration: admins create staff accounts
+// and registrar staff create student accounts.
 Route::prefix('auth')->middleware('throttle:6,1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 
     Route::middleware('auth:sanctum')->group(function () {

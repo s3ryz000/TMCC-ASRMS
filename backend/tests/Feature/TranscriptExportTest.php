@@ -191,6 +191,17 @@ class TranscriptExportTest extends TestCase
         $this->assertSame('INC', $this->gradeCell($html, 'B'));
     }
 
+    public function test_a_grade_without_a_value_or_remark_shows_its_status(): void
+    {
+        $this->recordGrade($this->student, 'A', '2026-2027', 1, null, 'INC');
+        $this->recordGrade($this->student, 'B', '2026-2027', 1, null, 'Enrolled');
+
+        $html = $this->transcriptHtml();
+
+        $this->assertSame('INC', $this->gradeCell($html, 'A'));
+        $this->assertSame('', $this->gradeCell($html, 'B'));
+    }
+
     public function test_transcript_escapes_record_data(): void
     {
         $this->student->update(['address' => '<script>alert(1)</script>']);

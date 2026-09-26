@@ -142,6 +142,34 @@ class RecordRequestFlowTest extends TestCase
         $this->assertNotNull($request->appointment_at);
     }
 
+    public function test_the_appointment_reads_back_as_booked(): void
+    {
+        $request = $this->pendingRequest();
+        $slot = $this->slot(hour: 14);
+
+        $response = $this->approve($request, $slot)->assertOk();
+
+        $this->assertTrue(Carbon::parse($slot)->equalTo($request->fresh()->appointment_at));
+        $this->assertTrue(Carbon::parse($slot)->equalTo(Carbon::parse($response->json('record_request.appointment_at'))));
+    }
+
+    public function test_a_booked_slot_shows_as_taken(): void
+    {
+        $slot = Carbon::parse($this->slot(hour: 14))->setTimezone('Asia/Manila');
+        $this->approve($this->pendingRequest(), $slot->toIso8601String())->assertOk();
+
+        $this->getJson('/api/staff/appointment-slots?month=' . $slot->format('Y-m'))
+            ->assertOk()
+            ->assertJsonPath('taken_by_date.' . $slot->format('Y-m-d'), ['14:00']);
+    }
+
+    public function test_a_refused_approval_is_not_logged(): void
+    {
+        $this->approve($this->pendingRequest(), $this->slot(daysAhead: -1))->assertStatus(422);
+
+        $this->assertDatabaseMissing('system_logs', ['action' => 'Request approved']);
+    }
+
     public function test_approval_needs_a_future_slot(): void
     {
         $this->approve($this->pendingRequest(), $this->slot(daysAhead: -1))
@@ -225,6 +253,42 @@ class RecordRequestFlowTest extends TestCase
             ->assertJsonPath('message', 'Only approved requests can be released.');
 
         $this->assertDatabaseCount('record_transactions', 0);
+    }
+
+    public function test_a_refused_release_is_not_logged(): void
+    {
+        $request = $this->pendingRequest();
+        Sanctum::actingAs($this->staff, ['*']);
+
+        $this->putJson("/api/staff/requests/{$request->id}/release")->assertStatus(422);
+
+        $this->assertDatabaseMissing('system_logs', ['action' => 'Document released']);
+    }
+
+    public function test_a_release_is_logged(): void
+    {
+        $request = $this->pendingRequest();
+        $this->approve($request)->assertOk();
+
+        $this->putJson("/api/staff/requests/{$request->id}/release")->assertOk();
+
+        $this->assertDatabaseHas('system_logs', ['action' => 'Document released', 'user_id' => $this->staff->id]);
+    }
+
+    public function test_migration_corrects_appointments_stored_as_utc(): void
+    {
+        $request = $this->pendingRequest();
+        // How the old approve endpoint stored a 2:00 PM Manila booking.
+        \Illuminate\Support\Facades\DB::table('record_requests')->where('id', $request->id)
+            ->update(['status' => 'approved', 'appointment_at' => '2026-10-05 06:00:00']);
+
+        $migration = require database_path('migrations/2026_09_26_000002_store_appointments_in_office_time.php');
+        $migration->up();
+
+        $this->assertSame('2026-10-05 14:00:00', $request->fresh()->appointment_at->toDateTimeString());
+
+        $migration->down();
+        $this->assertSame('2026-10-05 06:00:00', \Illuminate\Support\Facades\DB::table('record_requests')->where('id', $request->id)->value('appointment_at'));
     }
 
     public function test_admin_keeps_document_release(): void

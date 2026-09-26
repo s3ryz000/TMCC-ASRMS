@@ -133,6 +133,19 @@ class AuthFlowTest extends TestCase
         $this->postJson('/api/auth/change-password', [])->assertUnauthorized();
     }
 
+    public function test_there_is_no_public_registration(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'name'                  => 'Anonymous',
+            'email'                 => 'anon@tmcc.test',
+            'password'              => 'Password123!',
+            'password_confirmation' => 'Password123!',
+            'role'                  => 'admin',
+        ])->assertNotFound();
+
+        $this->assertDatabaseMissing('users', ['email' => 'anon@tmcc.test']);
+    }
+
     public function test_login_is_rate_limited(): void
     {
         for ($attempt = 1; $attempt <= 6; $attempt++) {
