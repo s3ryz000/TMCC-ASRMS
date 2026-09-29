@@ -3,6 +3,7 @@ import { FiCheck, FiX, FiSearch, FiChevronUp, FiChevronDown, FiInbox, FiCheckCir
 import { staffToast } from '../lib/notifications';
 import { staffApi } from '../lib/api/staffApi';
 import { parseApiError } from '../lib/api/errors';
+import { formatDateTime } from '../lib/tools';
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 const TABS = [
@@ -457,7 +458,7 @@ const StaffPendingRequestsPage = () => {
                         </td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{req.purpose || '—'}</td>
                         <td className="py-3 px-4 text-gray-700 text-center text-xs">{req.copies ?? 1}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.requested_at}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.requested_at)}</td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2 flex-wrap">
                             <button type="button" className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-tmcc text-white hover:bg-tmcc-dark focus:ring-2 focus:ring-tmcc/30" onClick={() => handleApprove(req.id)}><FiCheck /> Approve</button>
@@ -539,9 +540,9 @@ const StaffPendingRequestsPage = () => {
                           {req.semester ? `Sem ${req.semester}` : ''}
                         </td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{req.purpose || '—'}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.requested_at}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.processed_at ?? '—'}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.appointment_at ?? '—'}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.requested_at)}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.processed_at)}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.appointment_at)}</td>
                         <td className="py-3 px-4">
                           <button
                             type="button"
@@ -602,8 +603,8 @@ const StaffPendingRequestsPage = () => {
                           {req.semester ? `Sem ${req.semester}` : ''}
                         </td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{req.purpose || '—'}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.requested_at}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{req.processed_at ?? '—'}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.requested_at)}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.processed_at)}</td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{req.rejection_reason ?? '—'}</td>
                       </tr>
                     ))

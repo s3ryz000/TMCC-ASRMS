@@ -222,7 +222,8 @@ const AdminLayout = () => {
                 <p className="m-0 text-xs font-medium text-gray-500 uppercase tracking-wider">Processed Today</p>
               </div>
             </div>
-            <Link to="/admin/students" className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-tmcc/30 hover:bg-green-50/50 transition-colors no-underline text-gray-800">
+            {/* Plain counter: admins have no student-records page (read-only role, §1.4). */}
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100">
               <span className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 text-blue-700">
                 <FiUsers className="w-6 h-6" />
               </span>
@@ -230,7 +231,7 @@ const AdminLayout = () => {
                 <p className="m-0 text-2xl font-bold text-gray-900">{kpi.studentsCount}</p>
                 <p className="m-0 text-xs font-medium text-gray-500 uppercase tracking-wider">Students</p>
               </div>
-            </Link>
+            </div>
             
           </div>
         </div>

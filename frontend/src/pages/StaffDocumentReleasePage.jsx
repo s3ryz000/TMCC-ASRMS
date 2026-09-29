@@ -423,7 +423,7 @@ const StaffDocumentReleasePage = () => {
                       {req.semester ? `Sem ${req.semester}` : ''}
                     </td>
                     <td className="py-3 px-4 text-gray-700 text-xs">{req.purpose || '—'}</td>
-                    <td className="py-3 px-4 text-gray-700 text-xs">{req.approved_at}</td>
+                    <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.approved_at)}</td>
                     <td className="py-3 px-4">
                       <button
                         type="button"
