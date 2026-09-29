@@ -8,6 +8,7 @@ use App\Models\RecordRequest;
 use App\Models\RecordTransaction;
 use App\Models\Staff;
 use App\Models\SystemLog;
+use App\Models\User;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\QrCodeGenerator;
 use App\Services\StaffService;
@@ -102,11 +103,6 @@ class RequestController extends Controller
         if (! $staff) {
             return response()->json(['message' => 'Staff record not available.'], 403);
         }
-        SystemLog::create([
-            'action' => 'Request approved',
-            'user_id' => $request->user()->id,
-            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
-        ]);
         $validated = $request->validate([
             'appointment_at' => ['required', 'date'],
         ]);
@@ -122,10 +118,10 @@ class RequestController extends Controller
             return response()->json(['message' => 'Selected appointment time is not available.'], 422);
         }
 
-        $appointmentAtUtc = $appointmentAtOffice->copy()->utc();
+        $appointmentAt = $this->toStorageTime($appointmentAtOffice);
         $isTaken = RecordRequest::whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_RELEASED])
             ->whereNotNull('appointment_at')
-            ->where('appointment_at', $appointmentAtUtc->toDateTimeString())
+            ->where('appointment_at', $appointmentAt->toDateTimeString())
             ->exists();
 
         if ($isTaken) {
@@ -136,8 +132,14 @@ class RequestController extends Controller
             'status' => RecordRequest::STATUS_APPROVED,
             'processed_by' => $staff->staff_id,
             'processed_at' => now(),
-            'appointment_at' => $appointmentAtUtc,
+            'appointment_at' => $appointmentAt,
             'rejection_reason' => null,
+        ]);
+
+        SystemLog::create([
+            'action' => 'Request approved',
+            'user_id' => $request->user()->id,
+            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
         ]);
 
         return response()->json([
@@ -293,12 +295,7 @@ class RequestController extends Controller
         if (! $staff) {
             return response()->json(['message' => 'Staff record not available.'], 403);
         }
-        SystemLog::create([
-            'action' => 'Document released',
-            'user_id' => $request->user()->id,
-            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
-        ]);
-        return $this->doRelease($recordRequest, $staff);
+        return $this->doRelease($recordRequest, $staff, $request->user(), 'Document released');
     }
 
     /**
@@ -327,12 +324,7 @@ class RequestController extends Controller
         if (! $staff) {
             return response()->json(['message' => 'Staff record not available.'], 403);
         }
-        SystemLog::create([
-            'action' => 'Transaction created',
-            'user_id' => $request->user()->id,
-            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
-        ]);
-        return $this->doRelease($recordRequest, $staff);
+        return $this->doRelease($recordRequest, $staff, $request->user(), 'Transaction created');
     }
 
     public function appointmentSlots(Request $request): JsonResponse
@@ -351,12 +343,12 @@ class RequestController extends Controller
             return response()->json(['message' => 'Invalid month format. Use YYYY-MM.'], 422);
         }
         $monthEndOffice = (clone $monthStartOffice)->endOfMonth();
-        $monthStartUtc = $monthStartOffice->copy()->utc();
-        $monthEndUtc = $monthEndOffice->copy()->utc();
+        $monthStart = $this->toStorageTime($monthStartOffice);
+        $monthEnd = $this->toStorageTime($monthEndOffice);
 
         $rows = RecordRequest::query()
             ->whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_RELEASED])
-            ->whereBetween('appointment_at', [$monthStartUtc->toDateTimeString(), $monthEndUtc->toDateTimeString()])
+            ->whereBetween('appointment_at', [$monthStart->toDateTimeString(), $monthEnd->toDateTimeString()])
             ->whereNotNull('appointment_at')
             ->get(['appointment_at']);
 
@@ -410,10 +402,6 @@ class RequestController extends Controller
             return response()->json(['message' => 'Student record not found for this request.'], 404);
         }
 
-        $templatePath = public_path('assets/templates/OFFICIAL TRANSCRIPT OF RECORD - template.xlsx');
-        if (! file_exists($templatePath)) {
-            return response()->json(['message' => 'Transcript template file not found.'], 500);
-        }
         SystemLog::create([
             'action' => 'Transcript template downloaded',
             'user_id' => $request->user()->id,
@@ -549,7 +537,12 @@ class RequestController extends Controller
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
-    private function doRelease(RecordRequest $recordRequest, Staff $staff): JsonResponse
+    /**
+     * Release an approved request. The system log entry is written only once
+     * the release has actually happened, so a refused release is never
+     * recorded as one.
+     */
+    private function doRelease(RecordRequest $recordRequest, Staff $staff, User $actor, string $logAction): JsonResponse
     {
         if ($recordRequest->status !== RecordRequest::STATUS_APPROVED) {
             return response()->json(['message' => 'Only approved requests can be released.'], 422);
@@ -568,10 +561,27 @@ class RequestController extends Controller
             'status' => 'completed',
         ]);
 
+        SystemLog::create([
+            'action' => $logAction,
+            'user_id' => $actor->id,
+            'role' => $actor->roles->first()?->name ?? $actor->role ?? null,
+        ]);
+
         return response()->json([
             'message' => 'Document released successfully.',
             'record_request' => $recordRequest->load('student'),
         ]);
+    }
+
+    /**
+     * Timestamps are stored as wall-clock time in the application timezone,
+     * which is how Eloquent reads them back. Appointments used to be written
+     * as UTC wall-clock time instead, so a 2:00 PM booking read back as
+     * 6:00 AM everywhere it was displayed.
+     */
+    private function toStorageTime(Carbon $time): Carbon
+    {
+        return $time->copy()->setTimezone(config('app.timezone'));
     }
 
     private function availableTimeSlots(): array

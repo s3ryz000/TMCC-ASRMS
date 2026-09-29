@@ -5,6 +5,13 @@ import { FiPlus, FiSave, FiAlertCircle, FiTrash2, FiClock, FiAward, FiCheckCircl
 import { staffApi } from '../lib/api/staffApi';
 import { staffToast } from '../lib/notifications';
 import { queryKeys } from '../lib/react-query/queryKeys';
+import { prerequisiteNote } from '../features/enrollment/prerequisites';
+
+const NOTE_TONE = {
+  blocked: 'text-red-600 font-medium',
+  met: 'text-green-700',
+  none: 'text-gray-400',
+};
 
 export default function AcademicProgressionStep4({
   studentId,
@@ -613,7 +620,10 @@ export default function AcademicProgressionStep4({
                           </td>
                           <td className="py-2.5 px-4 text-center text-gray-600">{subj.units}</td>
                           <td className="py-2.5 px-4 text-xs">
-                            {!subj.eligible && <span className="text-red-600 font-medium">{subj.blocked_reason}</span>}
+                            {(() => {
+                              const note = prerequisiteNote(subj);
+                              return <span className={NOTE_TONE[note.tone]}>{note.text}</span>;
+                            })()}
                           </td>
                         </tr>
                       )

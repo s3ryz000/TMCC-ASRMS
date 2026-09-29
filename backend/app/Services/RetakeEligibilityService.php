@@ -6,6 +6,7 @@ use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Student;
+use App\Services\Enrollment\AcademicRecordQuery;
 
 /**
  * RetakeEligibilityService
@@ -55,7 +56,7 @@ class RetakeEligibilityService
     /**
      * Statuses that mean a subject is done and passed — never retakeable.
      */
-    private const PASSED_STATUSES = ['Passed', 'Credited'];
+    private const PASSED_STATUSES = AcademicRecordQuery::PASSED_STATUSES;
 
     /**
      * Statuses that make a subject retakeable.
@@ -66,6 +67,10 @@ class RetakeEligibilityService
      * Grade values treated as Failed (legacy numeric-only grades).
      */
     private const FAILED_GRADE_VALUE = 5.00;
+
+    public function __construct(private AcademicRecordQuery $records)
+    {
+    }
 
     /**
      * Main entry point.
@@ -196,7 +201,7 @@ class RetakeEligibilityService
         $eligibility    = $this->getRetakeEligibility($student, $nextAllowedTerm);
         $requiredIds    = array_column($eligibility['retake_subjects_required'], 'subject_id');
         $incIds         = array_column($eligibility['inc_subjects'], 'subject_id');
-        $passedIds      = $this->getPassedSubjectIds($student);
+        $passedIds      = $this->records->passedSubjectIds($student);
 
         $validIds = [];
         $errors   = [];
@@ -215,39 +220,18 @@ class RetakeEligibilityService
                 continue;
             }
 
-            // Prerequisite check: retake subjects must still satisfy their prerequisites
-            $prereqEntry = \App\Models\Curriculum::with(['prerequisites', 'prerequisite'])
+            // Prerequisite check: retake subjects must still satisfy their
+            // prerequisites, with the same AND/OR rule as first enrollment.
+            $prereqEntry = Curriculum::with(['prerequisites', 'prerequisite'])
                 ->where('program_id', $student->program_id)
                 ->where('subject_id', $subjectId)
                 ->first();
 
-            if ($prereqEntry) {
-                if ($prereqEntry->prerequisites->isNotEmpty()) {
-                    $reqPrereqIds   = $prereqEntry->prerequisites->pluck('id')->toArray();
-                    $prereqSubjects = $prereqEntry->prerequisites;
-                } else {
-                    $legacyId = $prereqEntry->getAttributes()['prerequisite'] ?? null;
-                    if ($legacyId) {
-                        $legacySub      = $prereqEntry->getRelationValue('prerequisite') ?? \App\Models\Subject::find($legacyId);
-                        $reqPrereqIds   = $legacySub ? [$legacyId] : [];
-                        $prereqSubjects = $legacySub ? collect([$legacySub]) : collect();
-                    } else {
-                        $reqPrereqIds   = [];
-                        $prereqSubjects = collect();
-                    }
-                }
-
-                if ($prereqSubjects->isNotEmpty()) {
-                    $missingIds = array_diff($reqPrereqIds, $passedIds);
-                    if (!empty($missingIds)) {
-                        $missingCodes = $prereqSubjects
-                            ->filter(fn($p) => in_array($p->id, $missingIds))
-                            ->pluck('code')
-                            ->join(', ');
-                        $errors[] = "{$missingCodes} must be completed (Passed/Credited) before enrolling in {$code}.";
-                        continue;
-                    }
-                }
+            $missing = $prereqEntry?->missingPrerequisites($passedIds) ?? collect();
+            if ($missing->isNotEmpty()) {
+                $missingCodes = $missing->pluck('code')->join(', ');
+                $errors[] = "{$missingCodes} must be completed (Passed/Credited) before enrolling in {$code}.";
+                continue;
             }
 
             // Exact-term duplicate check: block only if already enrolled in same AY+semester
@@ -275,29 +259,6 @@ class RetakeEligibilityService
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    /**
-     * Return subject IDs the student has passed or credited (across all terms).
-     */
-    private function getPassedSubjectIds(Student $student): array
-    {
-        return \App\Models\Grade::where('student_id', $student->student_id)
-            ->where(function ($q) {
-                $q->whereIn('status', self::PASSED_STATUSES)
-                  ->orWhere(function ($inner) {
-                      $inner->whereNotNull('grade_value')
-                            ->where('grade_value', '>=', 1.00)
-                            ->where('grade_value', '<=', 3.00)
-                            ->whereNull('status');
-                  })
-                  ->orWhere(function ($inner) {
-                      $inner->whereNull('status')
-                            ->whereIn('remarks', ['PASSED', 'Passed', 'CREDITED', 'Credited']);
-                  });
-            })
-            ->pluck('subject_id')
-            ->unique()
-            ->toArray();
-    }
     /**
      * Resolve the effective status of a grade row.
      * Handles legacy data (grade_value only, no status column, or remarks-based).

@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\Curriculum;
-use App\Models\Grade;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\Enrollment\AcademicRecordQuery;
 
 /**
  * AcademicLoadValidationService
@@ -27,6 +27,10 @@ class AcademicLoadValidationService
 {
     const MINIMUM_UNITS = 18;
     const MAXIMUM_UNITS = 26;
+
+    public function __construct(private AcademicRecordQuery $records)
+    {
+    }
 
     /**
      * Validate the academic load for a set of selected subject IDs.
@@ -123,7 +127,7 @@ class AcademicLoadValidationService
         // Get retake-eligible subjects
         $retakeData  = $retakeService->getRetakeEligibility($student, $nextTerm);
         $existingIds = array_column($regularSubjects, 'subject_id');
-        $passedIds   = $this->getPassedSubjectIds($student);
+        $passedIds   = $this->records->passedSubjectIds($student);
 
         $totalUnits = 0;
 
@@ -140,19 +144,14 @@ class AcademicLoadValidationService
                 continue; // Already counted via regular curriculum list
             }
 
-            // Check prerequisites for this retake subject
-            $eligible  = true;
-            $prereqRow = Curriculum::with('prerequisites')
+            // Same AND/OR rule, including the legacy single prerequisite,
+            // that the retake itself is validated with.
+            $prereqRow = Curriculum::with(['prerequisites', 'prerequisite'])
                 ->where('program_id', $student->program_id)
                 ->where('subject_id', $retake['subject_id'])
                 ->first();
 
-            if ($prereqRow && $prereqRow->prerequisites->isNotEmpty()) {
-                $reqIds = $prereqRow->prerequisites->pluck('id')->toArray();
-                if (!empty(array_diff($reqIds, $passedIds))) {
-                    $eligible = false;
-                }
-            }
+            $eligible = ! $prereqRow || $prereqRow->missingPrerequisites($passedIds)->isEmpty();
 
             if ($eligible) {
                 $totalUnits += (int) ($retake['units'] ?? 0);
@@ -163,23 +162,6 @@ class AcademicLoadValidationService
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
-
-    private function getPassedSubjectIds(Student $student): array
-    {
-        return Grade::where('student_id', $student->student_id)
-            ->where(function ($q) {
-                $q->whereIn('status', ['Passed', 'Credited'])
-                  ->orWhere(function ($i) {
-                      $i->whereNotNull('grade_value')
-                        ->where('grade_value', '>=', 1.00)
-                        ->where('grade_value', '<=', 3.00)
-                        ->whereNull('status');
-                  });
-            })
-            ->pluck('subject_id')
-            ->unique()
-            ->toArray();
-    }
 
     private function result(
         int     $selectedUnits,

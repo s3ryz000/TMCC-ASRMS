@@ -143,9 +143,11 @@ class OfficialTranscriptExportService
                 $currentPeriod = $period;
             }
 
+            // No numeric grade: show the remark, else the final status (INC,
+            // Credited, ...). A subject still in progress stays blank.
             $gradeVal = $grade->grade_value !== null
                 ? number_format((float) $grade->grade_value, 2)
-                : $e($grade->remarks ?? '');
+                : $e($grade->remarks ?: ($grade->status === 'Enrolled' ? '' : $grade->status));
 
             $units = $grade->subject?->units !== null
                 ? number_format((float) $grade->subject->units, 2)

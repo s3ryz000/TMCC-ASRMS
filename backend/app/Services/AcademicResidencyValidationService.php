@@ -6,6 +6,7 @@ use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Student;
+use App\Services\Enrollment\AcademicRecordQuery;
 use Carbon\Carbon;
 
 /**
@@ -40,6 +41,10 @@ class AcademicResidencyValidationService
     // Maximum semesters in the full program (including extension)
     const TOTAL_MAX_SEMESTERS      = 10;  // 5 years × 2 semesters
 
+    public function __construct(private AcademicRecordQuery $records)
+    {
+    }
+
     /**
      * Compute the full residency state for a student.
      *
@@ -73,7 +78,7 @@ class AcademicResidencyValidationService
             ->where('program_id', $student->program_id)
             ->get();
 
-        $passedIds = $this->getPassedSubjectIds($student);
+        $passedIds = $this->records->passedSubjectIds($student);
 
         $remainingRequired  = [];
         $totalRemainingUnits = 0;
@@ -229,27 +234,6 @@ class AcademicResidencyValidationService
             ->pluck('academic_year')
             ->unique()
             ->count();
-    }
-
-    private function getPassedSubjectIds(Student $student): array
-    {
-        return Grade::where('student_id', $student->student_id)
-            ->where(function ($q) {
-                $q->whereIn('status', ['Passed', 'Credited'])
-                  ->orWhere(function ($i) {
-                      $i->whereNotNull('grade_value')
-                        ->where('grade_value', '>=', 1.00)
-                        ->where('grade_value', '<=', 3.00)
-                        ->whereNull('status');
-                  })
-                  ->orWhere(function ($i) {
-                      $i->whereNull('status')
-                        ->whereIn('remarks', ['PASSED', 'Passed', 'CREDITED', 'Credited']);
-                  });
-            })
-            ->pluck('subject_id')
-            ->unique()
-            ->toArray();
     }
 
     /**

@@ -35,6 +35,8 @@ class StudentController extends Controller
 {
     use AuthorizesRole;
 
+    /** Statuses the registrar may set on a grade. */
+    private const GRADE_STATUSES = ['Enrolled', 'Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited', 'DRP', 'CON'];
 
     /**
      * List students with search, filter by course/status, pagination (staff + admin).
@@ -138,7 +140,11 @@ class StudentController extends Controller
             $student = Student::create($studentData);
 
             if (!empty($subjectIds)) {
-                $academicYear = \App\Models\SystemSetting::getValue('academic_year') ?: date('Y') . '-' . (date('Y') + 1);
+                // Derived from the enrollment date exactly as the guided
+                // next-term flow derives every later term, so a student's 1st
+                // and 2nd semester can never land in different academic years.
+                $academicYear = app(AcademicProgressionService::class)
+                    ->computeAcademicYearForTerm($student, 1, 1);
 
                 // A newly created student starts at Year 1, Semester 1 of their
                 // program. Subjects outside that term are a data-entry error, so
@@ -227,12 +233,11 @@ class StudentController extends Controller
         if (! $student) {
             return response()->json(['message' => 'Student not found.'], 404);
         }
-        Log::info($student);
         return response()->json(['student' => $student]);
     }
 
     /**
-     * Download official transcript XLSX for a student (staff/admin only).
+     * Download the official transcript PDF for a student (staff/admin only).
      */
     public function downloadTranscript(int $id): StreamedResponse|JsonResponse
     {
@@ -335,22 +340,6 @@ class StudentController extends Controller
     }
 
     /**
-     * List programs for staff filters (course dropdown).
-     */
-    public function programs(): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles(request()->user(), ['staff', 'admin'])) {
-            return $err;
-        }
-        $programs = Program::orderBy('code')->get(['id', 'code', 'name']);
-
-        return response()->json(['programs' => $programs]);
-    }
-
-    /**
      * Update (or set) a student's active program. Archives old program enrollments.
      * Requires: new_program_id, reason. Optional: remarks.
      */
@@ -440,7 +429,9 @@ class StudentController extends Controller
             return $err;
         }
 
-        $query = Curriculum::with(['subject', 'prerequisite'])
+        // Both prerequisite forms: the many-to-many list the enrollment rules
+        // use, and the deprecated single column for rows not yet migrated.
+        $query = Curriculum::with(['subject', 'prerequisite', 'prerequisites:id,code,title'])
             ->where('program_id', $id)
             ->orderBy('year_level')
             ->orderBy('semester');
@@ -459,21 +450,6 @@ class StudentController extends Controller
         $curriculum = $query->get();
 
         return response()->json(['curriculum' => $curriculum]);
-    }
-
-    /**
-     * List subjects for dropdowns (staff/admin). Per thesis: subject code, title, units.
-     */
-    public function subjects(): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles(request()->user(), ['staff', 'admin'])) {
-            return $err;
-        }
-        $subjects = Subject::orderBy('code')->get(['id', 'code', 'title', 'units']);
-        return response()->json(['subjects' => $subjects]);
     }
 
     /**
@@ -827,6 +803,12 @@ class StudentController extends Controller
         if ($exists) {
             return response()->json(['message' => 'A grade already exists for this subject, academic year, and semester.', 'errors' => ['subject_id' => ['Duplicate grade.']]], 422);
         }
+        // Every rule that reads grades keys off the status, so derive it here
+        // the same way bulk grade entry does.
+        $progression = app(AcademicProgressionService::class);
+        $gradeValue = $validated['grade_value'] ?? null;
+        $validated['status'] = $progression->autoStatusFromGrade($gradeValue, null);
+        $validated['remarks'] = $validated['remarks'] ?? $progression->autoGenerateRemarks($gradeValue, $validated['status']);
         $grade = Grade::create($validated);
         $grade->load('subject');
         
@@ -864,13 +846,45 @@ class StudentController extends Controller
             'academic_year' => ['sometimes', 'required', 'string', 'max:20'],
             'semester' => ['sometimes', 'required', 'string', 'max:20'],
             'grade_value' => ['nullable', 'numeric', 'min:0', 'max:5.00'],
+            'status' => ['nullable', 'string', 'in:' . implode(',', self::GRADE_STATUSES)],
             'remarks' => ['nullable', 'string', 'max:50'],
+            'supporting_document_reference' => ['nullable', 'string', 'max:255'],
         ]);
-        if (array_key_exists('grade_value', $validated) && $validated['grade_value'] !== null) {
-            $validated['grade_value'] = round((float) $validated['grade_value'], 2);
+
+        $user = $request->user();
+        $role = $this->userRole($user);
+        $changesGrade = array_intersect_key($validated, array_flip(['grade_value', 'status', 'remarks'])) !== [];
+
+        $error = DB::transaction(function () use ($grade, $validated, $user, $role, $changesGrade) {
+            // Grade change first: applyGradeChange refuses before writing
+            // anything, so a refused change leaves the term untouched too.
+            if ($changesGrade) {
+                // Unspecified fields keep their current values; a new grade
+                // value with no explicit status re-derives the status.
+                $error = $this->applyGradeChange($grade, [
+                    'grade_value' => array_key_exists('grade_value', $validated) ? $validated['grade_value'] : $grade->grade_value,
+                    'status' => $validated['status'] ?? (array_key_exists('grade_value', $validated) ? null : $grade->status),
+                    'remarks' => $validated['remarks'] ?? null,
+                    'supporting_document_reference' => $validated['supporting_document_reference'] ?? $grade->supporting_document_reference,
+                ], $user, $role);
+
+                if ($error !== null) {
+                    return $error;
+                }
+            }
+
+            $termFields = array_intersect_key($validated, array_flip(['academic_year', 'semester']));
+            if ($termFields !== []) {
+                $grade->update($termFields);
+            }
+
+            return null;
+        });
+
+        if ($error !== null) {
+            return response()->json(['message' => $error, 'errors' => ['status' => [$error]]], 422);
         }
-        $grade->update($validated);
-        $grade->load('subject');
+        $grade->refresh()->load('subject');
         
         // Recalculate GWA
         $student = Student::find($id);
@@ -1194,19 +1208,18 @@ class StudentController extends Controller
             'grades'                                => ['required', 'array', 'min:1'],
             'grades.*.grade_id'                     => ['required', 'integer', 'exists:grades,id'],
             'grades.*.grade_value'                  => ['nullable', 'numeric', 'min:0', 'max:5.00'],
-            'grades.*.status'                       => ['nullable', 'string', 'in:Enrolled,Passed,Failed,INC,Withdrawn,FDA,Credited,DRP,CON'],
+            'grades.*.status'                       => ['nullable', 'string', 'in:' . implode(',', self::GRADE_STATUSES)],
             'grades.*.remarks'                      => ['nullable', 'string', 'max:50'],
             'grades.*.supporting_document_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
         $role = $user->roles->first()?->name ?? $user->role ?? null;
-        $service = app(AcademicProgressionService::class);
         $errors = [];
         $updatedCount = 0;
 
-        DB::transaction(function () use ($validated, $student, $user, $role, $service, &$errors, &$updatedCount) {
-            foreach ($validated['grades'] as $index => $gradeData) {
+        DB::transaction(function () use ($validated, $student, $user, $role, &$errors, &$updatedCount) {
+            foreach ($validated['grades'] as $gradeData) {
                 $grade = Grade::where('id', $gradeData['grade_id'])
                     ->where('student_id', $student->student_id)
                     ->first();
@@ -1216,95 +1229,10 @@ class StudentController extends Controller
                     continue;
                 }
 
-                $gradeValue = isset($gradeData['grade_value']) && $gradeData['grade_value'] !== null && $gradeData['grade_value'] !== ''
-                    ? round((float) $gradeData['grade_value'], 2)
-                    : null;
-
-                $explicitStatus = $gradeData['status'] ?? null;
-
-                // Auto-determine status from grade value if not explicitly set
-                $newStatus = $service->autoStatusFromGrade($gradeValue, $explicitStatus);
-
-                // Auto-generate remarks
-                $remarks = !empty($gradeData['remarks'])
-                    ? $gradeData['remarks']
-                    : $service->autoGenerateRemarks($gradeValue, $newStatus);
-
-                // Validate: Credited requires supporting document
-                if ($newStatus === 'Credited' && empty($gradeData['supporting_document_reference'])) {
-                    $errors[] = "Grade #{$gradeData['grade_id']}: Credited status requires a supporting document reference.";
+                if ($error = $this->applyGradeChange($grade, $gradeData, $user, $role)) {
+                    $errors[] = $error;
                     continue;
                 }
-
-                // Track old values for audit
-                $oldValue = json_encode([
-                    'grade_value' => $grade->grade_value,
-                    'status'      => $grade->status,
-                    'remarks'     => $grade->remarks,
-                ]);
-
-                // Handle INC → Passed conversion
-                $convertedFrom = null;
-                $convertedAt = null;
-                if ($grade->status === 'INC' && $newStatus === 'Passed') {
-                    $convertedFrom = 'INC';
-                    $convertedAt = now();
-                }
-
-                // Update the grade
-                $grade->update([
-                    'grade_value'                  => $gradeValue,
-                    'status'                       => $newStatus,
-                    'remarks'                      => $remarks,
-                    'supporting_document_reference' => $gradeData['supporting_document_reference'] ?? $grade->supporting_document_reference,
-                    'converted_from_status'        => $convertedFrom ?? $grade->converted_from_status,
-                    'converted_at'                 => $convertedAt ?? $grade->converted_at,
-                ]);
-
-                // Update enrollment status to match
-                if ($grade->enrollment_id) {
-                    Enrollment::where('id', $grade->enrollment_id)->update(['status' => $newStatus]);
-                } else {
-                    // Link by matching fields
-                    Enrollment::where('student_id', $student->student_id)
-                        ->where('subject_id', $grade->subject_id)
-                        ->where('academic_year', $grade->academic_year)
-                        ->where('semester', $grade->semester)
-                        ->whereNull('deleted_at')
-                        ->update(['status' => $newStatus]);
-                }
-
-                // Audit log
-                $newValue = json_encode([
-                    'grade_value' => $gradeValue,
-                    'status'      => $newStatus,
-                    'remarks'     => $remarks,
-                ]);
-
-                $action = 'grade_updated';
-                if ($convertedFrom === 'INC') {
-                    $action = 'inc_to_passed';
-                } elseif ($newStatus === 'Credited') {
-                    $action = 'marked_credited';
-                }
-
-                EnrollmentAuditLog::create([
-                    'student_id'                    => $student->student_id,
-                    'enrollment_id'                 => $grade->enrollment_id ?? 0,
-                    'subject_id'                    => $grade->subject_id,
-                    'academic_year'                 => $grade->academic_year,
-                    'semester'                      => $grade->semester,
-                    'old_status'                    => $grade->getOriginal('status'),
-                    'new_status'                    => $newStatus,
-                    'changed_by'                    => $user->id,
-                    'action'                        => $action,
-                    'reason'                        => null,
-                    'had_grade'                     => true,
-                    'old_value'                     => $oldValue,
-                    'new_value'                     => $newValue,
-                    'supporting_document_reference' => $gradeData['supporting_document_reference'] ?? null,
-                    'user_role'                     => $role,
-                ]);
 
                 $updatedCount++;
             }
@@ -1348,5 +1276,101 @@ class StudentController extends Controller
                 'message' => 'Exception after saving grades: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Apply one grade change the way every grade-writing endpoint must: derive
+     * the status and remarks from the grade value, refuse Credited without a
+     * supporting document, keep the enrollment row in step, and write the
+     * audit trail. Callers own the surrounding transaction.
+     *
+     * @param array{grade_value?: mixed, status?: ?string, remarks?: ?string, supporting_document_reference?: ?string} $data
+     * @return string|null An error message, or null once the change is saved.
+     */
+    private function applyGradeChange(Grade $grade, array $data, User $user, ?string $role): ?string
+    {
+        $service = app(AcademicProgressionService::class);
+
+        $gradeValue = isset($data['grade_value']) && $data['grade_value'] !== ''
+            ? round((float) $data['grade_value'], 2)
+            : null;
+
+        $newStatus = $service->autoStatusFromGrade($gradeValue, $data['status'] ?? null);
+
+        $remarks = !empty($data['remarks'])
+            ? $data['remarks']
+            : $service->autoGenerateRemarks($gradeValue, $newStatus);
+
+        if ($newStatus === 'Credited' && empty($data['supporting_document_reference'])) {
+            return "Grade #{$grade->id}: Credited status requires a supporting document reference.";
+        }
+
+        // Captured before the update: once saved, Eloquent re-syncs the
+        // "original" attributes, so reading them afterwards returns the new
+        // values and every audit row would show old status = new status.
+        $oldStatus = $grade->status;
+        $oldValue = json_encode([
+            'grade_value' => $grade->grade_value,
+            'status'      => $grade->status,
+            'remarks'     => $grade->remarks,
+        ]);
+
+        $convertedFrom = null;
+        $convertedAt = null;
+        if ($oldStatus === 'INC' && $newStatus === 'Passed') {
+            $convertedFrom = 'INC';
+            $convertedAt = now();
+        }
+
+        $grade->update([
+            'grade_value'                   => $gradeValue,
+            'status'                        => $newStatus,
+            'remarks'                       => $remarks,
+            'supporting_document_reference' => $data['supporting_document_reference'] ?? $grade->supporting_document_reference,
+            'converted_from_status'         => $convertedFrom ?? $grade->converted_from_status,
+            'converted_at'                  => $convertedAt ?? $grade->converted_at,
+        ]);
+
+        if ($grade->enrollment_id) {
+            Enrollment::where('id', $grade->enrollment_id)->update(['status' => $newStatus]);
+        } else {
+            Enrollment::where('student_id', $grade->student_id)
+                ->where('subject_id', $grade->subject_id)
+                ->where('academic_year', $grade->academic_year)
+                ->where('semester', $grade->semester)
+                ->whereNull('deleted_at')
+                ->update(['status' => $newStatus]);
+        }
+
+        $action = 'grade_updated';
+        if ($convertedFrom === 'INC') {
+            $action = 'inc_to_passed';
+        } elseif ($newStatus === 'Credited') {
+            $action = 'marked_credited';
+        }
+
+        EnrollmentAuditLog::create([
+            'student_id'                    => $grade->student_id,
+            'enrollment_id'                 => $grade->enrollment_id ?? 0,
+            'subject_id'                    => $grade->subject_id,
+            'academic_year'                 => $grade->academic_year,
+            'semester'                      => $grade->semester,
+            'old_status'                    => $oldStatus,
+            'new_status'                    => $newStatus,
+            'changed_by'                    => $user->id,
+            'action'                        => $action,
+            'reason'                        => null,
+            'had_grade'                     => true,
+            'old_value'                     => $oldValue,
+            'new_value'                     => json_encode([
+                'grade_value' => $gradeValue,
+                'status'      => $newStatus,
+                'remarks'     => $remarks,
+            ]),
+            'supporting_document_reference' => $data['supporting_document_reference'] ?? null,
+            'user_role'                     => $role,
+        ]);
+
+        return null;
     }
 }

@@ -387,6 +387,26 @@ class EnrollmentValidationTest extends TestCase
         $this->assertDatabaseMissing('students', ['student_number' => '2026-9999']);
     }
 
+    public function test_path_c_first_term_follows_the_enrollment_date(): void
+    {
+        // The "current term" setting disagrees with the enrollment date, as it
+        // does for any record encoded after the student's first year.
+        \App\Models\SystemSetting::setValue('academic_year', '2030-2031');
+
+        $this->postJson('/api/staff/students', $this->newStudentPayload([
+            $this->subjects['PROG1']->id,
+        ]))->assertCreated();
+
+        $student = Student::where('student_number', '2026-9999')->firstOrFail();
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_id'    => $student->student_id,
+            'academic_year' => '2026-2027',
+            'year_level'    => 1,
+            'semester'      => 1,
+        ]);
+    }
+
     public function test_path_c_writes_grade_rows(): void
     {
         $this->postJson('/api/staff/students', $this->newStudentPayload([

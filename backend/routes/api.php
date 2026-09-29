@@ -3,7 +3,10 @@
 use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\StudentDocumentController;
+use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\auth\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
@@ -15,8 +18,9 @@ use Illuminate\Support\Facades\Route;
 
 
 // ---- Authentication (rate-limited to mitigate brute force) ----
+// There is deliberately no public registration: admins create staff accounts
+// and registrar staff create student accounts.
 Route::prefix('auth')->middleware('throttle:6,1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -49,8 +53,8 @@ Route::get('/settings/current', [SystemSettingsController::class, 'current'])
 // operations on student academic records". Writes therefore live in the
 // registrar-only group below, and each controller re-checks the role.
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
-    Route::get('/subjects', [StudentController::class, 'subjects']);
-    Route::get('/programs', [StudentController::class, 'programs']);
+    Route::get('/subjects', [SubjectController::class, 'index']);
+    Route::get('/programs', [ProgramController::class, 'index']);
     Route::get('/programs/{id}/curriculum', [StudentController::class, 'programSubjects']);
 
     // Academic Progression reads (defined first to prevent wildcard parameter conflict)
@@ -59,6 +63,8 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 
     Route::get('/students', [StudentController::class, 'index']);
     Route::get('/students/{id}/transcript', [StudentController::class, 'downloadTranscript']);
+    Route::get('/students/{id}/documents', [StudentDocumentController::class, 'index']);
+    Route::get('/students/{id}/documents/{documentId}/download', [StudentDocumentController::class, 'download']);
     Route::get('/students/{id}', [StudentController::class, 'show']);
 });
 
@@ -77,6 +83,16 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::post('/students/{id}/grades', [StudentController::class, 'storeGrade']);
     Route::put('/students/{id}/grades/{gradeId}', [StudentController::class, 'updateGrade']);
     Route::delete('/students/{id}/grades/{gradeId}', [StudentController::class, 'destroyGrade']);
+    Route::post('/students/{id}/documents', [StudentDocumentController::class, 'store']);
+    Route::delete('/students/{id}/documents/{documentId}', [StudentDocumentController::class, 'destroy']);
+
+    // Subject and program catalogue (§3.9.2)
+    Route::post('/subjects', [SubjectController::class, 'store']);
+    Route::put('/subjects/{id}', [SubjectController::class, 'update']);
+    Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
+    Route::post('/programs', [ProgramController::class, 'store']);
+    Route::put('/programs/{id}', [ProgramController::class, 'update']);
+    Route::delete('/programs/{id}', [ProgramController::class, 'destroy']);
 });
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\LoginRequest;
-use App\Http\Requests\RegisterRequest;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,28 +15,6 @@ class AuthController extends Controller
     public function __construct(
         private AuthService $authService
     ) {}
-
-    /**
-     * Register a new user.
-     */
-    public function register(RegisterRequest $request): JsonResponse
-    {
-        try {
-            $user = $this->authService->register($request->validated());
-
-            return response()->json([
-                'message' => 'User registered successfully.',
-                'user' => $user->load('roles'),
-            ], 201);
-        } catch (ValidationException $e) {
-            throw $e;
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Registration failed.',
-                'error' => config('app.debug') ? $e->getMessage() : 'Something went wrong.',
-            ], 500);
-        }
-    }
 
     /**
      * Authenticate user and return token.

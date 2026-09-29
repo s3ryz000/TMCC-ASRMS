@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use Carbon\Carbon;
 use App\Services\AcademicResidencyValidationService;
+use App\Services\Enrollment\AcademicRecordQuery;
 use App\Services\Enrollment\EnrollmentPolicy;
 use App\Services\Enrollment\EnrollmentTerm;
 use App\Services\Enrollment\EnrollmentValidator;
@@ -23,7 +24,7 @@ class AcademicProgressionService
     /**
      * Statuses that count as "passed" for prerequisite checks.
      */
-    const PASSED_STATUSES = ['Passed', 'Credited'];
+    const PASSED_STATUSES = AcademicRecordQuery::PASSED_STATUSES;
 
     /**
      * Statuses that require retake.
@@ -60,6 +61,10 @@ class AcademicProgressionService
         '4.00' => 'INC',
         '5.00' => 'Failed',
     ];
+
+    public function __construct(private AcademicRecordQuery $records)
+    {
+    }
 
     /**
      * Compute allowed academic years for a student.
@@ -412,7 +417,7 @@ class AcademicProgressionService
         }
 
         // Get all subject IDs the student has already passed or credited
-        $passedSubjectIds = $this->getPassedSubjectIds($student);
+        $passedSubjectIds = $this->records->passedSubjectIds($student);
 
         // "Actively enrolled" means: Enrolled status in the exact next term (AY + semester).
         // Old Failed/Withdrawn/FDA records are intentionally excluded so they never
@@ -427,7 +432,7 @@ class AcademicProgressionService
             ->toArray();
 
         // Get subject IDs with INC status (blocks prerequisites but doesn't count as passed)
-        $incSubjectIds = $this->getIncSubjectIds($student);
+        $incSubjectIds = $this->records->incSubjectIds($student);
 
         $available = [];
 
@@ -466,6 +471,7 @@ class AcademicProgressionService
                     'prerequisite_code' => $unresolvedDisplay,
                     'prerequisite_status' => 'unresolved',
                     'prerequisite_codes' => $unresolvedPrereqs,
+                    'prerequisite_logic' => $entry->prerequisite_logic ?? 'AND',
                     'prerequisite_display' => $unresolvedDisplay,
                     'missing_prerequisites' => $unresolvedPrereqs,
                     'eligible' => false,
@@ -616,6 +622,7 @@ class AcademicProgressionService
                 'prerequisite_code' => $prereqDisplay, // Legacy compatibility
                 'prerequisite_status' => $prereqStatus, // Legacy compatibility
                 'prerequisite_codes' => $prereqCodes,
+                'prerequisite_logic' => $entry->prerequisite_logic ?? 'AND',
                 'prerequisite_display' => $prereqDisplay,
                 'missing_prerequisites' => $missingPrereqs,
                 'eligible' => $eligible && !$isActivelyEnrolled,
@@ -651,7 +658,7 @@ class AcademicProgressionService
             ->get();
 
         // Exclude subjects that have been subsequently passed
-        $passedIds = $this->getPassedSubjectIds($student);
+        $passedIds = $this->records->passedSubjectIds($student);
 
         $retakes = [];
         foreach ($retakeGrades as $grade) {
@@ -776,7 +783,7 @@ class AcademicProgressionService
         //   2. It is not already enrolled for the exact next AY + semester.
         //   3. Its own prerequisites (if any) are still met.
         $existingSubjectIds = array_column($availableSubjects, 'subject_id');
-        $retakePassedIds = $this->getPassedSubjectIds($student);
+        $retakePassedIds = $this->records->passedSubjectIds($student);
 
         foreach ($retakeData['retake_subjects_available'] as $retakeSubj) {
             if (in_array($retakeSubj['subject_id'], $existingSubjectIds)) {
@@ -1116,7 +1123,7 @@ class AcademicProgressionService
             ->get()
             ->groupBy('subject_id');
 
-        $passedSubjectIds = collect($this->getPassedSubjectIds($student));
+        $passedSubjectIds = collect($this->records->passedSubjectIds($student));
 
         foreach ($curriculum as $item) {
             $subjectId = $item->subject_id;
@@ -1249,55 +1256,8 @@ class AcademicProgressionService
         $curriculumIds = Curriculum::where('program_id', $student->program_id)
             ->pluck('subject_id')
             ->toArray();
-        $passedIds = $this->getPassedSubjectIds($student);
+        $passedIds = $this->records->passedSubjectIds($student);
         return array_values(array_diff($curriculumIds, $passedIds));
-    }
-
-    /**
-     * Get all subject IDs the student has passed or credited.
-     */
-    private function getPassedSubjectIds(Student $student): array
-    {
-        return Grade::where('student_id', $student->student_id)
-            ->where(function ($q) {
-                $q->whereIn('status', self::PASSED_STATUSES)
-                    ->orWhere(function ($inner) {
-                        // Legacy: grade 1.00-3.00 without status column
-                        $inner->whereNotNull('grade_value')
-                            ->where('grade_value', '>=', 1.00)
-                            ->where('grade_value', '<=', 3.00)
-                            ->whereNull('status');
-                    })
-                    ->orWhere(function ($inner) {
-                        // Legacy: remarks-based
-                        $inner->whereNull('status')
-                            ->whereIn('remarks', ['PASSED', 'Passed', 'CREDITED', 'Credited']);
-                    });
-            })
-            ->pluck('subject_id')
-            ->unique()
-            ->toArray();
-    }
-
-    /**
-     * Get all subject IDs with INC status.
-     */
-    private function getIncSubjectIds(Student $student): array
-    {
-        return Grade::where('student_id', $student->student_id)
-            ->where(function ($q) {
-                $q->where('status', 'INC')
-                    ->orWhere(function ($inner) {
-                        $inner->whereNull('status')
-                            ->where(function ($sub) {
-                                $sub->where('grade_value', 4.00)
-                                    ->orWhereIn('remarks', ['INC', 'inc']);
-                            });
-                    });
-            })
-            ->pluck('subject_id')
-            ->unique()
-            ->toArray();
     }
 
     /**
