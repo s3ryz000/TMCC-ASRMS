@@ -4,7 +4,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sileo';
 import Navbar from '../components/Navbar';
 import Home from '../pages/Home';
-import Login from '../pages/Login';
 import StudentDashboard from '../pages/StudentDashboard';
 import AdminLayout from '../layouts/AdminLayout';
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage';
@@ -90,7 +89,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Home /> },
-      { path: 'login', element: <Login /> },
+      { path: 'login', element: <Navigate to="/" replace /> },
       {
         path: 'dashboard',
         element: (

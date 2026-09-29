@@ -1336,6 +1336,41 @@ button.primary:hover {
   text-align: center;
 }
 
+/* Login page fits one screen – scoped to .sd-login-page so /dashboard is untouched */
+.student-dashboard.sd-login-page {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: clamp(0.5rem, 2vh, 2rem) 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; /* very short windows scroll instead of clipping Sign in */
+}
+
+.sd-login-page .sd-page-container {
+  width: 100%;
+  margin-block: auto;
+}
+
+.sd-login-page .sd-profile-hero {
+  padding: clamp(0.75rem, 2.5vh, 1.5rem) 1.5rem clamp(0.75rem, 2vh, 1.25rem);
+}
+
+.sd-login-page .sd-login-hero-inner {
+  gap: clamp(0.5rem, 2vh, 1.5rem);
+}
+
+.sd-login-page .sd-login-logo-wrap {
+  width: clamp(64px, 12vh, 120px);
+  height: clamp(64px, 12vh, 120px);
+}
+
+.sd-login-page .sd-content {
+  min-height: 0;
+  padding: clamp(0.75rem, 2.5vh, 1.5rem) 1.5rem;
+}
+
 .sd-filter-hint {
   display: flex;
   align-items: center;

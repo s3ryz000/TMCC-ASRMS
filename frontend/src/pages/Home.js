@@ -57,7 +57,7 @@ const Home = () => {
   };
 
   return (
-    <div className="student-dashboard">
+    <div className="student-dashboard sd-login-page">
       <div className="sd-page-container">
         {/* ========== HEADER (same as Student Dashboard) ========== */}
         <header className="sd-header">

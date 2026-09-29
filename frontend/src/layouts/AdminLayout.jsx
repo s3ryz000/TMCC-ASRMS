@@ -132,8 +132,8 @@ const AdminLayout = () => {
 
   return (
     <div className="flex min-h-screen bg-[#f4f6f8]">
-      <aside className="w-[260px] min-w-[260px] flex flex-col bg-[#1ac76a] text-white shadow-[2px_0_12px_rgba(0,0,0,0.08)]">
-        <div className="px-5 py-6 border-b border-white/15 flex items-center gap-3">
+      <aside className="w-[260px] min-w-[260px] sticky top-0 h-screen flex flex-col bg-[#1ac76a] text-white shadow-[2px_0_12px_rgba(0,0,0,0.08)]">
+        <div className="px-5 py-6 border-b border-white/15 flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 overflow-hidden">
             {!logoError ? (
               <img
@@ -152,12 +152,12 @@ const AdminLayout = () => {
           </div>
         </div>
 
-        <nav className="flex-1 py-4 px-3 flex flex-col gap-0.5" aria-label="Admin dashboard navigation">
+        <nav className="flex-1 min-h-0 overflow-y-auto py-4 px-3 flex flex-col gap-0.5" aria-label="Admin dashboard navigation">
           {navItemsBeforeRegistrar.map(renderNavLink)}
           {navItemsAfterRegistrar.map(renderNavLink)}
         </nav>
 
-        <div className="p-4 pt-4 border-t border-white/15">
+        <div className="p-4 pt-4 border-t border-white/15 shrink-0">
           <div className="text-xs mb-3 leading-snug text-white/90">
             <span className="block font-medium">{currentDate}</span>
             <span>{currentTime}</span>
