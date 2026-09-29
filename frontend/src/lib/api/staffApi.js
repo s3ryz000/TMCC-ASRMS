@@ -155,9 +155,37 @@ export const staffApi = {
     return data;
   },
 
-  /** List subjects for dropdowns (staff/admin). Per thesis: subject code, title, units. */
+  /** Subject catalogue with usage counts (staff/admin). */
   getSubjects: async () => {
     const { data } = await apiClient.get('/staff/subjects');
+    return data;
+  },
+
+  /** Create, edit or delete a subject (registrar staff). */
+  createSubject: async (payload) => {
+    const { data } = await apiClient.post('/staff/subjects', payload);
+    return data;
+  },
+  updateSubject: async (id, payload) => {
+    const { data } = await apiClient.put(`/staff/subjects/${id}`, payload);
+    return data;
+  },
+  deleteSubject: async (id) => {
+    const { data } = await apiClient.delete(`/staff/subjects/${id}`);
+    return data;
+  },
+
+  /** Create, edit or delete a program (registrar staff). */
+  createProgram: async (payload) => {
+    const { data } = await apiClient.post('/staff/programs', payload);
+    return data;
+  },
+  updateProgram: async (id, payload) => {
+    const { data } = await apiClient.put(`/staff/programs/${id}`, payload);
+    return data;
+  },
+  deleteProgram: async (id) => {
+    const { data } = await apiClient.delete(`/staff/programs/${id}`);
     return data;
   },
 

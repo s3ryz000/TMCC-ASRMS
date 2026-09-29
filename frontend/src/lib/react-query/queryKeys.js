@@ -21,6 +21,7 @@ export const queryKeys = {
     studentsList: (filters) => [...queryKeys.staff.all, 'students', filters],
     studentDetail: (id) => [...queryKeys.staff.all, 'student', id],
     programs: () => [...queryKeys.staff.all, 'programs'],
+    subjects: () => [...queryKeys.staff.all, 'subjects'],
     reports: () => [...queryKeys.staff.all, 'reports'],
   },
 };
