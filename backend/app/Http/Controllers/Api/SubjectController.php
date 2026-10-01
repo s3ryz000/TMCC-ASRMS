@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Requests\SaveSubjectRequest;
-use App\Models\Curriculum;
 use App\Models\Subject;
 use App\Models\SystemLog;
 use Illuminate\Http\JsonResponse;
@@ -138,8 +137,7 @@ class SubjectController extends Controller
         if ($subject->enrollments()->exists()) {
             return 'students have been enrolled in it';
         }
-        if (DB::table('curriculum_prerequisites')->where('prerequisite_subject_id', $subject->id)->exists()
-            || Curriculum::where('prerequisite', $subject->id)->exists()) {
+        if (DB::table('curriculum_prerequisites')->where('prerequisite_subject_id', $subject->id)->exists()) {
             return 'it is a prerequisite of another subject';
         }
 

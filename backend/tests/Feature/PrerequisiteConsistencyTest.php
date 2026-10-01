@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Services\AcademicLoadValidationService;
 use App\Services\RetakeEligibilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsAcademicRecords;
 use Tests\TestCase;
@@ -16,7 +17,8 @@ use Tests\TestCase;
  * D1: every module answers "what has this student passed?" and "are this
  * subject's prerequisites met?" the same way. Before this, the retake and
  * load services each carried their own copies, which ignored OR groups, the
- * legacy single prerequisite, or remarks-only legacy passes.
+ * legacy single prerequisite, or remarks-only legacy passes. Since #17 the
+ * curriculum_prerequisites pivot is the only source of prerequisites.
  *
  * E3: the pickers receive every prerequisite and its AND/OR logic.
  */
@@ -83,14 +85,21 @@ class PrerequisiteConsistencyTest extends TestCase
         $this->assertSame(['A', 'B'], $entry->missingPrerequisites([])->pluck('code')->all());
     }
 
-    public function test_the_legacy_single_prerequisite_is_still_honoured(): void
+    public function test_prerequisites_come_only_from_the_pivot(): void
     {
+        // #17: the legacy single-prerequisite column is gone.
+        $this->assertFalse(Schema::hasColumn('curriculum', 'prerequisite'));
+
         $entry = $this->curricula['B'];
-        $entry->update(['prerequisite' => $this->subjects['A']->id]);
+        $entry->prerequisites()->attach($this->subjects['A']->id);
         $entry = $entry->fresh();
 
         $this->assertSame(['A'], $entry->missingPrerequisites([])->pluck('code')->all());
         $this->assertTrue($entry->missingPrerequisites([$this->subjects['A']->id])->isEmpty());
+
+        // Detaching the pivot row leaves nothing to fall back on.
+        $entry->prerequisites()->detach();
+        $this->assertTrue($entry->fresh()->missingPrerequisites([])->isEmpty());
     }
 
     public function test_an_entry_without_prerequisites_has_none_missing(): void
@@ -133,10 +142,9 @@ class PrerequisiteConsistencyTest extends TestCase
         $this->assertSame(6, $this->maxEligibleUnits());
     }
 
-    public function test_load_respects_a_legacy_single_prerequisite(): void
+    public function test_load_respects_a_single_prerequisite(): void
     {
-        $this->curricula['R']->prerequisites()->detach();
-        $this->curricula['R']->update(['prerequisite' => $this->subjects['A']->id]);
+        $this->curricula['R']->prerequisites()->sync([$this->subjects['A']->id]);
         $this->recordGrade($this->student, 'A', '2026-2027', 1, 5.00, 'Failed');
         $this->recordGrade($this->student, 'R', '2026-2027', 1, 5.00, 'Failed');
 

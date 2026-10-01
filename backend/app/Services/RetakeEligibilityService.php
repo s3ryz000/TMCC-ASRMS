@@ -222,7 +222,7 @@ class RetakeEligibilityService
 
             // Prerequisite check: retake subjects must still satisfy their
             // prerequisites, with the same AND/OR rule as first enrollment.
-            $prereqEntry = Curriculum::with(['prerequisites', 'prerequisite'])
+            $prereqEntry = Curriculum::with('prerequisites')
                 ->where('program_id', $student->program_id)
                 ->where('subject_id', $subjectId)
                 ->first();

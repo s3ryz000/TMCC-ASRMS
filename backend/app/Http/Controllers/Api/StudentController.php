@@ -429,9 +429,8 @@ class StudentController extends Controller
             return $err;
         }
 
-        // Both prerequisite forms: the many-to-many list the enrollment rules
-        // use, and the deprecated single column for rows not yet migrated.
-        $query = Curriculum::with(['subject', 'prerequisite', 'prerequisites:id,code,title'])
+        // Prerequisites come only from curriculum_prerequisites (#17).
+        $query = Curriculum::with(['subject', 'prerequisites:id,code,title'])
             ->where('program_id', $id)
             ->orderBy('year_level')
             ->orderBy('semester');

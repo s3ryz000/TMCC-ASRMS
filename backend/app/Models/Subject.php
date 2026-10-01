@@ -3,12 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subject extends Model
 {
-    protected $fillable = ['code', 'title', 'units', 'description','prerequisite'];
+    protected $fillable = ['code', 'title', 'units', 'description'];
 
     public function enrollments(): HasMany
     {
@@ -23,11 +22,6 @@ class Subject extends Model
     public function curriculum(): HasMany
     {
         return $this->hasMany(Curriculum::class);
-    }
-
-    public function prerequisite(): BelongsTo
-    {
-        return $this->belongsTo(Subject::class, 'prerequisite');
     }
 
     /**

@@ -10,7 +10,7 @@ class Curriculum extends Model
 {
     protected $table = 'curriculum';
 
-    protected $fillable = ['program_id', 'subject_id', 'year_level', 'semester', 'prerequisite', 'unresolved_prerequisites', 'prerequisite_logic'];
+    protected $fillable = ['program_id', 'subject_id', 'year_level', 'semester', 'unresolved_prerequisites', 'prerequisite_logic'];
 
     /**
      * Cast unresolved_prerequisites from/to a PHP array automatically.
@@ -30,14 +30,6 @@ class Curriculum extends Model
         return $this->belongsTo(Subject::class);
     }
 
-    /**
-     * @deprecated Use prerequisites() instead to support multiple subjects.
-     */
-    public function prerequisite(): BelongsTo
-    {
-        return $this->belongsTo(Subject::class, 'prerequisite');
-    }
-
     public function prerequisites()
     {
         return $this->belongsToMany(
@@ -49,26 +41,14 @@ class Curriculum extends Model
     }
 
     /**
-     * The subjects this entry requires: the many-to-many prerequisites, or the
-     * deprecated single `prerequisite` column for rows not yet migrated.
+     * The subjects this entry requires. curriculum_prerequisites is the only
+     * place prerequisites are stored (#17).
      *
      * @return Collection<int, Subject>
      */
     public function prerequisiteSubjects(): Collection
     {
-        if ($this->prerequisites->isNotEmpty()) {
-            return $this->prerequisites->values();
-        }
-
-        // The column and the relation share a name, so read each explicitly.
-        $legacyId = $this->getAttributes()['prerequisite'] ?? null;
-        if (! $legacyId) {
-            return collect();
-        }
-
-        $legacy = $this->getRelationValue('prerequisite') ?? Subject::find($legacyId);
-
-        return $legacy ? collect([$legacy]) : collect();
+        return $this->prerequisites->values();
     }
 
     /**

@@ -104,7 +104,7 @@ class EnrollmentValidator
         // Curriculum rows for the subjects under consideration, within this
         // student's program. Used for prerequisite lookups and to tell "wrong
         // program" apart from "wrong term".
-        $entries = Curriculum::with(['subject', 'prerequisites', 'prerequisite'])
+        $entries = Curriculum::with(['subject', 'prerequisites'])
             ->where('program_id', $student->program_id)
             ->whereIn('subject_id', $subjectIds)
             ->get();

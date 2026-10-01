@@ -6,7 +6,6 @@ use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Student;
-use App\Models\Subject;
 use Carbon\Carbon;
 use App\Services\AcademicResidencyValidationService;
 use App\Services\Enrollment\AcademicRecordQuery;
@@ -405,11 +404,11 @@ class AcademicProgressionService
         // all years/semesters so students can retake or complete any outstanding
         // requirement in the extension year.
         if ($yearLevel >= 5) {
-            $curriculumEntries = Curriculum::with(['subject', 'prerequisites', 'prerequisite'])
+            $curriculumEntries = Curriculum::with(['subject', 'prerequisites'])
                 ->where('program_id', $student->program_id)
                 ->get();
         } else {
-            $curriculumEntries = Curriculum::with(['subject', 'prerequisites', 'prerequisite'])
+            $curriculumEntries = Curriculum::with(['subject', 'prerequisites'])
                 ->where('program_id', $student->program_id)
                 ->where('year_level', $yearLevel)
                 ->where('semester', $semester)
@@ -494,25 +493,8 @@ class AcademicProgressionService
             $prereqStatus = 'not_taken';
             $prereqDisplay = null;
 
-            if ($entry->prerequisites->isNotEmpty()) {
-                $requiredPrereqIds = $entry->prerequisites->pluck('id')->toArray();
-                $prereqSubjects = $entry->prerequisites;
-            } else {
-                $legacyId = $entry->getAttributes()['prerequisite'] ?? null;
-                if ($legacyId) {
-                    $legacySubject = $entry->getRelationValue('prerequisite') ?? Subject::find($legacyId);
-                    if ($legacySubject) {
-                        $requiredPrereqIds = [$legacyId];
-                        $prereqSubjects = collect([$legacySubject]);
-                    } else {
-                        $requiredPrereqIds = [];
-                        $prereqSubjects = collect();
-                    }
-                } else {
-                    $requiredPrereqIds = [];
-                    $prereqSubjects = collect();
-                }
-            }
+            $prereqSubjects = $entry->prerequisites;
+            $requiredPrereqIds = $prereqSubjects->pluck('id')->toArray();
 
             if ($prereqSubjects->isNotEmpty()) {
                 $prereqLogic = $entry->prerequisite_logic ?? 'AND';
@@ -796,26 +778,14 @@ class AcademicProgressionService
             $retakeEligible = true;
             $blockedReason = null;
 
-            $prereqEntry = Curriculum::with(['prerequisites', 'prerequisite'])
+            $prereqEntry = Curriculum::with('prerequisites')
                 ->where('program_id', $student->program_id)
                 ->where('subject_id', $retakeSubj['subject_id'])
                 ->first();
 
             if ($prereqEntry) {
-                if ($prereqEntry->prerequisites->isNotEmpty()) {
-                    $reqPrereqIds = $prereqEntry->prerequisites->pluck('id')->toArray();
-                    $prereqSubjects = $prereqEntry->prerequisites;
-                } else {
-                    $legacyId = $prereqEntry->getAttributes()['prerequisite'] ?? null;
-                    if ($legacyId) {
-                        $legacySub = $prereqEntry->getRelationValue('prerequisite') ?? Subject::find($legacyId);
-                        $reqPrereqIds = $legacySub ? [$legacyId] : [];
-                        $prereqSubjects = $legacySub ? collect([$legacySub]) : collect();
-                    } else {
-                        $reqPrereqIds = [];
-                        $prereqSubjects = collect();
-                    }
-                }
+                $prereqSubjects = $prereqEntry->prerequisites;
+                $reqPrereqIds = $prereqSubjects->pluck('id')->toArray();
 
                 if (isset($prereqSubjects) && $prereqSubjects->isNotEmpty()) {
                     $prereqLogic = $prereqEntry->prerequisite_logic ?? 'AND';
@@ -1107,7 +1077,7 @@ class AcademicProgressionService
             ];
         }
 
-        $curriculum = Curriculum::with(['subject', 'prerequisites', 'prerequisite'])
+        $curriculum = Curriculum::with(['subject', 'prerequisites'])
             ->where('program_id', $student->program_id)
             ->orderBy('year_level')
             ->orderBy('semester')
@@ -1143,12 +1113,6 @@ class AcademicProgressionService
             $enrollmentSem = null;
 
             $prereqSubjects = $item->prerequisites;
-            if ($prereqSubjects->isEmpty() && ($item->getAttributes()['prerequisite'] ?? null)) {
-                $legacyId = $item->getAttributes()['prerequisite'];
-                $legacySub = Subject::find($legacyId);
-                if ($legacySub)
-                    $prereqSubjects = collect([$legacySub]);
-            }
 
             $prereqCodes = [];
             if ($prereqSubjects->isNotEmpty()) {

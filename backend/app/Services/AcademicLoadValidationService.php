@@ -144,9 +144,8 @@ class AcademicLoadValidationService
                 continue; // Already counted via regular curriculum list
             }
 
-            // Same AND/OR rule, including the legacy single prerequisite,
-            // that the retake itself is validated with.
-            $prereqRow = Curriculum::with(['prerequisites', 'prerequisite'])
+            // Same AND/OR rule that the retake itself is validated with.
+            $prereqRow = Curriculum::with('prerequisites')
                 ->where('program_id', $student->program_id)
                 ->where('subject_id', $retake['subject_id'])
                 ->first();
