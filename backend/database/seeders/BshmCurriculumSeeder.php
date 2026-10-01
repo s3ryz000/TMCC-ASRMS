@@ -10,7 +10,8 @@ use Illuminate\Database\Seeder;
  * Bachelor of Science in Hospitality Management
  * Based on CMO No. 62, Series of 2017 and CMO No. 20, Series of 2013
  *
- * NOTE: Several BSHM subject codes overlap with BSTM codes but have DIFFERENT titles.
+ * NOTE: the codes below are as the BSHM curriculum document prints them. Several
+ * overlap with BSTM codes but name a different course or spell it differently:
  * Examples:
  *   THC 3 (BSHM) = "Quality Service Management in Tourism and Hospitality"
  *   THC 3 (BSTM) = "Tourism and Hospitality Service Quality Management"
@@ -21,7 +22,9 @@ use Illuminate\Database\Seeder;
  *   HMPE 1 (BSHM) = "Introduction to Transport Services"
  *   HMPE 1 (BSTM) = "Recreation and Leisure Management"
  *
- * These will correctly become separate subjects rows because the helper uses (code, title) as the lookup key.
+ * CurriculumSeederHelper translates each through SubjectCatalog to one canonical
+ * subject per course (e.g. GE 5 here is GEE-IP; BSTM's HMPE 1 becomes TMPE 1).
+ * Prerequisites below keep using these program-local codes.
  */
 class BshmCurriculumSeeder extends Seeder
 {

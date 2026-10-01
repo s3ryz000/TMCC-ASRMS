@@ -62,16 +62,103 @@ class CatalogManagementTest extends TestCase
         $this->assertDatabaseHas('system_logs', ['action' => 'Subject created: IT 101 — Intro to Computing', 'user_id' => $this->staff->id]);
     }
 
-    public function test_code_and_title_together_must_be_unique(): void
+    public function test_subject_code_must_be_unique(): void
     {
         $this->postJson('/api/staff/subjects', $this->subjectPayload())->assertCreated();
 
         $this->postJson('/api/staff/subjects', $this->subjectPayload())
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['code' => 'A subject with this code and title already exists.']);
+            ->assertJsonValidationErrors(['code' => 'A subject with this code already exists.']);
 
-        // The same code under a different title is a separate subject (BSE's GE courses).
-        $this->postJson('/api/staff/subjects', $this->subjectPayload(['title' => 'Intro to Computing (BSE)']))->assertCreated();
+        // One code per course (#16): a different title no longer makes a second
+        // subject under the same code, whatever its case or spacing.
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['title' => 'Intro to Computing (BSE)']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['code' => 'A subject with this code already exists.']);
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => ' it   101 ', 'title' => 'Something Else']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['code' => 'A subject with this code already exists.']);
+
+        $this->assertSame(1, Subject::where('code', 'IT 101')->count());
+    }
+
+    public function test_subject_code_is_stored_trimmed_and_uppercase(): void
+    {
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => '  gec-pc ', 'title' => 'Purposive Communication']))
+            ->assertCreated()
+            ->assertJsonPath('subject.code', 'GEC-PC');
+
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => 'it   101']))
+            ->assertCreated()
+            ->assertJsonPath('subject.code', 'IT 101');
+    }
+
+    /**
+     * @dataProvider nearDuplicateTitles
+     */
+    public function test_a_near_duplicate_title_is_rejected(string $title): void
+    {
+        Subject::create(['code' => 'HMPE 2', 'title' => 'Bar and Beverage Management with Laboratory', 'units' => 3]);
+
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => 'NEW 1', 'title' => $title]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'title' => 'This looks like HMPE 2 Bar and Beverage Management with Laboratory, which already exists. Reuse it instead.',
+            ]);
+
+        $this->assertDatabaseMissing('subjects', ['code' => 'NEW 1']);
+    }
+
+    public static function nearDuplicateTitles(): array
+    {
+        return [
+            'same title'         => ['Bar and Beverage Management with Laboratory'],
+            'case and spacing'   => ['  bar AND beverage   management with laboratory '],
+            'lab abbreviation'   => ['Bar and Beverage Management with Lab'],
+            'ampersand'          => ['Bar & Beverage Management with Lab'],
+            'leading the'        => ['The Bar and Beverage Management with Laboratory'],
+        ];
+    }
+
+    public function test_the_near_duplicate_message_names_the_existing_subject(): void
+    {
+        Subject::create(['code' => 'GEC-PC', 'title' => 'Purposive Communication', 'units' => 3]);
+
+        $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => 'GE 5', 'title' => 'purposive communication']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'title' => 'This looks like GEC-PC Purposive Communication, which already exists. Reuse it instead.',
+            ]);
+    }
+
+    public function test_a_subject_can_keep_its_own_title_when_updated(): void
+    {
+        $subject = $this->looseSubject();
+
+        // Same title, re-cased and re-spaced, on the same subject: allowed.
+        $this->putJson("/api/staff/subjects/{$subject->id}", ['code' => 'free', 'title' => '  unused   subject ', 'units' => 3])
+            ->assertOk()
+            ->assertJsonPath('subject.code', 'FREE');
+
+        // Taking another subject's title is not.
+        $this->putJson("/api/staff/subjects/{$subject->id}", ['code' => 'FREE', 'title' => 'Subject A', 'units' => 3])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('title');
+
+        // Nor is taking another subject's code.
+        $this->putJson("/api/staff/subjects/{$subject->id}", ['code' => 'a', 'title' => 'Unused Subject', 'units' => 3])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['code' => 'A subject with this code already exists.']);
+    }
+
+    public function test_resubmitting_a_mixed_case_code_keeps_its_spelling(): void
+    {
+        $subject = Subject::create(['code' => 'PATHFit 1', 'title' => 'Movement Competency Training', 'units' => 2]);
+
+        $this->putJson("/api/staff/subjects/{$subject->id}", ['code' => 'PATHFit 1', 'title' => 'Movement Competency Training', 'units' => 2, 'description' => 'PE'])
+            ->assertOk();
+
+        $this->assertSame('PATHFit 1', $subject->fresh()->code);
     }
 
     /**

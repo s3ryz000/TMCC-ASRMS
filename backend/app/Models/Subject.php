@@ -29,4 +29,19 @@ class Subject extends Model
     {
         return $this->belongsTo(Subject::class, 'prerequisite');
     }
+
+    /**
+     * A title reduced to what tells courses apart, so spelling variants of one
+     * course compare equal: case, spacing, "&" for "and", "Lab" for
+     * "Laboratory" and a leading "The" are ignored.
+     */
+    public static function normalizeTitle(string $title): string
+    {
+        $title = mb_strtolower(trim($title));
+        $title = preg_replace('/\s*&\s*/u', ' and ', $title);
+        $title = preg_replace('/\blab\b/u', 'laboratory', $title);
+        $title = preg_replace('/\s+/u', ' ', trim($title));
+
+        return preg_replace('/^the /u', '', $title);
+    }
 }

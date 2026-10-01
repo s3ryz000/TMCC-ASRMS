@@ -21,11 +21,13 @@ use Illuminate\Support\Facades\DB;
  *   - prerequisites (array) Array of subject codes that must be passed first. Empty [] means none.
  *   - description (string)  Optional
  *
- * Subjects are found or created by (code, title) to safely handle same-code-different-title
- * conflicts across programs (e.g., BSE GE codes differ from BSTM/BSHM GE codes).
+ * Rows keep the codes and titles their curriculum document prints. Each one is
+ * translated through SubjectCatalog to its canonical code and title, and the
+ * subject is found or created by that code alone, so every program shares one
+ * row per course (e.g. BSE's "GE 1" and BSTM's "GE 4" are both GEC-UTS).
  *
  * Prerequisites are resolved within the program's own curriculum context only —
- * never via a global subject-code pluck.
+ * never via a global subject-code pluck — using the program-local codes.
  *
  * The string "Finished all Academic Requirements" is skipped with a warning.
  */
@@ -88,20 +90,26 @@ trait CurriculumSeederHelper
 
             $prereqLogic = $row['prerequisite_logic'] ?? 'AND';
 
-            // Safely find or create subject by (code, title).
-            // Same code + different title = different subject row. Safe.
-            // Matches the composite unique index: unique(code, title).
-            // units and description are only applied on creation, not overwritten.
+            // One row per course, keyed on its canonical code (unique index).
+            // title, units and description are only applied on creation, not overwritten.
+            [$subjectCode, $subjectTitle] = SubjectCatalog::resolve($code, $title);
             $subject = Subject::firstOrCreate(
+                ['code' => $subjectCode],
                 [
-                    'code' => $code,
-                    'title' => $title,
-                ],
-                [
+                    'title' => $subjectTitle,
                     'units' => $units,
                     'description' => $desc,
                 ]
             );
+
+            // A different course under the same code would be silently merged;
+            // it needs its own entry in SubjectCatalog instead.
+            if ($subject->title !== $subjectTitle) {
+                $this->command->warn(
+                    "[WARN][{$programCode}] {$subjectCode} already exists as '{$subject->title}'; " .
+                    "'{$title}' was attached to it. Add a SubjectCatalog entry if they are different courses."
+                );
+            }
 
             // Idempotent curriculum row
             $curriculum = Curriculum::updateOrCreate(
@@ -116,9 +124,8 @@ trait CurriculumSeederHelper
                 ] // Add logic here
             );
 
-            // Store in local map using the normalized code.
-            // If two rows have the same code+title (shouldn't happen within one program),
-            // the last one wins — acceptable because they'd be the same curriculum entry.
+            // Store in local map using the program-local normalized code, which is
+            // what this program's prerequisite lists refer to.
             $curriculumMap[$code] = $curriculum;
         }
 

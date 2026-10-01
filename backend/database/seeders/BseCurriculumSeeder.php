@@ -10,9 +10,10 @@ use Illuminate\Database\Seeder;
  * Bachelor of Science in Entrepreneurship
  * Based on CMO No. 18, Series of 2017 and CMO No. 20, Series of 2013
  *
- * IMPORTANT: BSE uses GE codes with completely different titles from BSTM/BSHM:
+ * NOTE: the codes below are as the BSE curriculum document prints them. Its GE
+ * numbering differs from BSTM/BSHM:
  *   GE 1 (BSE) = "Understanding the Self"      (BSTM/BSHM = "Purposive Communication")
- *   GE 2 (BSE) = "Readings in Philippine History"  (same title — will reuse same subjects row)
+ *   GE 2 (BSE) = "Readings in Philippine History"  (same in every program)
  *   GE 3 (BSE) = "The Contemporary World"      (BSTM/BSHM = "Mathematics in the Modern World")
  *   GE 4 (BSE) = "Mathematics in the Modern World" (BSTM/BSHM = "Understanding the Self")
  *   GE 5 (BSE) = "Purposive Communication"     (BSTM/BSHM = "Science, Technology, and Society")
@@ -20,7 +21,9 @@ use Illuminate\Database\Seeder;
  *   GE ELECT 1 (BSE) = "Social Science and Philosophy"  (BSTM/BSHM = "Gender and Society")
  *   GE ELECT 2 (BSE) = "Arts and Humanities"   (BSHM = "Environmental Science")
  *
- * These will each become separate subjects rows due to (code, title) lookup key.
+ * CurriculumSeederHelper translates each through SubjectCatalog, so all three
+ * programs share one subject per course (GEC-UTS, GEC-PC, GEE-SSP, ...).
+ * Prerequisites below keep using these program-local codes.
  *
  * Unresolved prerequisite notes:
  *   - OM: old data had "MGT/HRM/ACCTG" — resolved to ['MGT 1', 'HRM', 'ACCTG 2'] per curriculum context
