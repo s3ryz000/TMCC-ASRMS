@@ -11,6 +11,9 @@ class Program extends Model
 
     protected $fillable = ['code', 'name', 'description'];
 
+    /** archived_at is set only through the archive endpoints, never mass-assigned. */
+    protected $casts = ['archived_at' => 'datetime'];
+
     public function students(): HasMany
     {
         return $this->hasMany(Student::class, 'program_id');

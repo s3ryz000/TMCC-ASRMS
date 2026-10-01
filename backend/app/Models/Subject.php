@@ -9,6 +9,9 @@ class Subject extends Model
 {
     protected $fillable = ['code', 'title', 'units', 'description'];
 
+    /** archived_at is set only through the archive endpoints, never mass-assigned. */
+    protected $casts = ['archived_at' => 'datetime'];
+
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);

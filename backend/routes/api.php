@@ -90,9 +90,13 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::post('/subjects', [SubjectController::class, 'store']);
     Route::put('/subjects/{id}', [SubjectController::class, 'update']);
     Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
+    Route::patch('/subjects/{id}/archive', [SubjectController::class, 'archive']);
+    Route::patch('/subjects/{id}/unarchive', [SubjectController::class, 'unarchive']);
     Route::post('/programs', [ProgramController::class, 'store']);
     Route::put('/programs/{id}', [ProgramController::class, 'update']);
     Route::delete('/programs/{id}', [ProgramController::class, 'destroy']);
+    Route::patch('/programs/{id}/archive', [ProgramController::class, 'archive']);
+    Route::patch('/programs/{id}/unarchive', [ProgramController::class, 'unarchive']);
 });
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;

@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Enrollment;
+use App\Models\EnrollmentAuditLog;
 use App\Models\Grade;
 use App\Models\Program;
+use App\Models\ProgramChangeLog;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsAcademicRecords;
@@ -14,8 +18,9 @@ use Tests\TestCase;
 
 /**
  * C2: registrar staff maintain the subject and program catalogue. Admins can
- * read it; nobody can delete something still in use, because the foreign keys
- * cascade and would take grades and curricula with it.
+ * read it. Nothing still in use can be deleted (#15): the API answers 409 and
+ * says what uses it, and the foreign keys restrict the delete even if the API
+ * is bypassed. Such rows are archived instead.
  */
 class CatalogManagementTest extends TestCase
 {
@@ -231,8 +236,11 @@ class CatalogManagementTest extends TestCase
     public function test_a_subject_in_a_curriculum_cannot_be_deleted(): void
     {
         $this->deleteJson("/api/staff/subjects/{$this->subjects['B']->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'B cannot be deleted: it is part of a program curriculum.');
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'B cannot be deleted: used by 1 curriculum entry; archive it instead.');
+
+        $this->assertModelExists($this->subjects['B']);
+        $this->assertModelExists($this->curricula['B']);
     }
 
     public function test_a_prerequisite_subject_cannot_be_deleted(): void
@@ -241,8 +249,11 @@ class CatalogManagementTest extends TestCase
         $this->curricula['A']->delete();
 
         $this->deleteJson("/api/staff/subjects/{$this->subjects['A']->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'A cannot be deleted: it is a prerequisite of another subject.');
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'A cannot be deleted: used by 1 prerequisite link; archive it instead.');
+
+        $this->assertModelExists($this->subjects['A']);
+        $this->assertSame([$this->subjects['A']->id], $this->curricula['B']->prerequisites()->pluck('subjects.id')->all());
     }
 
     public function test_deleting_a_graded_subject_is_refused_and_grades_survive(): void
@@ -255,10 +266,67 @@ class CatalogManagementTest extends TestCase
         ]);
 
         $this->deleteJson("/api/staff/subjects/{$subject->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'FREE cannot be deleted: grades have been recorded for it.');
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'FREE cannot be deleted: used by 1 grade; archive it instead.');
 
+        $this->assertModelExists($subject);
         $this->assertSame(1, Grade::where('subject_id', $subject->id)->count());
+    }
+
+    public function test_the_refusal_names_everything_that_uses_the_subject(): void
+    {
+        $student = $this->makeStudent($this->program);
+        $this->recordGrade($student, 'A', '2026-2027', 1, 2.00, 'Passed');
+        $enrollment = Enrollment::create([
+            'student_id' => $student->student_id, 'subject_id' => $this->subjects['A']->id,
+            'academic_year' => '2026-2027', 'semester' => '1', 'status' => 'completed',
+        ]);
+        EnrollmentAuditLog::create([
+            'student_id' => $student->student_id, 'enrollment_id' => $enrollment->id, 'subject_id' => $this->subjects['A']->id,
+            'academic_year' => '2026-2027', 'semester' => '1', 'action' => 'created',
+        ]);
+        // A soft-deleted enrollment is still in the database and still counts.
+        $enrollment->delete();
+
+        $this->deleteJson("/api/staff/subjects/{$this->subjects['A']->id}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'A cannot be deleted: used by 1 curriculum entry, 1 prerequisite link, 1 enrollment, 1 grade and 1 audit log entry; archive it instead.')
+            ->assertJsonPath('usage.grade', 1);
+
+        $this->assertSame(1, Grade::count());
+        $this->assertSame(1, Enrollment::withTrashed()->count());
+        $this->assertSame(1, EnrollmentAuditLog::count());
+    }
+
+    public function test_the_database_refuses_to_delete_a_subject_in_use(): void
+    {
+        $student = $this->makeStudent($this->program);
+        $this->recordGrade($student, 'B', '2026-2027', 2, 2.00, 'Passed');
+        Enrollment::create([
+            'student_id' => $student->student_id, 'subject_id' => $this->subjects['B']->id,
+            'academic_year' => '2026-2027', 'semester' => '2', 'status' => 'completed',
+        ]);
+
+        // Bypassing the controller must not cascade into student records.
+        try {
+            $this->subjects['B']->delete();
+            $this->fail('Deleting a subject in use should violate a foreign key.');
+        } catch (QueryException $e) {
+            $this->assertStringContainsStringIgnoringCase('foreign key', $e->getMessage());
+        }
+
+        $this->assertModelExists($this->subjects['B']);
+        $this->assertSame(1, Grade::where('subject_id', $this->subjects['B']->id)->count());
+        $this->assertSame(1, Enrollment::where('subject_id', $this->subjects['B']->id)->count());
+        $this->assertModelExists($this->curricula['B']);
+    }
+
+    public function test_the_database_refuses_to_delete_a_prerequisite_subject(): void
+    {
+        $this->curricula['A']->delete();
+
+        $this->expectException(QueryException::class);
+        $this->subjects['A']->delete();
     }
 
     public function test_subject_list_reports_usage(): void
@@ -304,20 +372,57 @@ class CatalogManagementTest extends TestCase
     public function test_a_program_with_a_curriculum_cannot_be_deleted(): void
     {
         $this->deleteJson("/api/staff/programs/{$this->program->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'BSIT cannot be deleted: it has a curriculum.');
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'BSIT cannot be deleted: used by 2 curriculum entries; archive it instead.');
 
+        $this->assertModelExists($this->program);
         $this->assertSame(2, $this->program->curriculum()->count());
     }
 
     public function test_a_program_with_students_cannot_be_deleted(): void
     {
         $empty = Program::create(['code' => 'BSX', 'name' => 'Empty Program']);
-        $this->makeStudent($empty);
+        $student = $this->makeStudent($empty);
 
         $this->deleteJson("/api/staff/programs/{$empty->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'BSX cannot be deleted: students are enrolled in it.');
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'BSX cannot be deleted: used by 1 student; archive it instead.');
+
+        $this->assertModelExists($empty);
+        $this->assertSame($empty->id, $student->fresh()->program_id);
+    }
+
+    public function test_a_program_in_student_history_cannot_be_deleted(): void
+    {
+        $old = Program::create(['code' => 'BSX', 'name' => 'Former Program']);
+        $student = $this->makeStudent($this->program);
+        ProgramChangeLog::create([
+            'student_id' => $student->student_id, 'old_program_id' => $old->id, 'new_program_id' => $this->program->id,
+            'reason' => 'Shifted', 'changed_by' => $this->staff->id,
+        ]);
+
+        $this->deleteJson("/api/staff/programs/{$old->id}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'BSX cannot be deleted: used by 1 program change log entry; archive it instead.');
+
+        $this->assertDatabaseHas('program_change_logs', ['old_program_id' => $old->id]);
+    }
+
+    public function test_the_database_refuses_to_delete_a_program_in_use(): void
+    {
+        $student = $this->makeStudent($this->program);
+
+        // Neither the curriculum nor the student may be cascaded or detached.
+        try {
+            $this->program->delete();
+            $this->fail('Deleting a program in use should violate a foreign key.');
+        } catch (QueryException $e) {
+            $this->assertStringContainsStringIgnoringCase('foreign key', $e->getMessage());
+        }
+
+        $this->assertModelExists($this->program);
+        $this->assertSame(2, $this->program->curriculum()->count());
+        $this->assertSame($this->program->id, $student->fresh()->program_id);
     }
 
     public function test_an_unused_program_can_be_deleted(): void
@@ -339,6 +444,58 @@ class CatalogManagementTest extends TestCase
             ->assertJsonPath('programs.0.in_use', true);
     }
 
+    // ------------------------------------------------------------- archiving
+
+    public function test_registrar_archives_and_unarchives_a_subject_in_use(): void
+    {
+        $id = $this->subjects['A']->id;
+
+        $this->patchJson("/api/staff/subjects/{$id}/archive")
+            ->assertOk()
+            ->assertJsonPath('message', 'Subject archived.');
+        $this->assertNotNull($this->subjects['A']->fresh()->archived_at);
+        $this->assertDatabaseHas('system_logs', ['action' => 'Subject archived: A — Subject A', 'user_id' => $this->staff->id]);
+
+        $subjects = collect($this->getJson('/api/staff/subjects')->json('subjects'))->keyBy('code');
+        $this->assertTrue($subjects['A']['archived']);
+        $this->assertTrue($subjects['A']['in_use']);
+        $this->assertFalse($subjects['B']['archived']);
+
+        $this->patchJson("/api/staff/subjects/{$id}/unarchive")->assertOk()->assertJsonPath('message', 'Subject unarchived.');
+        $this->assertNull($this->subjects['A']->fresh()->archived_at);
+
+        // Archiving changes nothing else: the curriculum still lists it.
+        $this->assertModelExists($this->curricula['A']);
+    }
+
+    public function test_registrar_archives_and_unarchives_a_program(): void
+    {
+        $this->patchJson("/api/staff/programs/{$this->program->id}/archive")
+            ->assertOk()
+            ->assertJsonPath('message', 'Program archived.');
+        $this->assertDatabaseHas('system_logs', ['action' => 'Program archived: BSIT — BS Information Technology']);
+        $this->assertTrue($this->getJson('/api/staff/programs')->json('programs.0.archived'));
+
+        $this->patchJson("/api/staff/programs/{$this->program->id}/unarchive")->assertOk();
+        $this->assertFalse($this->getJson('/api/staff/programs')->json('programs.0.archived'));
+    }
+
+    public function test_archiving_cannot_be_set_through_the_edit_form(): void
+    {
+        $subject = $this->looseSubject();
+
+        $this->putJson("/api/staff/subjects/{$subject->id}", ['code' => 'FREE', 'title' => 'Unused Subject', 'units' => 3, 'archived_at' => '2026-01-01'])
+            ->assertOk();
+
+        $this->assertNull($subject->fresh()->archived_at);
+    }
+
+    public function test_archiving_a_missing_record_returns_404(): void
+    {
+        $this->patchJson('/api/staff/subjects/999999/archive')->assertNotFound();
+        $this->patchJson('/api/staff/programs/999999/unarchive')->assertNotFound();
+    }
+
     // ---------------------------------------------------------------- access
 
     public function test_admin_can_read_but_not_change_the_catalogue(): void
@@ -355,8 +512,11 @@ class CatalogManagementTest extends TestCase
         $this->postJson('/api/staff/programs', ['code' => 'BSX', 'name' => 'X'])->assertForbidden();
         $this->putJson("/api/staff/programs/{$this->program->id}", ['code' => 'BSIT', 'name' => 'X'])->assertForbidden();
         $this->deleteJson("/api/staff/programs/{$this->program->id}")->assertForbidden();
+        $this->patchJson("/api/staff/subjects/{$subject->id}/archive")->assertForbidden();
+        $this->patchJson("/api/staff/programs/{$this->program->id}/archive")->assertForbidden();
 
         $this->assertModelExists($subject);
+        $this->assertNull($subject->fresh()->archived_at);
     }
 
     public function test_students_cannot_see_the_catalogue(): void
@@ -365,6 +525,7 @@ class CatalogManagementTest extends TestCase
 
         $this->getJson('/api/staff/subjects')->assertForbidden();
         $this->postJson('/api/staff/programs', ['code' => 'BSX', 'name' => 'X'])->assertForbidden();
+        $this->patchJson("/api/staff/subjects/{$this->subjects['A']->id}/archive")->assertForbidden();
     }
 
     public function test_missing_records_return_404(): void

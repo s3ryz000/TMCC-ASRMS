@@ -4,20 +4,30 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
+use App\Http\Controllers\Concerns\ReportsCatalogUsage;
 use App\Http\Requests\SaveSubjectRequest;
 use App\Models\Subject;
 use App\Models\SystemLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * The subject catalogue. Reading is open to staff and admins; creating,
- * editing and deleting subjects is registrar work.
+ * editing, archiving and deleting subjects is registrar work.
  */
 class SubjectController extends Controller
 {
     use AuthorizesRole;
+    use ReportsCatalogUsage;
+
+    /** Everything that refers to a subject; any of it blocks a delete (#15). */
+    private const USAGE = [
+        'curriculum entry'  => ['curriculum', 'subject_id'],
+        'prerequisite link' => ['curriculum_prerequisites', 'prerequisite_subject_id'],
+        'enrollment'        => ['enrollments', 'subject_id'],
+        'grade'             => ['grades', 'subject_id'],
+        'audit log entry'   => ['enrollment_audit_logs', 'subject_id'],
+    ];
 
     /**
      * List subjects, with how widely each is used so the UI can explain why a
@@ -32,10 +42,12 @@ class SubjectController extends Controller
             return $err;
         }
 
+        $inUse = $this->idsInUse(self::USAGE);
+
         $subjects = Subject::withCount(['curriculum', 'grades'])
             ->orderBy('code')
             ->orderBy('title')
-            ->get(['id', 'code', 'title', 'units', 'description'])
+            ->get(['id', 'code', 'title', 'units', 'description', 'archived_at'])
             ->map(fn (Subject $subject) => [
                 'id'               => $subject->id,
                 'code'             => $subject->code,
@@ -44,7 +56,8 @@ class SubjectController extends Controller
                 'description'      => $subject->description,
                 'curriculum_count' => $subject->curriculum_count,
                 'grades_count'     => $subject->grades_count,
-                'in_use'           => $this->usageReason($subject) !== null,
+                'in_use'           => isset($inUse[$subject->id]),
+                'archived'         => $subject->archived_at !== null,
             ]);
 
         return response()->json(['subjects' => $subjects]);
@@ -112,10 +125,13 @@ class SubjectController extends Controller
             return response()->json(['message' => 'Subject not found.'], 404);
         }
 
-        // The foreign keys cascade, so deleting a subject in use would also
-        // delete its grades, enrollments and curriculum entries.
-        if ($reason = $this->usageReason($subject)) {
-            return response()->json(['message' => "{$subject->code} cannot be deleted: {$reason}."], 422);
+        // The foreign keys restrict deleting a subject in use; say what is
+        // using it rather than surfacing a database error.
+        if ($usage = $this->usageCounts(self::USAGE, $subject->id)) {
+            return response()->json([
+                'message' => "{$subject->code} cannot be deleted: used by {$this->describeUsage($usage)}; archive it instead.",
+                'usage'   => $usage,
+            ], 409);
         }
 
         $subject->delete();
@@ -125,23 +141,37 @@ class SubjectController extends Controller
         return response()->json(['message' => 'Subject deleted.']);
     }
 
-    /** Why the subject is in use, or null when it is safe to delete. */
-    private function usageReason(Subject $subject): ?string
+    /** Retire a subject that can no longer be deleted. Nothing filters on it yet. */
+    public function archive(Request $request, int $id): JsonResponse
     {
-        if ($subject->curriculum_count ?? $subject->curriculum()->exists()) {
-            return 'it is part of a program curriculum';
+        return $this->setArchived($request, $id, true);
+    }
+
+    public function unarchive(Request $request, int $id): JsonResponse
+    {
+        return $this->setArchived($request, $id, false);
+    }
+
+    private function setArchived(Request $request, int $id, bool $archived): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
         }
-        if ($subject->grades_count ?? $subject->grades()->exists()) {
-            return 'grades have been recorded for it';
-        }
-        if ($subject->enrollments()->exists()) {
-            return 'students have been enrolled in it';
-        }
-        if (DB::table('curriculum_prerequisites')->where('prerequisite_subject_id', $subject->id)->exists()) {
-            return 'it is a prerequisite of another subject';
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
+            return $err;
         }
 
-        return null;
+        $subject = Subject::find($id);
+        if (! $subject) {
+            return response()->json(['message' => 'Subject not found.'], 404);
+        }
+
+        $subject->forceFill(['archived_at' => $archived ? ($subject->archived_at ?? now()) : null])->save();
+
+        $verb = $archived ? 'archived' : 'unarchived';
+        $this->log($request, "Subject {$verb}: {$subject->code} — {$subject->title}");
+
+        return response()->json(['message' => "Subject {$verb}.", 'subject' => $subject]);
     }
 
     private function log(Request $request, string $action): void

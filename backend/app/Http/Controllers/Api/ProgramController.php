@@ -4,20 +4,29 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
+use App\Http\Controllers\Concerns\ReportsCatalogUsage;
 use App\Http\Requests\SaveProgramRequest;
 use App\Models\Program;
-use App\Models\ProgramChangeLog;
 use App\Models\SystemLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Degree programs. Reading is open to staff and admins; creating, editing and
- * deleting programs is registrar work.
+ * Degree programs. Reading is open to staff and admins; creating, editing,
+ * archiving and deleting programs is registrar work.
  */
 class ProgramController extends Controller
 {
     use AuthorizesRole;
+    use ReportsCatalogUsage;
+
+    /** Everything that refers to a program; any of it blocks a delete (#15). */
+    private const USAGE = [
+        'student'                  => ['students', 'program_id'],
+        'curriculum entry'         => ['curriculum', 'program_id'],
+        'program mapping'          => ['program_mappings', 'program_id'],
+        'program change log entry' => ['program_change_logs', ['old_program_id', 'new_program_id']],
+    ];
 
     public function index(Request $request): JsonResponse
     {
@@ -28,9 +37,11 @@ class ProgramController extends Controller
             return $err;
         }
 
+        $inUse = $this->idsInUse(self::USAGE);
+
         $programs = Program::withCount(['students', 'curriculum'])
             ->orderBy('code')
-            ->get(['id', 'code', 'name', 'description'])
+            ->get(['id', 'code', 'name', 'description', 'archived_at'])
             ->map(fn (Program $program) => [
                 'id'               => $program->id,
                 'code'             => $program->code,
@@ -38,7 +49,8 @@ class ProgramController extends Controller
                 'description'      => $program->description,
                 'students_count'   => $program->students_count,
                 'curriculum_count' => $program->curriculum_count,
-                'in_use'           => $this->usageReason($program) !== null,
+                'in_use'           => isset($inUse[$program->id]),
+                'archived'         => $program->archived_at !== null,
             ]);
 
         return response()->json(['programs' => $programs]);
@@ -95,10 +107,13 @@ class ProgramController extends Controller
             return response()->json(['message' => 'Program not found.'], 404);
         }
 
-        // Deleting cascades to the curriculum and program-change history and
-        // detaches students, so only an unused program may go.
-        if ($reason = $this->usageReason($program)) {
-            return response()->json(['message' => "{$program->code} cannot be deleted: {$reason}."], 422);
+        // The foreign keys restrict deleting a program in use; say what is
+        // using it rather than surfacing a database error.
+        if ($usage = $this->usageCounts(self::USAGE, $program->id)) {
+            return response()->json([
+                'message' => "{$program->code} cannot be deleted: used by {$this->describeUsage($usage)}; archive it instead.",
+                'usage'   => $usage,
+            ], 409);
         }
 
         $program->delete();
@@ -108,21 +123,37 @@ class ProgramController extends Controller
         return response()->json(['message' => 'Program deleted.']);
     }
 
-    /** Why the program is in use, or null when it is safe to delete. */
-    private function usageReason(Program $program): ?string
+    /** Retire a program that can no longer be deleted. Nothing filters on it yet. */
+    public function archive(Request $request, int $id): JsonResponse
     {
-        if ($program->students_count ?? $program->students()->exists()) {
-            return 'students are enrolled in it';
+        return $this->setArchived($request, $id, true);
+    }
+
+    public function unarchive(Request $request, int $id): JsonResponse
+    {
+        return $this->setArchived($request, $id, false);
+    }
+
+    private function setArchived(Request $request, int $id, bool $archived): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
         }
-        if ($program->curriculum_count ?? $program->curriculum()->exists()) {
-            return 'it has a curriculum';
-        }
-        if ($program->programMappings()->exists()
-            || ProgramChangeLog::where('old_program_id', $program->id)->orWhere('new_program_id', $program->id)->exists()) {
-            return 'it appears in student program history';
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
+            return $err;
         }
 
-        return null;
+        $program = Program::find($id);
+        if (! $program) {
+            return response()->json(['message' => 'Program not found.'], 404);
+        }
+
+        $program->forceFill(['archived_at' => $archived ? ($program->archived_at ?? now()) : null])->save();
+
+        $verb = $archived ? 'archived' : 'unarchived';
+        $this->log($request, "Program {$verb}: {$program->code} — {$program->name}");
+
+        return response()->json(['message' => "Program {$verb}.", 'program' => $program]);
     }
 
     private function log(Request $request, string $action): void
