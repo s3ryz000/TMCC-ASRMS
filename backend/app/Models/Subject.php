@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -11,6 +12,15 @@ class Subject extends Model
 
     /** archived_at is set only through the archive endpoints, never mass-assigned. */
     protected $casts = ['archived_at' => 'datetime'];
+
+    /**
+     * Whether the subject is archived. Not appended by default; curriculum
+     * responses add it with ->append('archived') so they can mark it (#68).
+     */
+    protected function archived(): Attribute
+    {
+        return Attribute::get(fn () => $this->archived_at !== null);
+    }
 
     public function enrollments(): HasMany
     {

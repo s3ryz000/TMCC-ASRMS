@@ -193,6 +193,9 @@ class StudentProfileController extends Controller
 
         $curriculum = $program->curriculum()->with('subject')->orderBy('year_level')->orderBy('semester')->get();
 
+        // The prospectus still lists archived subjects, marked (#68).
+        $curriculum->each(fn ($row) => $row->subject?->append('archived'));
+
         return response()->json([
             'program' => $program,
             'curriculum' => $curriculum,

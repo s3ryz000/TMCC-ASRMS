@@ -133,7 +133,17 @@ const StaffProgramCurriculumPage = () => {
                       <tbody>
                         {semester.subjects.map((subject) => (
                           <tr key={subject.id} className="text-gray-800">
-                            <td className={`${tdClass} font-medium whitespace-nowrap`}>{subject.code}</td>
+                            <td className={`${tdClass} font-medium whitespace-nowrap`}>
+                              {subject.code}
+                              {subject.archived && (
+                                <span
+                                  className="ml-2 inline-block py-0.5 px-2 rounded-full text-[0.65rem] font-medium bg-gray-200 text-gray-600 align-middle"
+                                  title="Archived: kept in the prospectus, but it can't be added to new enrollments"
+                                >
+                                  Archived
+                                </span>
+                              )}
+                            </td>
                             <td className={tdClass}>{subject.title}</td>
                             <td className={`${tdClass} text-center`}>{formatUnits(subject.units)}</td>
                             <td className={tdClass}>

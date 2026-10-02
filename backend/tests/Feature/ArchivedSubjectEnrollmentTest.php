@@ -165,6 +165,106 @@ class ArchivedSubjectEnrollmentTest extends TestCase
         $this->assertSame('2027-2028', $enrollment->fresh()->academic_year);
     }
 
+    // ------------------------------------------------ suggestions and views
+
+    public function test_next_term_suggestions_leave_archived_subjects_out(): void
+    {
+        $this->enrollNextTerm($this->student, ['A', 'B'])->assertCreated();
+        $this->submitGrades($this->student, ['A' => 2.00, 'B' => 2.00])->assertOk();
+
+        $before = $this->academicProgress($this->student);
+        $this->assertContains($this->subjects['E']->id, array_column($before['available_subjects'], 'subject_id'));
+
+        $this->archive('E');
+        $after = $this->academicProgress($this->student);
+
+        $this->assertNotContains($this->subjects['E']->id, array_column($after['available_subjects'], 'subject_id'));
+        $this->assertSame($before['max_eligible_units'] - 3, $after['max_eligible_units']);
+        // Nothing else about the term changes.
+        $this->assertSame($before['next_allowed_term'], $after['next_allowed_term']);
+    }
+
+    public function test_an_archived_failed_subject_is_not_offered_as_a_retake_but_stays_required(): void
+    {
+        $this->enrollNextTerm($this->student, ['A', 'B'])->assertCreated();
+        $this->submitGrades($this->student, ['A' => 5.00, 'B' => 2.00])->assertOk();
+        $this->enrollNextTerm($this->student, ['D', 'E'])->assertCreated();
+        $this->submitGrades($this->student, ['D' => 2.00, 'E' => 2.00])->assertOk();
+        $this->assertSame([$this->subjects['A']->id], array_column($this->academicProgress($this->student)['retake_subjects_available'], 'subject_id'));
+
+        $this->archive('A');
+        $progress = $this->academicProgress($this->student);
+
+        $this->assertSame([], array_column($progress['retake_subjects_available'], 'subject_id'));
+        $this->assertSame([$this->subjects['A']->id], array_column($progress['retake_subjects_required'], 'subject_id'));
+    }
+
+    public function test_program_curriculum_keeps_archived_subjects_and_marks_them(): void
+    {
+        $this->archive('C');
+
+        $rows = collect($this->getJson("/api/staff/programs/{$this->program->id}/curriculum")->assertOk()->json('curriculum'))
+            ->keyBy('subject.code');
+
+        $this->assertCount(6, $rows);
+        $this->assertTrue($rows['C']['subject']['archived']);
+        $this->assertFalse($rows['A']['subject']['archived']);
+        $this->assertSame(['A'], array_column($rows['C']['prerequisites'], 'code'));
+    }
+
+    public function test_the_student_curriculum_keeps_archived_subjects_and_marks_them(): void
+    {
+        $account = $this->makeUser('student', '2026-0002');
+        $this->makeStudent($this->program, ['student_number' => '2026-0002', 'email' => 'second@tmcc.test'], $account);
+        $this->archive('C');
+        Sanctum::actingAs($account, ['*']);
+
+        $rows = collect($this->getJson('/api/student/curriculum')->assertOk()->json('curriculum'))->keyBy('subject.code');
+
+        $this->assertCount(6, $rows);
+        $this->assertTrue($rows['C']['subject']['archived']);
+        $this->assertFalse($rows['B']['subject']['archived']);
+    }
+
+    public function test_a_students_existing_grade_gwa_and_transcript_do_not_change(): void
+    {
+        $account = $this->makeUser('student', '2026-0003');
+        $student = $this->makeStudent($this->program, ['student_number' => '2026-0003', 'email' => 'third@tmcc.test'], $account);
+        $this->enrollNextTerm($student, ['A', 'B'])->assertCreated();
+        $this->submitGrades($student, ['A' => 1.50, 'B' => 2.25])->assertOk();
+
+        $snapshot = function () use ($account, $student) {
+            Sanctum::actingAs($account, ['*']);
+            $grades = $this->getJson('/api/student/grades')->assertOk()->json();
+            $summary = $this->getJson('/api/student/academic-summary')->assertOk()->json();
+            $html = (new \ReflectionMethod(\App\Services\OfficialTranscriptExportService::class, 'buildHtml'))
+                ->invoke(app(\App\Services\OfficialTranscriptExportService::class), $student->fresh(['program', 'grades.subject']), 'TOR-TEST', 'now');
+
+            return [$grades, $summary, $html];
+        };
+
+        [$gradesBefore, $summaryBefore, $htmlBefore] = $snapshot();
+        $this->archive('A');
+        [$gradesAfter, $summaryAfter, $htmlAfter] = $snapshot();
+
+        // The embedded subject row now carries its archived_at; the student's
+        // record itself (grade, units, status, term) is otherwise identical.
+        $withoutArchivedAt = function ($data) use (&$withoutArchivedAt) {
+            if (! is_array($data)) {
+                return $data;
+            }
+            unset($data['archived_at']);
+
+            return array_map($withoutArchivedAt, $data);
+        };
+        $this->assertStringContainsString('Subject A', json_encode($gradesAfter));
+        $this->assertStringContainsString('"archived_at":"', json_encode($gradesAfter));
+        $this->assertSame($withoutArchivedAt($gradesBefore), $withoutArchivedAt($gradesAfter));
+        $this->assertSame($summaryBefore, $summaryAfter);
+        $this->assertSame($htmlBefore, $htmlAfter);
+        $this->assertStringContainsString('Subject A', $htmlAfter);
+    }
+
     public function test_grades_in_an_archived_subject_can_still_be_corrected(): void
     {
         $this->enrollNextTerm($this->student, ['A', 'B'])->assertCreated();

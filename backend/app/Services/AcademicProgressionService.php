@@ -442,6 +442,12 @@ class AcademicProgressionService
             if (!$subject)
                 continue;
 
+            // Archived subjects are never offered for a new enrollment (#68);
+            // the curriculum views still list them.
+            if ($subject->archived_at !== null) {
+                continue;
+            }
+
             // Skip if already passed or credited
             if (in_array($subjectId, $passedSubjectIds)) {
                 continue;

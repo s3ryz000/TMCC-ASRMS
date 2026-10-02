@@ -448,6 +448,10 @@ class StudentController extends Controller
 
         $curriculum = $query->get();
 
+        // Every row stays (the curriculum page lists archived subjects too);
+        // each subject says whether it is archived so pickers can leave it out (#68).
+        $curriculum->each(fn ($row) => $row->subject?->append('archived'));
+
         return response()->json(['curriculum' => $curriculum]);
     }
 

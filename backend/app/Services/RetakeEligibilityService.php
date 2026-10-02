@@ -172,8 +172,18 @@ class RetakeEligibilityService
         // ── Step 5: Build the "available this term" list ─────────────────────
         // Semester-matching rule: a failed subject is only available for retake 
         // when the next allowed term's semester matches the subject's curriculum semester.
+        // An archived subject stays in the "required" list (the student did fail
+        // it) but is never offered as a retake: it can't be enrolled (#68).
+        $archivedIds = collect($latestGradeBySubject)
+            ->filter(fn ($grade) => $grade->subject?->archived_at !== null)
+            ->keys()
+            ->all();
+
         $available = [];
         foreach ($required as $req) {
+            if (in_array($req['subject_id'], $archivedIds)) {
+                continue;
+            }
             if ((int) $req['curriculum_semester'] === $nextSemester) {
                 $available[] = $req;
             }

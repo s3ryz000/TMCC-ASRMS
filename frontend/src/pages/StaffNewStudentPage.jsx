@@ -54,9 +54,10 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
 
   React.useEffect(() => {
     if (curriculumData?.curriculum) {
-      // Default auto-select 1st year, 1st semester subjects
+      // Default auto-select 1st year, 1st semester subjects. Archived subjects
+      // can't be enrolled (#68), so they are never selected.
       const firstSemSubjects = curriculumData.curriculum
-        .filter((c) => c.year_level === 1 && c.semester === 1)
+        .filter((c) => c.year_level === 1 && c.semester === 1 && !c.subject?.archived)
         .map((c) => c.subject_id);
       setForm((prev) => ({ ...prev, subject_ids: firstSemSubjects }));
     }

@@ -57,6 +57,8 @@ export function buildCurriculumLayout(rows) {
       code: row.subject?.code ?? '',
       title: row.subject?.title ?? '',
       units: Number(row.subject?.units) || 0,
+      // Archived subjects stay in the prospectus and its totals, marked (#68).
+      archived: Boolean(row.subject?.archived),
       prerequisites: linked,
       unresolvedPrerequisites: unresolved,
     });
