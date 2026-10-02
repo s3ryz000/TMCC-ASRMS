@@ -49,6 +49,12 @@ class EnrollmentContext
         return $this->curriculumBySubject[$subjectId] ?? null;
     }
 
+    /** The subject row, or null if it has since been removed. */
+    public function subjectFor(int $subjectId): ?Subject
+    {
+        return $this->subjects[$subjectId] ?? null;
+    }
+
     /**
      * Display code for a subject, falling back to the id so error messages are
      * never empty even if a subject row has since been removed.

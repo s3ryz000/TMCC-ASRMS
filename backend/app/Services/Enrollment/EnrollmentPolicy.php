@@ -77,7 +77,9 @@ class EnrollmentPolicy
      * Only the rules that stay meaningful for a correction are fatal: the
      * subject must still belong to the program's curriculum and its
      * prerequisites must still be satisfied. "Already passed" and "duplicate"
-     * are expected when editing an existing record, so they never block.
+     * are expected when editing an existing record, so they never block, and
+     * neither does a subject archived after it was enrolled: existing records
+     * never change because of archiving (#68).
      */
     public static function termCorrection(): self
     {
@@ -86,6 +88,7 @@ class EnrollmentPolicy
             skippableCategories: [
                 RuleCategory::ALREADY_PASSED,
                 RuleCategory::DUPLICATE,
+                RuleCategory::ARCHIVED,
             ],
             allowAnyCurriculumTerm: true,
         );

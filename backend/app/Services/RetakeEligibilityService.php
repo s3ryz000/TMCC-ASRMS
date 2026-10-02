@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Student;
 use App\Services\Enrollment\AcademicRecordQuery;
+use App\Services\Enrollment\Rules\SubjectNotArchivedRule;
 
 /**
  * RetakeEligibilityService
@@ -209,6 +210,13 @@ class RetakeEligibilityService
         foreach ($subjectIds as $subjectId) {
             $subject = \App\Models\Subject::find($subjectId);
             $code    = $subject?->code ?? "Subject #{$subjectId}";
+
+            // Same rule as every other new enrollment: an archived subject
+            // cannot be enrolled, not even as a retake (#68).
+            if ($archived = SubjectNotArchivedRule::violationFor($subject)) {
+                $errors[] = $archived;
+                continue;
+            }
 
             // Must be a genuine retake candidate (latest status = Failed/Withdrawn/FDA)
             if (in_array($subjectId, $incIds)) {

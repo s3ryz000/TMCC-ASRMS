@@ -12,4 +12,5 @@ final class RuleCategory
     public const PREREQUISITE   = 'prerequisite';
     public const ALREADY_PASSED = 'already_passed';
     public const DUPLICATE      = 'duplicate';
+    public const ARCHIVED       = 'archived';
 }

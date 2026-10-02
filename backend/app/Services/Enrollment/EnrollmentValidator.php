@@ -9,6 +9,7 @@ use App\Services\Enrollment\Rules\CurriculumMembershipRule;
 use App\Services\Enrollment\Rules\NoActiveDuplicateRule;
 use App\Services\Enrollment\Rules\NotAlreadyPassedRule;
 use App\Services\Enrollment\Rules\PrerequisitesSatisfiedRule;
+use App\Services\Enrollment\Rules\SubjectNotArchivedRule;
 
 /**
  * Runs every enrollment rule over a batch of subjects.
@@ -28,6 +29,7 @@ class EnrollmentValidator
         // reporting a prerequisite problem for a subject that is not in the
         // student's curriculum to begin with.
         $this->rules = [
+            new SubjectNotArchivedRule(),
             new CurriculumMembershipRule(),
             new NotAlreadyPassedRule(),
             new NoActiveDuplicateRule(),
