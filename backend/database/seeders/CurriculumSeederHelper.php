@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\DB;
  * Rows keep the codes and titles their curriculum document prints. Each one is
  * translated through SubjectCatalog to its canonical code and title, and the
  * subject is found or created by that code alone, so every program shares one
- * row per course (e.g. BSE's "GE 1" and BSTM's "GE 4" are both GEC-UTS).
+ * row per course (e.g. BSE's "GE 1" and BSTM's "GE 4" are both GEC8), stored
+ * in the registrar's code format ("THC 3" becomes THC3).
  *
  * Prerequisites are resolved within the program's own curriculum context only —
  * never via a global subject-code pluck — using the program-local codes.

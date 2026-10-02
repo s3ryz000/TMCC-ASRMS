@@ -28,6 +28,16 @@ class Subject extends Model
     }
 
     /**
+     * A subject code in the registrar's format (2 Oct 2026): prefix and number
+     * with nothing in between, uppercase. "thc 3", "THC-3" and "THC 3" all
+     * become "THC3"; codes without a number ("HRM") are only uppercased.
+     */
+    public static function formatCode(string $code): string
+    {
+        return mb_strtoupper(preg_replace('/[\s\p{Pd}]+/u', '', $code));
+    }
+
+    /**
      * A title reduced to what tells courses apart, so spelling variants of one
      * course compare equal: case, spacing, "&" for "and", "Lab" for
      * "Laboratory" and a leading "The" are ignored.

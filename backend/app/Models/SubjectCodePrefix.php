@@ -21,7 +21,7 @@ class SubjectCodePrefix extends Model
         return self::sortForMatching(self::where('active', true)->pluck('prefix')->all());
     }
 
-    /** Longest first, so "GE ELECT" is tried before a shorter "GE". */
+    /** Longest first, so "HMPE" would be tried before a shorter "HM". */
     public static function sortForMatching(array $prefixes): array
     {
         usort($prefixes, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a));
@@ -30,20 +30,19 @@ class SubjectCodePrefix extends Model
     }
 
     /**
-     * The prefix a subject code belongs to, or null. A code belongs to P when
-     * it equals P or starts with "P " or "P-", ignoring case ("PATHFit 1" is
-     * PATHFIT). When several prefixes match, the longest wins ("GE ELECT 4" is
-     * GE ELECT, not GE).
+     * The prefix a subject code belongs to, or null. Codes have no separator
+     * since #16 (prefix and number joined: "GEC4", "TPC10"), so a code belongs
+     * to P when it starts with P, ignoring case. When several prefixes match,
+     * the longest wins.
      *
      * @param  array  $prefixes  as returned by activePrefixes() / sortForMatching()
      */
     public static function matchCode(string $code, array $prefixes): ?string
     {
-        $code = mb_strtoupper(trim($code));
+        $code = Subject::formatCode($code);
 
         foreach ($prefixes as $prefix) {
-            $p = mb_strtoupper($prefix);
-            if ($code === $p || str_starts_with($code, $p.' ') || str_starts_with($code, $p.'-')) {
+            if (str_starts_with($code, Subject::formatCode($prefix))) {
                 return $prefix;
             }
         }

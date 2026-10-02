@@ -23,20 +23,21 @@ class SaveSubjectRequest extends FormRequest
     }
 
     /**
-     * Codes are stored trimmed, single-spaced and uppercase. Re-submitting a
-     * subject's own code in different case keeps the stored spelling, so
-     * editing "PATHFit 1" does not silently rename it.
+     * Codes are stored in the registrar's format: no spaces or dashes,
+     * uppercase ("thc 11", "THC-11" -> "THC11"; see Subject::formatCode).
+     * Re-submitting a subject's own code in any spelling keeps the stored one,
+     * so editing a record never silently renames it.
      */
     protected function prepareForValidation(): void
     {
         $merge = [];
 
         if (is_string($code = $this->input('code'))) {
-            $code = preg_replace('/\s+/u', ' ', trim($code));
+            $code = Subject::formatCode($code);
             $current = $this->currentSubject();
-            $merge['code'] = $current && mb_strtoupper($current->code) === mb_strtoupper($code)
+            $merge['code'] = $current && Subject::formatCode($current->code) === $code
                 ? $current->code
-                : mb_strtoupper($code);
+                : $code;
         }
 
         if (is_string($title = $this->input('title'))) {
@@ -88,11 +89,14 @@ class SaveSubjectRequest extends FormRequest
         ];
     }
 
-    /** Codes are compared case-insensitively, so SQLite and MySQL agree. */
+    /**
+     * Codes are compared in the registrar's format, ignoring case, spaces and
+     * dashes, so "GEC 4" collides with "GEC4" and SQLite and MySQL agree.
+     */
     private function uniqueCode(string $attribute, mixed $value, Closure $fail): void
     {
         $taken = Subject::query()
-            ->whereRaw('UPPER(code) = ?', [mb_strtoupper((string) $value)])
+            ->whereRaw("UPPER(REPLACE(REPLACE(code, ' ', ''), '-', '')) = ?", [Subject::formatCode((string) $value)])
             ->when($this->currentSubject(), fn ($q, $current) => $q->whereKeyNot($current->id))
             ->exists();
 

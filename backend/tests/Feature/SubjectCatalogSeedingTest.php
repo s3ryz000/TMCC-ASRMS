@@ -36,7 +36,7 @@ class SubjectCatalogSeedingTest extends TestCase
 
     public function test_ge_core_subjects_are_shared_by_all_three_programs(): void
     {
-        foreach (['GEC-UTS', 'GEC-RPH', 'GEC-TCW', 'GEC-MMW', 'GEC-PC', 'GEC-AA', 'GEC-STS', 'GEC-ETH', 'GEC-LWR'] as $code) {
+        foreach (['GEC1', 'GEC2', 'GEC3', 'GEC4', 'GEC5', 'GEC6', 'GEC7', 'GEC8', 'GEC9'] as $code) {
             $programs = Curriculum::whereHas('subject', fn ($q) => $q->where('code', $code))
                 ->with('program')->get()->pluck('program.code')->sort()->values()->all();
 
@@ -46,13 +46,13 @@ class SubjectCatalogSeedingTest extends TestCase
 
     public function test_canonical_codes_and_titles_replace_the_program_local_ones(): void
     {
-        $this->assertDatabaseHas('subjects', ['code' => 'GEE-EM', 'title' => 'The Entrepreneurial Mind']);
-        $this->assertDatabaseHas('subjects', ['code' => 'GEE-IP', 'title' => 'Indigenous People']);
-        $this->assertDatabaseHas('subjects', ['code' => 'TMPE 1', 'title' => 'Recreation and Leisure Management']);
-        $this->assertDatabaseHas('subjects', ['code' => 'HMPE 1', 'title' => 'Introduction to Transport Services']);
-        $this->assertDatabaseHas('subjects', ['code' => 'HMPE 2', 'title' => 'Bar and Beverage Management with Laboratory']);
+        $this->assertDatabaseHas('subjects', ['code' => 'GEE2', 'title' => 'The Entrepreneurial Mind']);
+        $this->assertDatabaseHas('subjects', ['code' => 'GEE5', 'title' => 'Indigenous People']);
+        $this->assertDatabaseHas('subjects', ['code' => 'TMPE1', 'title' => 'Recreation and Leisure Management']);
+        $this->assertDatabaseHas('subjects', ['code' => 'HMPE1', 'title' => 'Introduction to Transport Services']);
+        $this->assertDatabaseHas('subjects', ['code' => 'HMPE2', 'title' => 'Bar and Beverage Management with Laboratory']);
 
-        foreach (['GE 1', 'GE 2', 'GE 5', 'GE 9', 'GE ELECT 1', 'GE ELECT 5', 'RIZAL'] as $legacy) {
+        foreach (['GE 1', 'GE 2', 'GE 5', 'GE 9', 'GE ELECT 1', 'GE ELECT 5', 'RIZAL', 'GE ELECT 3', 'GE ELECT 4', 'GEC-PC', 'GEE-IP', 'THC 3', 'PATHFit 1'] as $legacy) {
             $this->assertDatabaseMissing('subjects', ['code' => $legacy]);
         }
     }
@@ -83,8 +83,8 @@ class SubjectCatalogSeedingTest extends TestCase
                 ->count();
         };
 
-        $this->assertGreaterThan(0, $prereqCodes('BSHM', 'GEE-IP'));
-        $this->assertGreaterThan(0, $prereqCodes('BSTM', 'TMPE 1'));
-        $this->assertSame(0, $prereqCodes('BSTM', 'GEE-IP'));
+        $this->assertGreaterThan(0, $prereqCodes('BSHM', 'GEE5'));
+        $this->assertGreaterThan(0, $prereqCodes('BSTM', 'TMPE1'));
+        $this->assertSame(0, $prereqCodes('BSTM', 'GEE5'));
     }
 }

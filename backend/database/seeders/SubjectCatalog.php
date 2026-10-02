@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Subject;
+
 /**
  * The canonical code and title of every subject whose curriculum document
  * spells it differently from program to program (#16).
@@ -13,45 +15,48 @@ namespace Database\Seeders;
  * through resolve() before creating the subject, so all programs share one row
  * per course and every code is unique.
  *
- * Mirrors 2026_10_02_000001_canonicalize_subject_codes, which applied the same
- * map to existing databases. Codes proposed by the team on 2 Oct 2026; to be
- * confirmed with the Registrar.
+ * Mirrors 2026_10_02_000001_canonicalize_subject_codes and
+ * 2026_10_03_000002_drop_separators_from_subject_codes, which applied the
+ * same result to existing databases: the registrar's GE numbering (GEC1-9,
+ * GEE1-8) and codes without spaces or dashes (2 Oct 2026).
  */
 final class SubjectCatalog
 {
     /** "program-local code|title" => [canonical code, canonical title] */
     private const CANONICAL = [
         // GE core
-        'GE 1|Understanding the Self'                 => ['GEC-UTS', 'Understanding the Self'],
-        'GE 4|Understanding the Self'                 => ['GEC-UTS', 'Understanding the Self'],
-        'GE 2|Readings in Philippine History'         => ['GEC-RPH', 'Readings in Philippine History'],
-        'GE 3|The Contemporary World'                 => ['GEC-TCW', 'The Contemporary World'],
-        'GE 7|The Contemporary World'                 => ['GEC-TCW', 'The Contemporary World'],
-        'GE 8|The Contemporary World'                 => ['GEC-TCW', 'The Contemporary World'],
-        'GE 4|Mathematics in the Modern World'        => ['GEC-MMW', 'Mathematics in the Modern World'],
-        'GE 3|Mathematics in the Modern World'        => ['GEC-MMW', 'Mathematics in the Modern World'],
-        'GE 5|Purposive Communication'                => ['GEC-PC', 'Purposive Communication'],
-        'GE 1|Purposive Communication'                => ['GEC-PC', 'Purposive Communication'],
-        'GE 6|Art Appreciation'                       => ['GEC-AA', 'Art Appreciation'],
-        'GE 8|Art Appreciation'                       => ['GEC-AA', 'Art Appreciation'],
-        'GE 9|Art Appreciation'                       => ['GEC-AA', 'Art Appreciation'],
-        'GE 7|Science, Technology, and Society'       => ['GEC-STS', 'Science, Technology, and Society'],
-        'GE 5|Science, Technology, and Society'       => ['GEC-STS', 'Science, Technology, and Society'],
-        'GE 6|Science, Technology, and Society'       => ['GEC-STS', 'Science, Technology, and Society'],
-        'GE 8|Ethics'                                 => ['GEC-ETH', 'Ethics'],
-        'GE 6|Ethics'                                 => ['GEC-ETH', 'Ethics'],
-        'GE 7|Ethics'                                 => ['GEC-ETH', 'Ethics'],
-        'GE 9|Life and Works of Rizal'                => ['GEC-LWR', 'Life and Works of Rizal'],
-        'RIZAL|Life and Works of Rizal'               => ['GEC-LWR', 'Life and Works of Rizal'],
-        'GE 5|Indigenous People'                      => ['GEE-IP', 'Indigenous People'],
+        'GE 1|Understanding the Self'                 => ['GEC8', 'Understanding the Self'],
+        'GE 4|Understanding the Self'                 => ['GEC8', 'Understanding the Self'],
+        'GE 2|Readings in Philippine History'         => ['GEC5', 'Readings in Philippine History'],
+        'GE 3|The Contemporary World'                 => ['GEC7', 'The Contemporary World'],
+        'GE 7|The Contemporary World'                 => ['GEC7', 'The Contemporary World'],
+        'GE 8|The Contemporary World'                 => ['GEC7', 'The Contemporary World'],
+        'GE 4|Mathematics in the Modern World'        => ['GEC3', 'Mathematics in the Modern World'],
+        'GE 3|Mathematics in the Modern World'        => ['GEC3', 'Mathematics in the Modern World'],
+        'GE 5|Purposive Communication'                => ['GEC4', 'Purposive Communication'],
+        'GE 1|Purposive Communication'                => ['GEC4', 'Purposive Communication'],
+        'GE 6|Art Appreciation'                       => ['GEC9', 'Art Appreciation'],
+        'GE 8|Art Appreciation'                       => ['GEC9', 'Art Appreciation'],
+        'GE 9|Art Appreciation'                       => ['GEC9', 'Art Appreciation'],
+        'GE 7|Science, Technology, and Society'       => ['GEC6', 'Science, Technology, and Society'],
+        'GE 5|Science, Technology, and Society'       => ['GEC6', 'Science, Technology, and Society'],
+        'GE 6|Science, Technology, and Society'       => ['GEC6', 'Science, Technology, and Society'],
+        'GE 8|Ethics'                                 => ['GEC1', 'Ethics'],
+        'GE 6|Ethics'                                 => ['GEC1', 'Ethics'],
+        'GE 7|Ethics'                                 => ['GEC1', 'Ethics'],
+        'GE 9|Life and Works of Rizal'                => ['GEC2', 'Life and Works of Rizal'],
+        'RIZAL|Life and Works of Rizal'               => ['GEC2', 'Life and Works of Rizal'],
+        'GE 5|Indigenous People'                      => ['GEE5', 'Indigenous People'],
 
         // GE electives
-        'GE ELECT 1|Gender and Society'               => ['GEE-GS', 'Gender and Society'],
-        'GE ELECT 1|Social Science and Philosophy'    => ['GEE-SSP', 'Social Science and Philosophy'],
-        'GE ELECT 2|Environmental Science'            => ['GEE-ES', 'Environmental Science'],
-        'GE ELECT 2|Arts and Humanities'              => ['GEE-AH', 'Arts and Humanities'],
-        'GE ELECT 5|Entrepreneurial Mind'             => ['GEE-EM', 'The Entrepreneurial Mind'],
-        'GE ELECT 5|The Entrepreneurial Mind'         => ['GEE-EM', 'The Entrepreneurial Mind'],
+        'GE ELECT 1|Gender and Society'               => ['GEE4', 'Gender and Society'],
+        'GE ELECT 1|Social Science and Philosophy'    => ['GEE6', 'Social Science and Philosophy'],
+        'GE ELECT 2|Environmental Science'            => ['GEE3', 'Environmental Science'],
+        'GE ELECT 2|Arts and Humanities'              => ['GEE1', 'Arts and Humanities'],
+        'GE ELECT 5|Entrepreneurial Mind'             => ['GEE2', 'The Entrepreneurial Mind'],
+        'GE ELECT 5|The Entrepreneurial Mind'         => ['GEE2', 'The Entrepreneurial Mind'],
+        'GE ELECT 3|PEACE Education'                  => ['GEE7', 'PEACE Education'],
+        'GE ELECT 4|Living in the IT Era'             => ['GEE8', 'Living in the IT Era'],
 
         // Program subjects spelled two ways
         'BME 1|Operations Management in TH Industry'  => ['BME 1', 'Operations Management in Tourism and Hospitality Industry'],
@@ -67,13 +72,15 @@ final class SubjectCatalog
     ];
 
     /**
-     * The canonical [code, title] for a program-local code and title, or the
-     * pair unchanged when the subject needs no translation.
+     * The canonical [code, title] for a program-local code and title, with the
+     * code in the registrar's format (no spaces or dashes: "THC 3" -> "THC3").
      *
      * @return array{0: string, 1: string}
      */
     public static function resolve(string $code, string $title): array
     {
-        return self::CANONICAL["{$code}|{$title}"] ?? [$code, $title];
+        [$canonicalCode, $canonicalTitle] = self::CANONICAL["{$code}|{$title}"] ?? [$code, $title];
+
+        return [Subject::formatCode($canonicalCode), $canonicalTitle];
     }
 }

@@ -60,11 +60,11 @@ class CatalogManagementTest extends TestCase
     {
         $this->postJson('/api/staff/subjects', $this->subjectPayload())
             ->assertCreated()
-            ->assertJsonPath('subject.code', 'IT 101')
+            ->assertJsonPath('subject.code', 'IT101')
             ->assertJsonPath('subject.units', 3);
 
-        $this->assertDatabaseHas('subjects', ['code' => 'IT 101', 'title' => 'Intro to Computing']);
-        $this->assertDatabaseHas('system_logs', ['action' => 'Subject created: IT 101 — Intro to Computing', 'user_id' => $this->staff->id]);
+        $this->assertDatabaseHas('subjects', ['code' => 'IT101', 'title' => 'Intro to Computing']);
+        $this->assertDatabaseHas('system_logs', ['action' => 'Subject created: IT101 — Intro to Computing', 'user_id' => $this->staff->id]);
     }
 
     public function test_subject_code_must_be_unique(): void
@@ -84,18 +84,18 @@ class CatalogManagementTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors(['code' => 'A subject with this code already exists.']);
 
-        $this->assertSame(1, Subject::where('code', 'IT 101')->count());
+        $this->assertSame(1, Subject::where('code', 'IT101')->count());
     }
 
     public function test_subject_code_is_stored_trimmed_and_uppercase(): void
     {
         $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => '  gec-pc ', 'title' => 'Purposive Communication']))
             ->assertCreated()
-            ->assertJsonPath('subject.code', 'GEC-PC');
+            ->assertJsonPath('subject.code', 'GECPC');
 
         $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => 'it   101']))
             ->assertCreated()
-            ->assertJsonPath('subject.code', 'IT 101');
+            ->assertJsonPath('subject.code', 'IT101');
     }
 
     /**
@@ -127,12 +127,12 @@ class CatalogManagementTest extends TestCase
 
     public function test_the_near_duplicate_message_names_the_existing_subject(): void
     {
-        Subject::create(['code' => 'GEC-PC', 'title' => 'Purposive Communication', 'units' => 3]);
+        Subject::create(['code' => 'GEC4', 'title' => 'Purposive Communication', 'units' => 3]);
 
         $this->postJson('/api/staff/subjects', $this->subjectPayload(['code' => 'GE 5', 'title' => 'purposive communication']))
             ->assertStatus(422)
             ->assertJsonValidationErrors([
-                'title' => 'This looks like GEC-PC Purposive Communication, which already exists. Reuse it instead.',
+                'title' => 'This looks like GEC4 Purposive Communication, which already exists. Reuse it instead.',
             ]);
     }
 

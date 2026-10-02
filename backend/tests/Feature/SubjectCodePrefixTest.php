@@ -40,28 +40,34 @@ class SubjectCodePrefixTest extends TestCase
     {
         $this->assertSame(25, SubjectCodePrefix::count());
         $this->assertDatabaseHas('subject_code_prefixes', ['prefix' => 'TPC', 'full_name' => 'Tourism Professional Core', 'active' => true]);
+        // Retired by #16 (its subjects are now GEE7 and GEE8), kept for rollback.
+        $this->assertDatabaseHas('subject_code_prefixes', ['prefix' => 'GE ELECT', 'active' => false]);
     }
 
     public function test_codes_match_their_prefix(): void
     {
         $prefixes = SubjectCodePrefix::activePrefixes();
 
-        $this->assertSame('PATHFIT', SubjectCodePrefix::matchCode('PATHFit 1', $prefixes));
-        $this->assertSame('GE ELECT', SubjectCodePrefix::matchCode('GE ELECT 4', $prefixes));
-        $this->assertSame('GEC', SubjectCodePrefix::matchCode('GEC-PC', $prefixes));
+        $this->assertSame('GEC', SubjectCodePrefix::matchCode('GEC4', $prefixes));
+        $this->assertSame('GEC', SubjectCodePrefix::matchCode('GEC9', $prefixes));
+        $this->assertSame('GEE', SubjectCodePrefix::matchCode('GEE8', $prefixes));
         $this->assertSame('HRM', SubjectCodePrefix::matchCode('HRM', $prefixes));
-        $this->assertSame('TPC', SubjectCodePrefix::matchCode('TPC 10', $prefixes));
+        $this->assertSame('TPC', SubjectCodePrefix::matchCode('TPC10', $prefixes));
+        $this->assertSame('PATHFIT', SubjectCodePrefix::matchCode('PATHFIT1', $prefixes));
+        // Case and stray separators do not matter.
+        $this->assertSame('PATHFIT', SubjectCodePrefix::matchCode('PATHFit 1', $prefixes));
+        $this->assertSame('TPC', SubjectCodePrefix::matchCode('tpc 10', $prefixes));
     }
 
-    public function test_a_prefix_must_be_followed_by_a_space_a_dash_or_nothing(): void
+    public function test_a_code_must_start_with_the_prefix(): void
     {
         $prefixes = SubjectCodePrefix::activePrefixes();
 
-        // "GEE" is its own prefix, not GEC/GE; "OMX" is not OM; "TPC10" has no separator.
-        $this->assertSame('GEE', SubjectCodePrefix::matchCode('GEE-EM', $prefixes));
-        $this->assertNull(SubjectCodePrefix::matchCode('OMX 1', $prefixes));
-        $this->assertNull(SubjectCodePrefix::matchCode('TPC10', $prefixes));
-        $this->assertNull(SubjectCodePrefix::matchCode('IT 101', $prefixes));
+        // "GEE" is its own prefix, not GEC; unknown letters match nothing.
+        $this->assertSame('GEE', SubjectCodePrefix::matchCode('GEE5', $prefixes));
+        $this->assertNull(SubjectCodePrefix::matchCode('IT101', $prefixes));
+        $this->assertNull(SubjectCodePrefix::matchCode('XYZ1', $prefixes));
+        $this->assertNull(SubjectCodePrefix::matchCode('1TPC', $prefixes));
     }
 
     public function test_the_longest_matching_prefix_wins(): void
@@ -84,15 +90,22 @@ class SubjectCodePrefixTest extends TestCase
 
         $this->assertSame(93, Subject::count());
         $this->assertSame([], $unmatched, 'Subject codes with no prefix: '.implode(', ', $unmatched));
+
+        // Exactly one: no other active prefix would also fit if tried on its own.
+        $all = SubjectCodePrefix::where('active', true)->pluck('prefix')->all();
+        foreach (Subject::pluck('code') as $code) {
+            $fits = array_filter($all, fn ($p) => SubjectCodePrefix::matchCode($code, [$p]) !== null);
+            $this->assertCount(1, $fits, "{$code} fits ".implode(', ', $fits));
+        }
     }
 
     // ----------------------------------------------------------- the endpoint
 
     public function test_the_list_gives_labels_and_counts_ordered_by_prefix(): void
     {
-        Subject::create(['code' => 'TPC 1', 'title' => 'Tourism One', 'units' => 3]);
-        Subject::create(['code' => 'TPC 2', 'title' => 'Tourism Two', 'units' => 3]);
-        $retired = Subject::create(['code' => 'TPC 3', 'title' => 'Tourism Three', 'units' => 3]);
+        Subject::create(['code' => 'TPC1', 'title' => 'Tourism One', 'units' => 3]);
+        Subject::create(['code' => 'TPC2', 'title' => 'Tourism Two', 'units' => 3]);
+        $retired = Subject::create(['code' => 'TPC3', 'title' => 'Tourism Three', 'units' => 3]);
         $retired->forceFill(['archived_at' => now()])->save();
 
         $prefixes = collect($this->getJson('/api/staff/subject-prefixes')->assertOk()->json('prefixes'));
@@ -112,18 +125,20 @@ class SubjectCodePrefixTest extends TestCase
         $prefixes = collect($this->getJson('/api/staff/subject-prefixes')->json('prefixes'))->pluck('prefix');
 
         $this->assertNotContains('MOE', $prefixes);
-        $this->assertCount(24, $prefixes);
+        // GE ELECT was retired by #16, so 23 of the 25 remain.
+        $this->assertNotContains('GE ELECT', $prefixes);
+        $this->assertCount(23, $prefixes);
     }
 
     public function test_subject_list_reports_each_subjects_prefix(): void
     {
-        Subject::create(['code' => 'PATHFit 1', 'title' => 'Movement Competency Training', 'units' => 2]);
-        Subject::create(['code' => 'IT 101', 'title' => 'Intro to Computing', 'units' => 3]);
+        Subject::create(['code' => 'PATHFIT1', 'title' => 'Movement Competency Training', 'units' => 2]);
+        Subject::create(['code' => 'IT101', 'title' => 'Intro to Computing', 'units' => 3]);
 
         $subjects = collect($this->getJson('/api/staff/subjects')->assertOk()->json('subjects'))->keyBy('code');
 
-        $this->assertSame('PATHFIT', $subjects['PATHFit 1']['prefix']);
-        $this->assertNull($subjects['IT 101']['prefix']);
+        $this->assertSame('PATHFIT', $subjects['PATHFIT1']['prefix']);
+        $this->assertNull($subjects['IT101']['prefix']);
     }
 
     public function test_admin_can_read_the_prefixes(): void

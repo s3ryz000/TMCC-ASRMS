@@ -6,7 +6,7 @@
  */
 
 export const SUBJECT_FIELDS = [
-  { name: 'code', label: 'Subject code', placeholder: 'IT 101', maxLength: 20, required: true },
+  { name: 'code', label: 'Subject code', placeholder: 'TPC11', maxLength: 20, required: true },
   { name: 'title', label: 'Descriptive title', placeholder: 'Introduction to Computing', maxLength: 150, required: true },
   { name: 'units', label: 'Units', type: 'number', min: 0, max: 12, required: true },
   { name: 'description', label: 'Description (optional)', maxLength: 255, multiline: true },

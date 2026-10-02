@@ -36,7 +36,7 @@ const StaffNewSubjectPage = () => {
       <section className="mb-6">
         <h2 className="m-0 text-2xl font-bold text-gray-800">Add subject</h2>
         <p className="mt-2 m-0 text-gray-600">
-          Start the code with its CHED prefix, e.g. <span className="font-medium">TPC 11</span> or <span className="font-medium">GEC-PC</span>.
+          Start the code with its CHED prefix, e.g. <span className="font-medium">TPC11</span> or <span className="font-medium">GEC4</span>.
         </p>
       </section>
 
