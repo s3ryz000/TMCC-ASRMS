@@ -158,6 +158,30 @@ class TranscriptExportTest extends TestCase
         $this->assertPdf($this->get("/api/staff/requests/{$request->id}/transcript-template"));
     }
 
+    /**
+     * #14 (audit §5.1 item 8): the download used to return 500 when the XLSX
+     * template was missing, although the output is a Dompdf PDF that never
+     * reads it. The template is in the repository, so the test above cannot
+     * tell; here the public folder is empty.
+     */
+    public function test_released_transcript_downloads_without_the_unused_xlsx_template(): void
+    {
+        $public = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'asrms-public-' . uniqid();
+        mkdir($public);
+
+        try {
+            $this->app->usePublicPath($public);
+            $this->assertFileDoesNotExist(public_path('assets/templates/OFFICIAL TRANSCRIPT OF RECORD - template.xlsx'));
+
+            $request = $this->studentRequest('released');
+            Sanctum::actingAs($this->staff, ['*']);
+
+            $this->assertPdf($this->get("/api/staff/requests/{$request->id}/transcript-template"));
+        } finally {
+            @rmdir($public);
+        }
+    }
+
     public function test_request_transcript_waits_for_release(): void
     {
         $request = $this->studentRequest('approved');
