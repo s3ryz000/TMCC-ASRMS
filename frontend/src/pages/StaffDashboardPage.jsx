@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiInbox, FiUsers, FiPackage, FiBarChart2 } from 'react-icons/fi';
+import { FiInbox, FiUsers, FiPackage } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { dashboardApi } from '../lib/api/dashboardApi';
 
@@ -19,9 +19,7 @@ const StaffDashboardPage = () => {
 
   const quickLinks = [
     { path: '/staff/students', label: 'Student Records', icon: FiUsers, description: 'View and manage student records' },
-    { path: '/staff/profile-updates', label: 'Profile Updates', icon: FiInbox, description: 'Review student profile changes', count: kpis?.pending_profile_updates },
-    { path: '/staff/reports', label: 'Reports', icon: FiBarChart2, description: 'View read-only reports' },
-  ];
+    { path: '/staff/profile-updates', label: 'Profile Updates', icon: FiInbox, description: 'Review student profile changes', count: kpis?.pending_profile_updates },  ];
 
   return (
     <>

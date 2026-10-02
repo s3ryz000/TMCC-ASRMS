@@ -20,7 +20,6 @@ import StaffDashboardPage from '../pages/StaffDashboardPage';
 import StaffPendingRequestsPage from '../pages/StaffPendingRequestsPage';
 import StaffStudentRecordsPage from '../pages/StaffStudentRecordsPage';
 import StaffDocumentReleasePage from '../pages/StaffDocumentReleasePage';
-import StaffReportsPage from '../pages/StaffReportsPage';
 import StaffNewStudentPage from '../pages/StaffNewStudentPage';
 import StaffEditStudentPage from '../pages/StaffEditStudentPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
@@ -122,7 +121,8 @@ const router = createBrowserRouter([
           { path: 'students/:id/edit', element: <StaffEditStudentPage /> },
           { path: 'catalog', element: <StaffCatalogPage /> },
           { path: 'document-release', element: <StaffDocumentReleasePage /> },
-          { path: 'reports', element: <StaffReportsPage /> },
+          // The staff Reports page was removed (#54); keep old bookmarks working.
+          { path: 'reports', element: <Navigate to="/staff" replace /> },
         ],
       },
       {

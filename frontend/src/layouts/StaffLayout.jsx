@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   FiInbox,
   FiUsers,
-  FiBarChart2,
   FiKey,
   FiLogOut,
   FiPackage,
@@ -164,10 +163,6 @@ const StaffLayout = () => {
     );
   };
 
-  const navItemsAfterRegistrar = [
-    { id: 'reports', label: 'Reports', icon: FiBarChart2, path: '/staff/reports' },
-  ];
-
   const renderNavLink = (item) => {
     const { id, label, icon: Icon, path } = item;
     const isActive =
@@ -268,8 +263,6 @@ const StaffLayout = () => {
               </div>
             )}
           </div>
-
-          {navItemsAfterRegistrar.map(renderNavLink)}
         </nav>
 
         <div className="p-4 pt-4 border-t border-white/15 shrink-0">
