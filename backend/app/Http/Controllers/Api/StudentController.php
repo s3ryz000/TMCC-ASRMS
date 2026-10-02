@@ -38,6 +38,12 @@ class StudentController extends Controller
     /** Statuses the registrar may set on a grade. */
     private const GRADE_STATUSES = ['Enrolled', 'Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited', 'DRP', 'CON'];
 
+    /** What an enrollment's status may be set to (#76): the grade statuses plus Cancelled. */
+    private const ENROLLMENT_STATUSES = [...self::GRADE_STATUSES, 'Cancelled'];
+
+    /** Older lowercase values some clients still send, mapped to the stored status. */
+    private const ENROLLMENT_STATUS_ALIASES = ['enrolled' => 'Enrolled', 'dropped' => 'DRP'];
+
     /**
      * List students with search, filter by course/status, pagination (staff + admin).
      */
@@ -590,8 +596,25 @@ class StudentController extends Controller
         $validated = $request->validate([
             'academic_year' => ['sometimes', 'required', 'string', 'max:20'],
             'semester' => ['sometimes', 'required', 'string', 'max:20'],
-            'status' => ['nullable', 'string', 'max:20', 'in:enrolled,completed,dropped'],
+            'status' => ['nullable', 'string', 'max:20'],
         ]);
+
+        // Statuses are the ones the rest of the system stores (#76), matched
+        // without regard to case. Two older values still arrive from earlier
+        // clients and have a clear meaning; "completed" does not (the final
+        // status comes from the grade), so it is refused.
+        if (isset($validated['status'])) {
+            $status = self::ENROLLMENT_STATUS_ALIASES[strtolower($validated['status'])]
+                ?? collect(self::ENROLLMENT_STATUSES)->first(fn ($s) => strcasecmp($s, $validated['status']) === 0);
+
+            if ($status === null) {
+                return response()->json([
+                    'message' => 'The selected status is invalid.',
+                    'errors'  => ['status' => ['Use one of: ' . implode(', ', self::ENROLLMENT_STATUSES) . '. A final status is recorded through the grade.']],
+                ], 422);
+            }
+            $validated['status'] = $status;
+        }
 
         // Moving an enrollment to another term used to bypass every rule, which
         // let a subject be relocated into a term where its prerequisites are not
@@ -631,6 +654,12 @@ class StudentController extends Controller
                     ], 422);
                 }
             }
+        }
+
+        // Store the semester the way every other path does ("1"/"2"), not as
+        // typed ("1st"), so term grouping and checks still find it (#76).
+        if (isset($validated['semester'])) {
+            $validated['semester'] = (string) $newSemester;
         }
 
         $enrollment->update($validated);

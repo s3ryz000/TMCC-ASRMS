@@ -478,4 +478,83 @@ class EnrollmentValidationTest extends TestCase
             ['status' => 'dropped']
         )->assertStatus(200);
     }
+
+    // ------------------------------------------- Path D: statuses and semester (#76)
+
+    private function pathDEnrollment(string $status = 'Enrolled'): Enrollment
+    {
+        return Enrollment::create([
+            'student_id'    => $this->student->student_id,
+            'subject_id'    => $this->subjects['PROG1']->id,
+            'academic_year' => '2026-2027',
+            'semester'      => 1,
+            'year_level'    => 1,
+            'status'        => $status,
+        ]);
+    }
+
+    private function updatePathD(Enrollment $enrollment, array $payload)
+    {
+        return $this->putJson(
+            '/api/staff/students/' . $this->student->student_id . '/enrollments/' . $enrollment->id,
+            $payload
+        );
+    }
+
+    public function test_path_d_accepts_the_status_the_enrollment_already_has(): void
+    {
+        $enrollment = $this->pathDEnrollment('Failed');
+
+        $this->updatePathD($enrollment, ['academic_year' => '2026-2027', 'semester' => '1st', 'status' => 'Failed'])
+            ->assertStatus(200);
+
+        $this->assertSame('Failed', $enrollment->fresh()->status);
+    }
+
+    public function test_path_d_matches_statuses_without_case_and_stores_the_canonical_form(): void
+    {
+        $enrollment = $this->pathDEnrollment();
+
+        $this->updatePathD($enrollment, ['status' => 'inc'])->assertStatus(200);
+        $this->assertSame('INC', $enrollment->fresh()->status);
+
+        $this->updatePathD($enrollment, ['status' => 'cancelled'])->assertStatus(200);
+        $this->assertSame('Cancelled', $enrollment->fresh()->status);
+    }
+
+    public function test_path_d_maps_the_older_status_values(): void
+    {
+        $enrollment = $this->pathDEnrollment();
+
+        $this->updatePathD($enrollment, ['status' => 'dropped'])->assertStatus(200);
+        $this->assertSame('DRP', $enrollment->fresh()->status);
+
+        $this->updatePathD($enrollment, ['status' => 'enrolled'])->assertStatus(200);
+        $this->assertSame('Enrolled', $enrollment->fresh()->status);
+    }
+
+    public function test_path_d_refuses_statuses_with_no_meaning_here(): void
+    {
+        $enrollment = $this->pathDEnrollment('Failed');
+
+        foreach (['completed', 'archived', 'bogus'] as $status) {
+            $this->updatePathD($enrollment, ['status' => $status])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('status');
+        }
+
+        $this->assertSame('Failed', $enrollment->fresh()->status);
+    }
+
+    public function test_path_d_stores_the_semester_as_1_or_2(): void
+    {
+        $enrollment = $this->pathDEnrollment();
+
+        $this->updatePathD($enrollment, ['academic_year' => '2027-2028', 'semester' => '1st'])->assertStatus(200);
+        $this->assertSame('1', (string) $enrollment->fresh()->semester);
+        $this->assertSame('2027-2028', $enrollment->fresh()->academic_year);
+
+        $this->updatePathD($enrollment, ['academic_year' => '2027-2028', 'semester' => '2nd Semester'])->assertStatus(200);
+        $this->assertSame('2', (string) $enrollment->fresh()->semester);
+    }
 }
