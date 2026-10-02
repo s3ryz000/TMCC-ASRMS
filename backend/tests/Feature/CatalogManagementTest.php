@@ -456,7 +456,7 @@ class CatalogManagementTest extends TestCase
         $this->assertNotNull($this->subjects['A']->fresh()->archived_at);
         $this->assertDatabaseHas('system_logs', ['action' => 'Subject archived: A — Subject A', 'user_id' => $this->staff->id]);
 
-        $subjects = collect($this->getJson('/api/staff/subjects')->json('subjects'))->keyBy('code');
+        $subjects = collect($this->getJson('/api/staff/subjects?include_archived=1')->json('subjects'))->keyBy('code');
         $this->assertTrue($subjects['A']['archived']);
         $this->assertTrue($subjects['A']['in_use']);
         $this->assertFalse($subjects['B']['archived']);
@@ -474,10 +474,48 @@ class CatalogManagementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Program archived.');
         $this->assertDatabaseHas('system_logs', ['action' => 'Program archived: BSIT — BS Information Technology']);
-        $this->assertTrue($this->getJson('/api/staff/programs')->json('programs.0.archived'));
+        $this->assertTrue($this->getJson('/api/staff/programs?include_archived=1')->json('programs.0.archived'));
 
         $this->patchJson("/api/staff/programs/{$this->program->id}/unarchive")->assertOk();
-        $this->assertFalse($this->getJson('/api/staff/programs')->json('programs.0.archived'));
+        $this->assertFalse($this->getJson('/api/staff/programs?include_archived=1')->json('programs.0.archived'));
+    }
+
+    public function test_archived_subjects_are_left_out_of_the_list_by_default(): void
+    {
+        $this->patchJson("/api/staff/subjects/{$this->subjects['A']->id}/archive")->assertOk();
+
+        $default = collect($this->getJson('/api/staff/subjects')->assertOk()->json('subjects'))->pluck('code');
+        $this->assertNotContains('A', $default);
+        $this->assertContains('B', $default);
+
+        $all = collect($this->getJson('/api/staff/subjects?include_archived=1')->assertOk()->json('subjects'))->keyBy('code');
+        $this->assertTrue($all['A']['archived']);
+        $this->assertFalse($all['B']['archived']);
+
+        $this->patchJson("/api/staff/subjects/{$this->subjects['A']->id}/unarchive")->assertOk();
+        $this->assertContains('A', collect($this->getJson('/api/staff/subjects')->json('subjects'))->pluck('code'));
+    }
+
+    public function test_archived_programs_are_left_out_of_the_list_by_default(): void
+    {
+        $retired = Program::create(['code' => 'BSOLD', 'name' => 'Retired Program']);
+        $this->patchJson("/api/staff/programs/{$retired->id}/archive")->assertOk();
+
+        $default = collect($this->getJson('/api/staff/programs')->assertOk()->json('programs'))->pluck('code');
+        $this->assertSame(['BSIT'], $default->all());
+
+        $all = collect($this->getJson('/api/staff/programs?include_archived=1')->assertOk()->json('programs'))->keyBy('code');
+        $this->assertTrue($all['BSOLD']['archived']);
+        $this->assertFalse($all['BSIT']['archived']);
+
+        // include_archived=0 behaves like the default.
+        $this->assertSame(['BSIT'], collect($this->getJson('/api/staff/programs?include_archived=0')->json('programs'))->pluck('code')->all());
+    }
+
+    public function test_include_archived_must_be_a_boolean(): void
+    {
+        $this->getJson('/api/staff/subjects?include_archived=maybe')->assertStatus(422)->assertJsonValidationErrors('include_archived');
+        $this->getJson('/api/staff/programs?include_archived=maybe')->assertStatus(422)->assertJsonValidationErrors('include_archived');
     }
 
     public function test_archiving_cannot_be_set_through_the_edit_form(): void
@@ -505,6 +543,8 @@ class CatalogManagementTest extends TestCase
 
         $this->getJson('/api/staff/subjects')->assertOk();
         $this->getJson('/api/staff/programs')->assertOk();
+        $this->getJson('/api/staff/subjects?include_archived=1')->assertOk();
+        $this->getJson('/api/staff/programs?include_archived=1')->assertOk();
 
         $this->postJson('/api/staff/subjects', $this->subjectPayload())->assertForbidden();
         $this->putJson("/api/staff/subjects/{$subject->id}", $this->subjectPayload())->assertForbidden();
@@ -524,6 +564,8 @@ class CatalogManagementTest extends TestCase
         Sanctum::actingAs($this->makeUser('student', '2026-0001'), ['*']);
 
         $this->getJson('/api/staff/subjects')->assertForbidden();
+        $this->getJson('/api/staff/subjects?include_archived=1')->assertForbidden();
+        $this->getJson('/api/staff/programs?include_archived=1')->assertForbidden();
         $this->postJson('/api/staff/programs', ['code' => 'BSX', 'name' => 'X'])->assertForbidden();
         $this->patchJson("/api/staff/subjects/{$this->subjects['A']->id}/archive")->assertForbidden();
     }

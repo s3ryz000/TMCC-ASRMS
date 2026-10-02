@@ -31,7 +31,8 @@ class SubjectController extends Controller
 
     /**
      * List subjects, with how widely each is used so the UI can explain why a
-     * subject cannot be deleted.
+     * subject cannot be deleted. Archived subjects are left out unless the
+     * caller asks for them with include_archived=1 (the catalogue screen).
      */
     public function index(Request $request): JsonResponse
     {
@@ -42,9 +43,12 @@ class SubjectController extends Controller
             return $err;
         }
 
+        $request->validate(['include_archived' => ['sometimes', 'boolean']]);
+
         $inUse = $this->idsInUse(self::USAGE);
 
         $subjects = Subject::withCount(['curriculum', 'grades'])
+            ->when(! $request->boolean('include_archived'), fn ($query) => $query->whereNull('archived_at'))
             ->orderBy('code')
             ->orderBy('title')
             ->get(['id', 'code', 'title', 'units', 'description', 'archived_at'])
@@ -141,7 +145,7 @@ class SubjectController extends Controller
         return response()->json(['message' => 'Subject deleted.']);
     }
 
-    /** Retire a subject that can no longer be deleted. Nothing filters on it yet. */
+    /** Retire a subject that can no longer be deleted; it drops out of the default list. */
     public function archive(Request $request, int $id): JsonResponse
     {
         return $this->setArchived($request, $id, true);

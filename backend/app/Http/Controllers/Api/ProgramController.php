@@ -28,6 +28,10 @@ class ProgramController extends Controller
         'program change log entry' => ['program_change_logs', ['old_program_id', 'new_program_id']],
     ];
 
+    /**
+     * List programs with their usage. Archived programs are left out unless
+     * the caller asks for them with include_archived=1.
+     */
     public function index(Request $request): JsonResponse
     {
         if ($err = $this->requireAuth()) {
@@ -37,9 +41,12 @@ class ProgramController extends Controller
             return $err;
         }
 
+        $request->validate(['include_archived' => ['sometimes', 'boolean']]);
+
         $inUse = $this->idsInUse(self::USAGE);
 
         $programs = Program::withCount(['students', 'curriculum'])
+            ->when(! $request->boolean('include_archived'), fn ($query) => $query->whereNull('archived_at'))
             ->orderBy('code')
             ->get(['id', 'code', 'name', 'description', 'archived_at'])
             ->map(fn (Program $program) => [
@@ -123,7 +130,7 @@ class ProgramController extends Controller
         return response()->json(['message' => 'Program deleted.']);
     }
 
-    /** Retire a program that can no longer be deleted. Nothing filters on it yet. */
+    /** Retire a program that can no longer be deleted; it drops out of the default list. */
     public function archive(Request $request, int $id): JsonResponse
     {
         return $this->setArchived($request, $id, true);
