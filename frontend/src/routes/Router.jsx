@@ -24,6 +24,7 @@ import StaffReportsPage from '../pages/StaffReportsPage';
 import StaffNewStudentPage from '../pages/StaffNewStudentPage';
 import StaffEditStudentPage from '../pages/StaffEditStudentPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
+import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
 import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
@@ -119,6 +120,7 @@ const router = createBrowserRouter([
           { path: 'view-records', element: <ViewRecordsPage /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },
           { path: 'students/:id/edit', element: <StaffEditStudentPage /> },
+          { path: 'catalog', element: <StaffCatalogPage /> },
           { path: 'document-release', element: <StaffDocumentReleasePage /> },
           { path: 'reports', element: <StaffReportsPage /> },
         ],

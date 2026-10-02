@@ -120,9 +120,10 @@ const StaffStudentRecordsPage = () => {
     ? parseApiError(error).message || "Failed to load students."
     : null;
 
+  // Archived programs stay in the filter: students may still belong to them.
   const { data: programsPayload } = useQuery({
-    queryKey: queryKeys.staff.programs(),
-    queryFn: () => staffApi.getPrograms(),
+    queryKey: [...queryKeys.staff.programs(), { includeArchived: true }],
+    queryFn: () => staffApi.getPrograms({ include_archived: 1 }),
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,
   });
@@ -220,7 +221,8 @@ const StaffStudentRecordsPage = () => {
               {programOptions.map((p) => {
                 const value = p.code || p.name;
                 const label =
-                  [p.code, p.name].filter(Boolean).join(" — ") || value;
+                  ([p.code, p.name].filter(Boolean).join(" — ") || value) +
+                  (p.archived ? " (archived)" : "");
                 return (
                   <option key={p.id} value={value}>
                     {label}

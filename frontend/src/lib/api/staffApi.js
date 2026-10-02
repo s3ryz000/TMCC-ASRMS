@@ -89,9 +89,12 @@ export const staffApi = {
     return data;
   },
 
-  /** Program list for staff filters (course dropdown). Cached client-side via React Query. */
-  getPrograms: async () => {
-    const { data } = await apiClient.get('/staff/programs');
+  /**
+   * Program list for staff filters (course dropdown). Cached client-side via React Query.
+   * Archived programs are left out unless params.include_archived is 1.
+   */
+  getPrograms: async (params = {}) => {
+    const { data } = await apiClient.get('/staff/programs', { params });
     return data;
   },
 
@@ -155,9 +158,12 @@ export const staffApi = {
     return data;
   },
 
-  /** Subject catalogue with usage counts (staff/admin). */
-  getSubjects: async () => {
-    const { data } = await apiClient.get('/staff/subjects');
+  /**
+   * Subject catalogue with usage counts (staff/admin).
+   * Archived subjects are left out unless params.include_archived is 1.
+   */
+  getSubjects: async (params = {}) => {
+    const { data } = await apiClient.get('/staff/subjects', { params });
     return data;
   },
 
@@ -174,6 +180,14 @@ export const staffApi = {
     const { data } = await apiClient.delete(`/staff/subjects/${id}`);
     return data;
   },
+  archiveSubject: async (id) => {
+    const { data } = await apiClient.patch(`/staff/subjects/${id}/archive`);
+    return data;
+  },
+  unarchiveSubject: async (id) => {
+    const { data } = await apiClient.patch(`/staff/subjects/${id}/unarchive`);
+    return data;
+  },
 
   /** Create, edit or delete a program (registrar staff). */
   createProgram: async (payload) => {
@@ -186,6 +200,14 @@ export const staffApi = {
   },
   deleteProgram: async (id) => {
     const { data } = await apiClient.delete(`/staff/programs/${id}`);
+    return data;
+  },
+  archiveProgram: async (id) => {
+    const { data } = await apiClient.patch(`/staff/programs/${id}/archive`);
+    return data;
+  },
+  unarchiveProgram: async (id) => {
+    const { data } = await apiClient.patch(`/staff/programs/${id}/unarchive`);
     return data;
   },
 

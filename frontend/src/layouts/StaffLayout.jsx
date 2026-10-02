@@ -17,6 +17,7 @@ import {
   FiEdit2,
   FiSearch,
   FiUserPlus,
+  FiBook,
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePasswordModal from '../components/staff/ChangePasswordModal';
@@ -90,7 +91,9 @@ const StaffLayout = () => {
   const isNewStudentPage = pathname === '/staff/students/new';
 
   const isRegistrarRoute =
-    pathname.startsWith('/staff/students') || pathname.startsWith('/staff/view-records');
+    pathname.startsWith('/staff/students') ||
+    pathname.startsWith('/staff/view-records') ||
+    pathname.startsWith('/staff/catalog');
   const [registrarOpen, setRegistrarOpen] = useState(isRegistrarRoute);
 
   useEffect(() => {
@@ -127,6 +130,39 @@ const StaffLayout = () => {
       isActive: (p) => p.startsWith('/staff/view-records'),
     },
   ];
+
+  const catalogSubItems = [
+    {
+      id: 'catalog',
+      label: 'Subjects & Programs',
+      icon: FiBook,
+      path: '/staff/catalog',
+      isActive: (p) => p.startsWith('/staff/catalog'),
+    },
+  ];
+
+  const renderSubItem = ({ id, label, icon: SubIcon, path, isActive: isSubActive }) => {
+    const active = isSubActive(pathname);
+    return (
+      <li key={id}>
+        <Link
+          to={path}
+          className={`flex items-center gap-2.5 py-2 px-2 rounded-md text-[0.9rem] no-underline transition-colors ${
+            active
+              ? 'text-[#1ac76a] font-semibold bg-green-50/80'
+              : 'text-gray-800 hover:bg-gray-50'
+          }`}
+          aria-current={active ? 'page' : undefined}
+        >
+          <SubIcon
+            className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#1ac76a]' : 'text-gray-600'}`}
+            aria-hidden
+          />
+          <span>{label}</span>
+        </Link>
+      </li>
+    );
+  };
 
   const navItemsAfterRegistrar = [
     { id: 'reports', label: 'Reports', icon: FiBarChart2, path: '/staff/reports' },
@@ -221,28 +257,13 @@ const StaffLayout = () => {
                   Student Records:
                 </p>
                 <ul className="m-0 p-0 list-none flex flex-col gap-1">
-                  {registrarSubItems.map(({ id, label, icon: SubIcon, path, isActive: isSubActive }) => {
-                    const active = isSubActive(pathname);
-                    return (
-                      <li key={id}>
-                        <Link
-                          to={path}
-                          className={`flex items-center gap-2.5 py-2 px-2 rounded-md text-[0.9rem] no-underline transition-colors ${
-                            active
-                              ? 'text-[#1ac76a] font-semibold bg-green-50/80'
-                              : 'text-gray-800 hover:bg-gray-50'
-                          }`}
-                          aria-current={active ? 'page' : undefined}
-                        >
-                          <SubIcon
-                            className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#1ac76a]' : 'text-gray-600'}`}
-                            aria-hidden
-                          />
-                          <span>{label}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  {registrarSubItems.map(renderSubItem)}
+                </ul>
+                <p className="m-0 mt-4 mb-3 text-[0.65rem] font-semibold tracking-wider text-slate-500 uppercase">
+                  Catalogue:
+                </p>
+                <ul className="m-0 p-0 list-none flex flex-col gap-1">
+                  {catalogSubItems.map(renderSubItem)}
                 </ul>
               </div>
             )}

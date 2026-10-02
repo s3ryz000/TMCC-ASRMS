@@ -12,9 +12,10 @@ const inputNormal = 'border-gray-300';
  * field list from features/catalog/catalogForms.
  *
  * onSubmit(payload) must return a promise; a 422 response's field errors are
- * shown next to their inputs, anything else is passed to onError.
+ * shown next to their inputs, anything else is passed to onError. An optional
+ * notice is shown above the fields (e.g. how widely the record is used).
  */
-const CatalogFormModal = ({ isOpen, onClose, title, idPrefix, fields, initialValues, submitLabel, onSubmit, onError }) => {
+const CatalogFormModal = ({ isOpen, onClose, title, idPrefix, fields, initialValues, submitLabel, onSubmit, onError, notice }) => {
   const [form, setForm] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,11 @@ const CatalogFormModal = ({ isOpen, onClose, title, idPrefix, fields, initialVal
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} titleId={`${idPrefix}-title`} maxWidth="max-w-lg">
       <form onSubmit={handleSubmit} className="p-6" noValidate>
+        {notice && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm" role="note">
+            {notice}
+          </div>
+        )}
         <div className="space-y-4">
           {fields.map((field) => {
             const id = `${idPrefix}-${field.name}`;
