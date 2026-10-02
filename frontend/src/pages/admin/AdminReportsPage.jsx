@@ -352,7 +352,7 @@ const AdminReportsPage = () => {
                 {summary?.processed_today ?? "—"}
               </p>
               <small className="block mt-1 text-gray-400 text-xs">
-                Crated Student Today
+                Created Student Today
               </small>
             </div>
             <div className="p-5 rounded-xl bg-gray-50 border-l-4 border-indigo-500">
