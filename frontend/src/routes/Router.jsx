@@ -26,6 +26,7 @@ import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUp
 import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
 import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
 import StaffNewSubjectPage from '../pages/staff/StaffNewSubjectPage';
+import StaffProgramCurriculumPage from '../pages/staff/StaffProgramCurriculumPage';
 import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
@@ -127,6 +128,7 @@ const router = createBrowserRouter([
           { path: 'catalog/subjects/new', element: <StaffNewSubjectPage /> },
           { path: 'catalog/programs', element: <StaffCatalogLandingPage type="programs" /> },
           { path: 'catalog/programs/view', element: <StaffCatalogPage type="programs" /> },
+          { path: 'catalog/programs/:programId/curriculum', element: <StaffProgramCurriculumPage /> },
           { path: 'document-release', element: <StaffDocumentReleasePage /> },
           // The staff Reports page was removed (#54); keep old bookmarks working.
           { path: 'reports', element: <Navigate to="/staff" replace /> },

@@ -207,9 +207,9 @@ const StaffLayout = () => {
   const staffName = user?.name || user?.username || 'Registrar';
 
   return (
-    <div className="flex min-h-screen bg-[#f4f6f8]">
+    <div className="flex min-h-screen bg-[#f4f6f8] print:block print:min-h-0 print:bg-white">
       {/* Left sidebar - solid green (image style) */}
-      <aside className="w-[260px] min-w-[260px] sticky top-0 h-screen flex flex-col bg-[#1ac76a] text-white shadow-[2px_0_12px_rgba(0,0,0,0.08)]">
+      <aside className="print:hidden w-[260px] min-w-[260px] sticky top-0 h-screen flex flex-col bg-[#1ac76a] text-white shadow-[2px_0_12px_rgba(0,0,0,0.08)]">
         <div className="px-5 py-6 border-b border-white/15 flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 overflow-hidden">
             {!logoError ? (
@@ -313,7 +313,7 @@ const StaffLayout = () => {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top header bar (image style) */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+        <header className="print:hidden bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full overflow-hidden">
               <span className="bg-staff-sy-yellow text-gray-900 px-3 py-1 text-sm font-medium">
@@ -366,7 +366,7 @@ const StaffLayout = () => {
           </div>
         </div>
 
-        <main className="flex-1 overflow-auto py-6 px-8">
+        <main className="flex-1 overflow-auto py-6 px-8 print:overflow-visible print:p-0">
           <div className="max-w-[1100px] mx-auto">
             <Outlet />
           </div>

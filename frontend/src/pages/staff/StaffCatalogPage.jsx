@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FiPlus, FiEdit2, FiArchive, FiRotateCcw, FiTrash2, FiSearch, FiChevronLeft } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiArchive, FiRotateCcw, FiTrash2, FiSearch, FiChevronLeft, FiEye } from 'react-icons/fi';
 import { staffApi } from '../../lib/api/staffApi';
 import { parseApiError } from '../../lib/api/errors';
 import { queryKeys } from '../../lib/react-query/queryKeys';
@@ -110,7 +110,9 @@ const StaffCatalogPage = ({ type }) => {
   const [confirming, setConfirming] = useState(false);
 
   const { data: rows = [], isLoading, isError, error } = useQuery({
-    queryKey: [...catalog.queryKey(), { includeArchived: showArchived }],
+    // 'table' keeps this array apart from other screens that cache the raw
+    // response under the same prefix (Student Records' course filter).
+    queryKey: [...catalog.queryKey(), 'table', { includeArchived: showArchived }],
     queryFn: () => catalog.list(showArchived ? { include_archived: 1 } : {}),
     staleTime: 60_000,
   });
@@ -167,7 +169,9 @@ const StaffCatalogPage = ({ type }) => {
     return `Used by ${first} and ${second} — changes apply to ${catalog.reach}.`;
   })();
 
-  const columnCount = (isSubjects ? 6 : 4) + (canEdit ? 1 : 0);
+  // Programs always have View (admins too); subjects only have registrar actions.
+  const showActions = canEdit || !isSubjects;
+  const columnCount = (isSubjects ? 6 : 4) + (showActions ? 1 : 0);
   const loadError = isError ? parseApiError(error).message || `Failed to load ${catalog.noun}s.` : null;
   const confirmCopy = confirm ? CONFIRM_COPY[confirm.action] : null;
   const filtered = search.trim() || prefix;
@@ -250,7 +254,7 @@ const StaffCatalogPage = ({ type }) => {
                 {isSubjects && <th className={thClass}>Units</th>}
                 <th className={thClass}>{catalog.usageHeading}</th>
                 <th className={thClass}>Status</th>
-                {canEdit && <th className={thClass}>Actions</th>}
+                {showActions && <th className={thClass}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -284,47 +288,60 @@ const StaffCatalogPage = ({ type }) => {
                         <span className="inline-block py-1 px-3 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
                       )}
                     </td>
-                    {canEdit && (
+                    {showActions && (
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditing({ row, initialValues: catalog.toForm(row) })}
-                            className={`${btnClass} bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-500/30`}
-                            aria-label={`Edit ${row.code}`}
-                          >
-                            <FiEdit2 /> Edit
-                          </button>
-                          {row.archived ? (
-                            <button
-                              type="button"
-                              onClick={() => setConfirm({ action: 'unarchive', row })}
-                              className={`${btnClass} bg-tmcc text-white hover:bg-tmcc-dark focus:ring-tmcc/30`}
-                              aria-label={`Unarchive ${row.code}`}
+                          {!isSubjects && (
+                            <Link
+                              to={`/staff/catalog/programs/${row.id}/curriculum`}
+                              className={`${btnClass} no-underline bg-tmcc text-white hover:bg-tmcc-dark focus:ring-tmcc/30`}
+                              aria-label={`View curriculum for ${row.code}`}
                             >
-                              <FiRotateCcw /> Unarchive
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setConfirm({ action: 'archive', row })}
-                              className={`${btnClass} bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500/30`}
-                              aria-label={`Archive ${row.code}`}
-                            >
-                              <FiArchive /> Archive
-                            </button>
+                              <FiEye /> View
+                            </Link>
                           )}
-                          {row.in_use ? (
-                            <span className="text-xs text-gray-500">In use — archive instead</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setConfirm({ action: 'delete', row })}
-                              className={`${btnClass} bg-red-600 text-white hover:bg-red-700 focus:ring-red-500/30`}
-                              aria-label={`Delete ${row.code}`}
-                            >
-                              <FiTrash2 /> Delete
-                            </button>
+                          {canEdit && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setEditing({ row, initialValues: catalog.toForm(row) })}
+                                className={`${btnClass} bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-500/30`}
+                                aria-label={`Edit ${row.code}`}
+                              >
+                                <FiEdit2 /> Edit
+                              </button>
+                              {row.archived ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirm({ action: 'unarchive', row })}
+                                  className={`${btnClass} bg-tmcc text-white hover:bg-tmcc-dark focus:ring-tmcc/30`}
+                                  aria-label={`Unarchive ${row.code}`}
+                                >
+                                  <FiRotateCcw /> Unarchive
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirm({ action: 'archive', row })}
+                                  className={`${btnClass} bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500/30`}
+                                  aria-label={`Archive ${row.code}`}
+                                >
+                                  <FiArchive /> Archive
+                                </button>
+                              )}
+                              {row.in_use ? (
+                                <span className="text-xs text-gray-500">In use — archive instead</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirm({ action: 'delete', row })}
+                                  className={`${btnClass} bg-red-600 text-white hover:bg-red-700 focus:ring-red-500/30`}
+                                  aria-label={`Delete ${row.code}`}
+                                >
+                                  <FiTrash2 /> Delete
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

@@ -444,6 +444,36 @@ class CatalogManagementTest extends TestCase
             ->assertJsonPath('programs.0.in_use', true);
     }
 
+    /** #71: the curriculum page reads these fields; keep the contract stable. */
+    public function test_program_curriculum_returns_what_the_curriculum_page_needs(): void
+    {
+        $url = "/api/staff/programs/{$this->program->id}/curriculum";
+
+        foreach ([$this->staff, $this->admin] as $user) {
+            Sanctum::actingAs($user, ['*']);
+
+            $rows = collect($this->getJson($url)
+                ->assertOk()
+                ->assertJsonStructure(['curriculum' => [[
+                    'year_level', 'semester', 'prerequisite_logic', 'unresolved_prerequisites',
+                    'subject' => ['code', 'title', 'units'],
+                    'prerequisites',
+                ]]])
+                ->json('curriculum'))->keyBy('subject.code');
+
+            $this->assertSame(1, (int) $rows['B']['year_level']);
+            $this->assertSame(2, (int) $rows['B']['semester']);
+            $this->assertSame('Subject B', $rows['B']['subject']['title']);
+            $this->assertSame(3, (int) $rows['B']['subject']['units']);
+            $this->assertSame(['A'], array_column($rows['B']['prerequisites'], 'code'));
+            $this->assertSame([], $rows['A']['prerequisites']);
+            $this->assertContains($rows['B']['prerequisite_logic'], ['AND', 'OR', null]);
+        }
+
+        Sanctum::actingAs($this->makeUser('student', '2026-0001'), ['*']);
+        $this->getJson($url)->assertForbidden();
+    }
+
     // ------------------------------------------------------------- archiving
 
     public function test_registrar_archives_and_unarchives_a_subject_in_use(): void
