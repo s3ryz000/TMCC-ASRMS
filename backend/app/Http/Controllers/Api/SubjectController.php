@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Controllers\Concerns\ReportsCatalogUsage;
 use App\Http\Requests\SaveSubjectRequest;
 use App\Models\Subject;
+use App\Models\SubjectCodePrefix;
 use App\Models\SystemLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ class SubjectController extends Controller
         $request->validate(['include_archived' => ['sometimes', 'boolean']]);
 
         $inUse = $this->idsInUse(self::USAGE);
+        $prefixes = SubjectCodePrefix::activePrefixes();
 
         $subjects = Subject::withCount(['curriculum', 'grades'])
             ->when(! $request->boolean('include_archived'), fn ($query) => $query->whereNull('archived_at'))
@@ -62,6 +64,7 @@ class SubjectController extends Controller
                 'grades_count'     => $subject->grades_count,
                 'in_use'           => isset($inUse[$subject->id]),
                 'archived'         => $subject->archived_at !== null,
+                'prefix'           => SubjectCodePrefix::matchCode($subject->code, $prefixes),
             ]);
 
         return response()->json(['subjects' => $subjects]);

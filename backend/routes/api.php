@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\StudentDocumentController;
+use App\Http\Controllers\Api\SubjectCodePrefixController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\auth\AuthController;
 use App\Http\Controllers\DashboardController;
@@ -54,6 +55,7 @@ Route::get('/settings/current', [SystemSettingsController::class, 'current'])
 // registrar-only group below, and each controller re-checks the role.
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
     Route::get('/subjects', [SubjectController::class, 'index']);
+    Route::get('/subject-prefixes', [SubjectCodePrefixController::class, 'index']);
     Route::get('/programs', [ProgramController::class, 'index']);
     Route::get('/programs/{id}/curriculum', [StudentController::class, 'programSubjects']);
 
