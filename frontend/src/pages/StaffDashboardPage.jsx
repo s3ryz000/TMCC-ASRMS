@@ -19,7 +19,8 @@ const StaffDashboardPage = () => {
 
   const quickLinks = [
     { path: '/staff/students', label: 'Student Records', icon: FiUsers, description: 'View and manage student records' },
-    { path: '/staff/profile-updates', label: 'Profile Updates', icon: FiInbox, description: 'Review student profile changes', count: kpis?.pending_profile_updates },  ];
+    { path: '/staff/profile-updates', label: 'Profile Updates', icon: FiInbox, description: 'Review student profile changes', count: kpis?.pending_profile_updates },
+  ];
 
   return (
     <>
