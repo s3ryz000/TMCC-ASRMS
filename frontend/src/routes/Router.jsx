@@ -24,6 +24,8 @@ import StaffNewStudentPage from '../pages/StaffNewStudentPage';
 import StaffEditStudentPage from '../pages/StaffEditStudentPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
 import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
+import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
+import StaffNewSubjectPage from '../pages/staff/StaffNewSubjectPage';
 import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
@@ -119,7 +121,12 @@ const router = createBrowserRouter([
           { path: 'view-records', element: <ViewRecordsPage /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },
           { path: 'students/:id/edit', element: <StaffEditStudentPage /> },
-          { path: 'catalog', element: <StaffCatalogPage /> },
+          { path: 'catalog', element: <Navigate to="/staff/catalog/subjects" replace /> },
+          { path: 'catalog/subjects', element: <StaffCatalogLandingPage type="subjects" /> },
+          { path: 'catalog/subjects/view', element: <StaffCatalogPage type="subjects" /> },
+          { path: 'catalog/subjects/new', element: <StaffNewSubjectPage /> },
+          { path: 'catalog/programs', element: <StaffCatalogLandingPage type="programs" /> },
+          { path: 'catalog/programs/view', element: <StaffCatalogPage type="programs" /> },
           { path: 'document-release', element: <StaffDocumentReleasePage /> },
           // The staff Reports page was removed (#54); keep old bookmarks working.
           { path: 'reports', element: <Navigate to="/staff" replace /> },

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FiPlus, FiEdit2, FiArchive, FiRotateCcw, FiTrash2, FiSearch } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiArchive, FiRotateCcw, FiTrash2, FiSearch, FiChevronLeft } from 'react-icons/fi';
 import { staffApi } from '../../lib/api/staffApi';
 import { parseApiError } from '../../lib/api/errors';
 import { queryKeys } from '../../lib/react-query/queryKeys';
@@ -8,32 +9,28 @@ import { staffToast } from '../../lib/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 import CatalogFormModal from '../../components/staff/CatalogFormModal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import {
-  SUBJECT_FIELDS,
-  PROGRAM_FIELDS,
-  EMPTY_SUBJECT,
-  EMPTY_PROGRAM,
-} from '../../features/catalog/catalogForms';
+import { SUBJECT_FIELDS, PROGRAM_FIELDS } from '../../features/catalog/catalogForms';
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * Everything that differs between the two tabs. The page itself only knows
- * about "records" with a code, a label field and usage counts.
+ * Everything that differs between the subject and program tables. The page
+ * itself only knows about "records" with a code, a label field and usage counts.
  */
-const TABS = {
+const CATALOGS = {
   subjects: {
     noun: 'subject',
     Noun: 'Subject',
+    title: 'Subjects',
+    landing: '/staff/catalog/subjects',
+    newPath: '/staff/catalog/subjects/new',
     labelField: 'title',
     labelHeading: 'Title',
     fields: SUBJECT_FIELDS,
-    empty: EMPTY_SUBJECT,
     queryKey: queryKeys.staff.subjects,
-    // New Student caches programs under its own key; subjects have no such reader.
-    extraKeys: [],
+    // Prefix counts change with the subjects.
+    extraKeys: [queryKeys.staff.subjectPrefixes()],
     list: (params) => staffApi.getSubjects(params).then((d) => d?.subjects ?? []),
-    create: staffApi.createSubject,
     update: staffApi.updateSubject,
     remove: staffApi.deleteSubject,
     archive: staffApi.archiveSubject,
@@ -46,14 +43,17 @@ const TABS = {
   programs: {
     noun: 'program',
     Noun: 'Program',
+    title: 'Programs',
+    landing: '/staff/catalog/programs',
+    // Programs are created with their curriculum (New Curriculum, #70), not here.
+    newPath: null,
     labelField: 'name',
     labelHeading: 'Name',
     fields: PROGRAM_FIELDS,
-    empty: EMPTY_PROGRAM,
     queryKey: queryKeys.staff.programs,
+    // New Student caches programs under its own key.
     extraKeys: [['programs']],
     list: (params) => staffApi.getPrograms(params).then((d) => d?.programs ?? []),
-    create: staffApi.createProgram,
     update: staffApi.updateProgram,
     remove: staffApi.deleteProgram,
     archive: staffApi.archiveProgram,
@@ -92,60 +92,55 @@ const CONFIRM_COPY = {
 const thClass = 'py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700';
 const btnClass = 'inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors';
 
-const StaffCatalogPage = () => {
+/** The subjects or programs table (type: 'subjects' | 'programs'). */
+const StaffCatalogPage = ({ type }) => {
   const { role } = useAuth();
   const canEdit = role === 'staff';
   const queryClient = useQueryClient();
+  const catalog = CATALOGS[type];
+  const isSubjects = type === 'subjects';
 
-  const [tabKey, setTabKey] = useState('subjects');
   const [search, setSearch] = useState('');
+  const [prefix, setPrefix] = useState('');
   const [showArchived, setShowArchived] = useState(false);
-  // { mode: 'create' | 'edit', row, initialValues } — initialValues is kept in
-  // state so the modal does not reset the form on every render.
-  const [form, setForm] = useState(null);
+  // { row, initialValues } — initialValues is kept in state so it is built once per edit.
+  const [editing, setEditing] = useState(null);
   // { action: 'archive' | 'unarchive' | 'delete', row }
   const [confirm, setConfirm] = useState(null);
   const [confirming, setConfirming] = useState(false);
 
-  const tab = TABS[tabKey];
-
   const { data: rows = [], isLoading, isError, error } = useQuery({
-    queryKey: [...tab.queryKey(), { includeArchived: showArchived }],
-    queryFn: () => tab.list(showArchived ? { include_archived: 1 } : {}),
+    queryKey: [...catalog.queryKey(), { includeArchived: showArchived }],
+    queryFn: () => catalog.list(showArchived ? { include_archived: 1 } : {}),
     staleTime: 60_000,
+  });
+
+  const { data: prefixOptions = [] } = useQuery({
+    queryKey: queryKeys.staff.subjectPrefixes(),
+    queryFn: () => staffApi.getSubjectPrefixes().then((d) => d?.prefixes ?? []),
+    staleTime: 5 * 60_000,
+    enabled: isSubjects,
   });
 
   const visibleRows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((r) =>
-      [r.code, r[tab.labelField]].some((v) => String(v ?? '').toLowerCase().includes(term)),
-    );
-  }, [rows, search, tab.labelField]);
+    return rows.filter((r) => {
+      if (prefix && r.prefix !== prefix) return false;
+      if (!term) return true;
+      return [r.code, r[catalog.labelField]].some((v) => String(v ?? '').toLowerCase().includes(term));
+    });
+  }, [rows, search, prefix, catalog.labelField]);
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: tab.queryKey() });
-    tab.extraKeys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+    queryClient.invalidateQueries({ queryKey: catalog.queryKey() });
+    catalog.extraKeys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
   };
-
-  const switchTab = (key) => {
-    setTabKey(key);
-    setSearch('');
-  };
-
-  const openCreate = () => setForm({ mode: 'create', row: null, initialValues: tab.empty });
-  const openEdit = (row) => setForm({ mode: 'edit', row, initialValues: tab.toForm(row) });
 
   const handleSave = async (payload) => {
-    // Errors propagate to CatalogFormModal: 422s go next to the fields.
-    if (form.mode === 'create') {
-      await tab.create(payload);
-      staffToast.success(`${tab.Noun} created.`);
-    } else {
-      await tab.update(form.row.id, payload);
-      staffToast.success(`${tab.Noun} updated.`);
-    }
-    setForm(null);
+    // Errors propagate to the form: 422s go next to the fields.
+    await catalog.update(editing.row.id, payload);
+    staffToast.success(`${catalog.Noun} updated.`);
+    setEditing(null);
     refresh();
   };
 
@@ -153,43 +148,44 @@ const StaffCatalogPage = () => {
     const { action, row } = confirm;
     setConfirming(true);
     try {
-      if (action === 'delete') await tab.remove(row.id);
-      else await tab[action](row.id);
-      staffToast.success(CONFIRM_COPY[action].done(tab));
-      setConfirm(null);
-      refresh();
+      if (action === 'delete') await catalog.remove(row.id);
+      else await catalog[action](row.id);
+      staffToast.success(CONFIRM_COPY[action].done(catalog));
     } catch (err) {
       // A 409 explains what still uses the record.
       staffToast.error(`Could not ${action} ${row.code}`, parseApiError(err).message);
-      setConfirm(null);
-      refresh();
     } finally {
       setConfirming(false);
+      setConfirm(null);
+      refresh();
     }
   };
 
   const editNotice = (() => {
-    if (form?.mode !== 'edit' || !form.row.in_use) return null;
-    const [first, second] = tab.usage(form.row);
-    return `Used by ${first} and ${second} — changes apply to ${tab.reach}.`;
+    if (!editing?.row.in_use) return null;
+    const [first, second] = catalog.usage(editing.row);
+    return `Used by ${first} and ${second} — changes apply to ${catalog.reach}.`;
   })();
 
-  const columnCount = (tabKey === 'subjects' ? 5 : 4) + (canEdit ? 1 : 0);
-  const loadError = isError ? parseApiError(error).message || `Failed to load ${tab.noun}s.` : null;
+  const columnCount = (isSubjects ? 6 : 4) + (canEdit ? 1 : 0);
+  const loadError = isError ? parseApiError(error).message || `Failed to load ${catalog.noun}s.` : null;
   const confirmCopy = confirm ? CONFIRM_COPY[confirm.action] : null;
+  const filtered = search.trim() || prefix;
 
   return (
     <>
+      <Link to={catalog.landing} className="inline-flex items-center gap-1 mb-2 text-sm text-gray-600 no-underline hover:text-tmcc">
+        <FiChevronLeft aria-hidden /> {catalog.title}
+      </Link>
       <section className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="m-0 text-2xl font-bold text-gray-800">Subjects &amp; Programs</h2>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className={`${btnClass} py-2 px-4 bg-tmcc text-white hover:bg-tmcc-dark focus:ring-tmcc/30`}
+        <h2 className="m-0 text-2xl font-bold text-gray-800">{catalog.title}</h2>
+        {canEdit && catalog.newPath && (
+          <Link
+            to={catalog.newPath}
+            className={`${btnClass} py-2 px-4 no-underline bg-tmcc text-white hover:bg-tmcc-dark focus:ring-tmcc/30`}
           >
-            <FiPlus /> New {tab.noun}
-          </button>
+            <FiPlus /> Add {catalog.noun}
+          </Link>
         )}
       </section>
 
@@ -206,35 +202,33 @@ const StaffCatalogPage = () => {
       )}
 
       <section className="p-5 bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
-        <div className="flex gap-1 mb-4 border-b border-gray-200" role="tablist" aria-label="Catalogue">
-          {Object.entries(TABS).map(([key, t]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tabKey === key}
-              onClick={() => switchTab(key)}
-              className={`py-2 px-4 -mb-px border-b-2 text-sm font-medium transition-colors ${
-                tabKey === key ? 'border-tmcc text-tmcc' : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {t.Noun}s
-            </button>
-          ))}
-        </div>
-
         <div className="pb-4 flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="search"
-              placeholder={`Search by code or ${tab.labelField}...`}
+              placeholder={`Search by code or ${catalog.labelField}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tmcc/20 focus:border-tmcc"
-              aria-label={`Search ${tab.noun}s`}
+              aria-label={`Search ${catalog.noun}s`}
             />
           </div>
+          {isSubjects && (
+            <select
+              value={prefix}
+              onChange={(e) => setPrefix(e.target.value)}
+              className="py-2 px-3 max-w-full border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tmcc/20 focus:border-tmcc"
+              aria-label="Filter by subject code prefix"
+            >
+              <option value="">All prefixes</option>
+              {prefixOptions.map((p) => (
+                <option key={p.prefix} value={p.prefix}>
+                  {p.label} ({p.subjects_count})
+                </option>
+              ))}
+            </select>
+          )}
           <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input
               type="checkbox"
@@ -251,9 +245,10 @@ const StaffCatalogPage = () => {
             <thead>
               <tr>
                 <th className={thClass}>Code</th>
-                <th className={thClass}>{tab.labelHeading}</th>
-                {tabKey === 'subjects' && <th className={thClass}>Units</th>}
-                <th className={thClass}>{tab.usageHeading}</th>
+                {isSubjects && <th className={thClass}>Prefix</th>}
+                <th className={thClass}>{catalog.labelHeading}</th>
+                {isSubjects && <th className={thClass}>Units</th>}
+                <th className={thClass}>{catalog.usageHeading}</th>
                 <th className={thClass}>Status</th>
                 {canEdit && <th className={thClass}>Actions</th>}
               </tr>
@@ -262,13 +257,13 @@ const StaffCatalogPage = () => {
               {isLoading ? (
                 <tr>
                   <td colSpan={columnCount} className="py-8 px-4 text-center text-gray-500">
-                    Loading {tab.noun}s...
+                    Loading {catalog.noun}s...
                   </td>
                 </tr>
               ) : visibleRows.length === 0 ? (
                 <tr>
                   <td colSpan={columnCount} className="py-8 px-4 text-center text-gray-500">
-                    {loadError ? '—' : search.trim() ? `No ${tab.noun}s match your search.` : `No ${tab.noun}s yet.`}
+                    {loadError ? '—' : filtered ? `No ${catalog.noun}s match your filters.` : `No ${catalog.noun}s yet.`}
                   </td>
                 </tr>
               ) : (
@@ -278,9 +273,10 @@ const StaffCatalogPage = () => {
                     className={`border-b border-gray-100 ${row.archived ? 'bg-gray-50 text-gray-400' : 'text-gray-800 hover:bg-gray-50/80'}`}
                   >
                     <td className="py-3 px-4 font-medium whitespace-nowrap">{row.code}</td>
-                    <td className="py-3 px-4">{row[tab.labelField]}</td>
-                    {tabKey === 'subjects' && <td className="py-3 px-4">{row.units}</td>}
-                    <td className="py-3 px-4 whitespace-nowrap">{tab.usage(row).join(' · ')}</td>
+                    {isSubjects && <td className="py-3 px-4 whitespace-nowrap">{row.prefix ?? '—'}</td>}
+                    <td className="py-3 px-4">{row[catalog.labelField]}</td>
+                    {isSubjects && <td className="py-3 px-4">{row.units}</td>}
+                    <td className="py-3 px-4 whitespace-nowrap">{catalog.usage(row).join(' · ')}</td>
                     <td className="py-3 px-4">
                       {row.archived ? (
                         <span className="inline-block py-1 px-3 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Archived</span>
@@ -293,7 +289,7 @@ const StaffCatalogPage = () => {
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => openEdit(row)}
+                            onClick={() => setEditing({ row, initialValues: catalog.toForm(row) })}
                             className={`${btnClass} bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-500/30`}
                             aria-label={`Edit ${row.code}`}
                           >
@@ -343,15 +339,15 @@ const StaffCatalogPage = () => {
 
       {canEdit && (
         <CatalogFormModal
-          isOpen={!!form}
-          onClose={() => setForm(null)}
-          title={form?.mode === 'edit' ? `Edit ${tab.noun} ${form.row.code}` : `New ${tab.noun}`}
-          idPrefix={`catalog-${tab.noun}`}
-          fields={tab.fields}
-          initialValues={form?.initialValues ?? tab.empty}
-          submitLabel={form?.mode === 'edit' ? 'Save changes' : `Create ${tab.noun}`}
+          isOpen={!!editing}
+          onClose={() => setEditing(null)}
+          title={editing ? `Edit ${catalog.noun} ${editing.row.code}` : ''}
+          idPrefix={`catalog-${catalog.noun}`}
+          fields={catalog.fields}
+          initialValues={editing?.initialValues}
+          submitLabel="Save changes"
           onSubmit={handleSave}
-          onError={(message) => staffToast.error(`Could not save ${tab.noun}`, message)}
+          onError={(message) => staffToast.error(`Could not save ${catalog.noun}`, message)}
           notice={editNotice}
         />
       )}
@@ -361,8 +357,8 @@ const StaffCatalogPage = () => {
           isOpen={!!confirm}
           onClose={() => !confirming && setConfirm(null)}
           onConfirm={handleConfirm}
-          title={confirm ? confirmCopy.title(tab) : ''}
-          message={confirm ? confirmCopy.message(tab, confirm.row) : ''}
+          title={confirm ? confirmCopy.title(catalog) : ''}
+          message={confirm ? confirmCopy.message(catalog, confirm.row) : ''}
           confirmLabel={confirmCopy?.label}
           variant={confirmCopy?.variant}
           loading={confirming}

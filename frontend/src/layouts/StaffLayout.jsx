@@ -17,6 +17,7 @@ import {
   FiSearch,
   FiUserPlus,
   FiBook,
+  FiLayers,
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePasswordModal from '../components/staff/ChangePasswordModal';
@@ -132,11 +133,18 @@ const StaffLayout = () => {
 
   const catalogSubItems = [
     {
-      id: 'catalog',
-      label: 'Subjects & Programs',
+      id: 'catalog-subjects',
+      label: 'Subjects',
       icon: FiBook,
-      path: '/staff/catalog',
-      isActive: (p) => p.startsWith('/staff/catalog'),
+      path: '/staff/catalog/subjects',
+      isActive: (p) => p.startsWith('/staff/catalog/subjects'),
+    },
+    {
+      id: 'catalog-programs',
+      label: 'Programs',
+      icon: FiLayers,
+      path: '/staff/catalog/programs',
+      isActive: (p) => p.startsWith('/staff/catalog/programs'),
     },
   ];
 

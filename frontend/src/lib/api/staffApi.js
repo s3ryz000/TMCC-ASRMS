@@ -167,6 +167,12 @@ export const staffApi = {
     return data;
   },
 
+  /** CHED subject code prefixes ("TPC - Tourism Professional Core") with subject counts (staff/admin). */
+  getSubjectPrefixes: async () => {
+    const { data } = await apiClient.get('/staff/subject-prefixes');
+    return data;
+  },
+
   /** Create, edit or delete a subject (registrar staff). */
   createSubject: async (payload) => {
     const { data } = await apiClient.post('/staff/subjects', payload);
