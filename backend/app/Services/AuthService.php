@@ -23,6 +23,15 @@ class AuthService
             ]);
         }
 
+        // A deactivated account cannot sign in (#79). Checked after the
+        // password so the message never reveals whether an account exists,
+        // and before anything else so a refused login changes nothing.
+        if ($user->status !== 'active') {
+            throw ValidationException::withMessages([
+                'username' => ['This account is inactive. Please contact the administrator.'],
+            ]);
+        }
+
         $user->tokens()->delete();
 
         $token = $user->createToken('auth-token')->plainTextToken;

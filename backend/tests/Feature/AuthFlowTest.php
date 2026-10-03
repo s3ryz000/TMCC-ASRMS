@@ -154,4 +154,58 @@ class AuthFlowTest extends TestCase
 
         $this->login()->assertStatus(429);
     }
+
+    // ------------------------------------------------------- inactive (#79)
+
+    public function test_an_inactive_account_cannot_log_in(): void
+    {
+        $user = \App\Models\User::where('username', 'registrar01')->sole();
+        $user->update(['status' => 'inactive']);
+
+        $this->login()
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['username' => 'This account is inactive. Please contact the administrator.'])
+            ->assertJsonMissingPath('token');
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_an_inactive_account_with_a_wrong_password_gets_the_usual_message(): void
+    {
+        \App\Models\User::where('username', 'registrar01')->update(['status' => 'inactive']);
+
+        // The inactive notice only follows a correct password, so it never
+        // reveals which usernames exist.
+        $this->login(password: 'wrong-password')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['username' => 'The provided credentials are incorrect.']);
+    }
+
+    public function test_deactivating_a_signed_in_user_ends_their_session(): void
+    {
+        $staffToken = $this->login()->assertOk()->json('token');
+        $this->makeUser('admin', 'admin01', 'admin-pass');
+        $adminToken = $this->login('admin01', 'admin-pass')->assertOk()->json('token');
+        $staff = \App\Models\User::where('username', 'registrar01')->sole();
+
+        $this->asBearer($staffToken)->getJson('/api/user')->assertOk();
+
+        $this->asBearer($adminToken)->putJson("/api/admin/users/{$staff->id}", [
+            'name' => $staff->name, 'email' => $staff->email, 'role' => 'staff', 'status' => 'inactive',
+        ])->assertOk();
+
+        $this->asBearer($staffToken)->getJson('/api/user')->assertUnauthorized();
+        $this->assertSame(0, $staff->tokens()->count());
+        // The administrator's own session is untouched.
+        $this->asBearer($adminToken)->getJson('/api/user')->assertOk();
+    }
+
+    public function test_reactivated_account_can_log_in_again(): void
+    {
+        \App\Models\User::where('username', 'registrar01')->update(['status' => 'inactive']);
+        $this->login()->assertStatus(422);
+
+        \App\Models\User::where('username', 'registrar01')->update(['status' => 'active']);
+        $this->login()->assertOk()->assertJsonStructure(['token']);
+    }
 }

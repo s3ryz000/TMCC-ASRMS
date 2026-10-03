@@ -158,6 +158,11 @@ class UserController extends Controller
 
         $user->update($validated);
 
+        // Deactivating an account ends its open sessions at once (#79).
+        if ($user->wasChanged('status') && $user->status === 'inactive') {
+            $user->tokens()->delete();
+        }
+
         if (isset($validated['role'])) {
             $user->syncRoles([$validated['role']]);
         }
