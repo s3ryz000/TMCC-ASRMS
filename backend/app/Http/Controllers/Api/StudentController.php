@@ -23,6 +23,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SystemLog;
 use App\Models\User;
+use App\Support\AcademicStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,15 +35,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class StudentController extends Controller
 {
     use AuthorizesRole;
-
-    /** Statuses the registrar may set on a grade. */
-    private const GRADE_STATUSES = ['Enrolled', 'Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited', 'DRP', 'CON'];
-
-    /** What an enrollment's status may be set to (#76): the grade statuses plus Cancelled. */
-    private const ENROLLMENT_STATUSES = [...self::GRADE_STATUSES, 'Cancelled'];
-
-    /** Older lowercase values some clients still send, mapped to the stored status. */
-    private const ENROLLMENT_STATUS_ALIASES = ['enrolled' => 'Enrolled', 'dropped' => 'DRP'];
 
     /**
      * List students with search, filter by course/status, pagination (staff + admin).
@@ -386,10 +378,12 @@ class StudentController extends Controller
                     ->pluck('subject_id')
                     ->toArray();
 
+                // Was whereIn('status', ['enrolled']): lowercase, so it matched
+                // no row and nothing was ever archived (#18).
                 $archivedCount = Enrollment::where('student_id', $student->student_id)
                     ->whereIn('subject_id', $oldCurriculumSubjectIds)
-                    ->whereIn('status', ['enrolled'])
-                    ->update(['status' => 'archived']);
+                    ->where('status', AcademicStatus::ENROLLED)
+                    ->update(['status' => AcademicStatus::ARCHIVED]);
             }
 
             // Update student's active program
@@ -492,7 +486,13 @@ class StudentController extends Controller
         $validated = $request->validate([
             'academic_year' => ['required', 'string', 'max:20'],
             'semester'      => ['required', 'string', 'max:20'],
-            'status'        => ['nullable', 'string', 'max:20', 'in:enrolled,completed,dropped'],
+            // A new enrollment always starts as Enrolled; the field is only
+            // validated, against the shared vocabulary in any case (#18).
+            'status'        => ['nullable', 'string', 'max:20', function ($attribute, $value, $fail) {
+                if (AcademicStatus::canonical($value, AcademicStatus::ENROLLMENT_EDITABLE) === null) {
+                    $fail('The selected status is invalid.');
+                }
+            }],
             'year_level'    => ['required', 'integer', 'min:1', 'max:4'],
             'subject_ids'   => ['nullable', 'array'],
             'subject_ids.*' => ['integer', 'exists:subjects,id'],
@@ -599,18 +599,17 @@ class StudentController extends Controller
             'status' => ['nullable', 'string', 'max:20'],
         ]);
 
-        // Statuses are the ones the rest of the system stores (#76), matched
-        // without regard to case. Two older values still arrive from earlier
-        // clients and have a clear meaning; "completed" does not (the final
-        // status comes from the grade), so it is refused.
+        // Statuses are the ones the rest of the system stores (#76, #18),
+        // matched without regard to case. The older "dropped" still means DRP;
+        // "completed" has no meaning here (the final status comes from the
+        // grade), so it is refused.
         if (isset($validated['status'])) {
-            $status = self::ENROLLMENT_STATUS_ALIASES[strtolower($validated['status'])]
-                ?? collect(self::ENROLLMENT_STATUSES)->first(fn ($s) => strcasecmp($s, $validated['status']) === 0);
+            $status = AcademicStatus::canonical($validated['status'], AcademicStatus::ENROLLMENT_EDITABLE);
 
             if ($status === null) {
                 return response()->json([
                     'message' => 'The selected status is invalid.',
-                    'errors'  => ['status' => ['Use one of: ' . implode(', ', self::ENROLLMENT_STATUSES) . '. A final status is recorded through the grade.']],
+                    'errors'  => ['status' => ['Use one of: ' . implode(', ', AcademicStatus::ENROLLMENT_EDITABLE) . '. A final status is recorded through the grade.']],
                 ], 422);
             }
             $validated['status'] = $status;
@@ -710,7 +709,7 @@ class StudentController extends Controller
 
         $hasFinalStatus = false;
         if ($grade) {
-            $finalStatuses = ['Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited'];
+            $finalStatuses = AcademicStatus::RECORDED;
             if ($grade->status && in_array($grade->status, $finalStatuses)) {
                 $hasFinalStatus = true;
             } elseif ($grade->grade_value !== null && $grade->grade_value > 0) {
@@ -742,14 +741,14 @@ class StudentController extends Controller
             $oldStatus = $enrollment->status;
 
             // Update status to Cancelled and soft-delete
-            $enrollment->status = 'Cancelled';
+            $enrollment->status = AcademicStatus::CANCELLED;
             $enrollment->deleted_by   = $user->id;
             $enrollment->delete_reason = $reason;
             $enrollment->save();
             $enrollment->delete(); // triggers SoftDelete
 
             // Also remove the placeholder grade if it exists and has no value
-            if ($grade && $grade->grade_value === null && (!$grade->status || $grade->status === 'Enrolled')) {
+            if ($grade && $grade->grade_value === null && (!$grade->status || $grade->status === AcademicStatus::ENROLLED)) {
                 $grade->delete();
             }
 
@@ -761,7 +760,7 @@ class StudentController extends Controller
                 'academic_year' => $enrollment->academic_year,
                 'semester'      => $enrollment->semester,
                 'old_status'    => $oldStatus,
-                'new_status'    => 'Cancelled',
+                'new_status'    => AcademicStatus::CANCELLED,
                 'changed_by'    => $user->id,
                 'action'        => 'cancelled',
                 'reason'        => $reason,
@@ -774,7 +773,7 @@ class StudentController extends Controller
                 ->where('academic_year', $enrollment->academic_year)
                 ->where('semester', $enrollment->semester)
                 ->whereNull('deleted_at')
-                ->whereNotIn('status', ['archived', 'Cancelled'])
+                ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
                 ->count();
 
             if ($remainingActive === 0) {
@@ -840,7 +839,7 @@ class StudentController extends Controller
         $enrollment = Enrollment::where('student_id', $student->student_id)
             ->where('subject_id', $validated['subject_id'])
             ->where('academic_year', $validated['academic_year'])
-            ->whereNotIn('status', ['Cancelled', 'archived'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->get()
             ->first(fn (Enrollment $e) => EnrollmentTerm::normaliseSemester($e->semester) === $semester);
         if (! $enrollment) {
@@ -905,7 +904,7 @@ class StudentController extends Controller
             'academic_year' => ['sometimes', 'required', 'string', 'max:20'],
             'semester' => ['sometimes', 'required', 'string', 'max:20'],
             'grade_value' => ['nullable', 'numeric', 'min:0', 'max:5.00'],
-            'status' => ['nullable', 'string', 'in:' . implode(',', self::GRADE_STATUSES)],
+            'status' => ['nullable', 'string', 'in:' . implode(',', AcademicStatus::GRADE)],
             'remarks' => ['nullable', 'string', 'max:50'],
             'supporting_document_reference' => ['nullable', 'string', 'max:255'],
         ]);
@@ -1267,7 +1266,7 @@ class StudentController extends Controller
             'grades'                                => ['required', 'array', 'min:1'],
             'grades.*.grade_id'                     => ['required', 'integer', 'exists:grades,id'],
             'grades.*.grade_value'                  => ['nullable', 'numeric', 'min:0', 'max:5.00'],
-            'grades.*.status'                       => ['nullable', 'string', 'in:' . implode(',', self::GRADE_STATUSES)],
+            'grades.*.status'                       => ['nullable', 'string', 'in:' . implode(',', AcademicStatus::GRADE)],
             'grades.*.remarks'                      => ['nullable', 'string', 'max:50'],
             'grades.*.supporting_document_reference' => ['nullable', 'string', 'max:255'],
         ]);
@@ -1360,7 +1359,7 @@ class StudentController extends Controller
             ? $data['remarks']
             : $service->autoGenerateRemarks($gradeValue, $newStatus);
 
-        if ($newStatus === 'Credited' && empty($data['supporting_document_reference'])) {
+        if ($newStatus === AcademicStatus::CREDITED && empty($data['supporting_document_reference'])) {
             return "Grade #{$grade->id}: Credited status requires a supporting document reference.";
         }
 
@@ -1376,8 +1375,8 @@ class StudentController extends Controller
 
         $convertedFrom = null;
         $convertedAt = null;
-        if ($oldStatus === 'INC' && $newStatus === 'Passed') {
-            $convertedFrom = 'INC';
+        if ($oldStatus === AcademicStatus::INC && $newStatus === AcademicStatus::PASSED) {
+            $convertedFrom = AcademicStatus::INC;
             $convertedAt = now();
         }
 
@@ -1402,9 +1401,9 @@ class StudentController extends Controller
         }
 
         $action = 'grade_updated';
-        if ($convertedFrom === 'INC') {
+        if ($convertedFrom === AcademicStatus::INC) {
             $action = 'inc_to_passed';
-        } elseif ($newStatus === 'Credited') {
+        } elseif ($newStatus === AcademicStatus::CREDITED) {
             $action = 'marked_credited';
         }
 

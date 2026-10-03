@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AcademicStatus;
 use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
@@ -62,7 +63,7 @@ class RetakeEligibilityService
     /**
      * Statuses that make a subject retakeable.
      */
-    private const RETAKE_STATUSES = ['Failed', 'Withdrawn', 'FDA'];
+    private const RETAKE_STATUSES = AcademicStatus::RETAKE;
 
     /**
      * Grade values treated as Failed (legacy numeric-only grades).
@@ -121,7 +122,7 @@ class RetakeEligibilityService
         foreach ($latestGradeBySubject as $subjectId => $grade) {
             $status = $this->resolveEffectiveStatus($grade);
 
-            if ($status === 'INC') {
+            if ($status === AcademicStatus::INC) {
                 $incSubjects[] = $this->buildSubjectEntry($grade, $status, [
                     'blocked_reason' =>
                         "This subject has an INC status. Complete or convert the INC " .
@@ -156,7 +157,7 @@ class RetakeEligibilityService
                 ->where('academic_year', $nextAcademicYear)
                 ->where('semester', $nextSemester)
                 ->whereNull('deleted_at')
-                ->whereNotIn('status', ['Cancelled', 'archived'])
+                ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
                 ->exists();
 
             if ($alreadyEnrolledNextTerm) {
@@ -258,7 +259,7 @@ class RetakeEligibilityService
                 ->where('academic_year', $nextAllowedTerm['academic_year'])
                 ->where('semester', $nextAllowedTerm['semester'])
                 ->whereNull('deleted_at')
-                ->whereNotIn('status', ['Cancelled', 'archived'])
+                ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
                 ->exists();
 
             if ($duplicateExists) {
@@ -284,32 +285,32 @@ class RetakeEligibilityService
     private function resolveEffectiveStatus(Grade $grade): string
     {
         // 1. Explicit status column (most reliable)
-        if ($grade->status && $grade->status !== 'Enrolled') {
+        if ($grade->status && $grade->status !== AcademicStatus::ENROLLED) {
             return $grade->status;
         }
 
         // 2. Legacy: grade_value = 5.00 → Failed
         if ($grade->grade_value !== null && abs((float) $grade->grade_value - self::FAILED_GRADE_VALUE) < 0.001) {
-            return 'Failed';
+            return AcademicStatus::FAILED;
         }
 
         // 3. Legacy: grade_value 1.00–3.00 → Passed
         if ($grade->grade_value !== null
             && (float) $grade->grade_value >= 1.00
             && (float) $grade->grade_value <= 3.00) {
-            return 'Passed';
+            return AcademicStatus::PASSED;
         }
 
         // 4. Legacy: remarks-based
         if ($grade->remarks) {
             $r = strtoupper(trim($grade->remarks));
             $map = [
-                'PASSED'    => 'Passed',
-                'FAILED'    => 'Failed',
-                'INC'       => 'INC',
-                'WITHDRAWN' => 'Withdrawn',
-                'FDA'       => 'FDA',
-                'CREDITED'  => 'Credited',
+                'PASSED'    => AcademicStatus::PASSED,
+                'FAILED'    => AcademicStatus::FAILED,
+                AcademicStatus::INC       => AcademicStatus::INC,
+                'WITHDRAWN' => AcademicStatus::WITHDRAWN,
+                AcademicStatus::FDA       => AcademicStatus::FDA,
+                'CREDITED'  => AcademicStatus::CREDITED,
             ];
             if (isset($map[$r])) {
                 return $map[$r];
@@ -317,7 +318,7 @@ class RetakeEligibilityService
         }
 
         // 5. status = Enrolled or null → currently enrolled (not retakeable yet)
-        return 'Enrolled';
+        return AcademicStatus::ENROLLED;
     }
 
     /**

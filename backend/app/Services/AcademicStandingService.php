@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AcademicStatus;
 use App\Models\Student;
 use App\Models\Grade;
 
@@ -203,14 +204,14 @@ class AcademicStandingService
 
         foreach ($grades as $grade) {
             // Exclude Credited and Withdrawn
-            if (in_array($grade->status, ['Credited', 'Withdrawn', 'FDA', 'DRP', 'Cancelled', 'Enrolled'])) {
+            if (in_array($grade->status, [AcademicStatus::CREDITED, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::CANCELLED, AcademicStatus::ENROLLED])) {
                 continue;
             }
 
             // Exclude if no grade value
             if ($grade->grade_value === null) {
                 // If it's a Failed grade without value (e.g. 5.00), treat as 5.00
-                if ($grade->status === 'Failed') {
+                if ($grade->status === AcademicStatus::FAILED) {
                     $units = $grade->subject?->units ?? 0;
                     $totalWeighted += (5.00 * $units);
                     $totalUnits += $units;
@@ -237,12 +238,12 @@ class AcademicStandingService
         foreach ($grades as $grade) {
             $code = $grade->subject?->code ?? 'Unknown Subject';
 
-            if ($grade->status === 'Enrolled') {
+            if ($grade->status === AcademicStatus::ENROLLED) {
                 $issues[] = "still enrolled in {$code}";
                 continue;
             }
 
-            if (in_array($grade->status, ['Failed', 'INC', 'FDA', 'DRP', 'Withdrawn', 'Cancelled'])) {
+            if (in_array($grade->status, [AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::WITHDRAWN, AcademicStatus::CANCELLED])) {
                 $issues[] = "{$grade->status} in {$code}";
                 continue;
             }

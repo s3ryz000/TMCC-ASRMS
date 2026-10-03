@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AcademicStatus;
 use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
@@ -18,7 +19,7 @@ class AcademicProgressionService
     /**
      * Valid final statuses that count as "completed" for progression purposes.
      */
-    const FINAL_STATUSES = ['Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited', 'Cancelled'];
+    const FINAL_STATUSES = AcademicStatus::FINAL;
 
     /**
      * Statuses that count as "passed" for prerequisite checks.
@@ -28,7 +29,7 @@ class AcademicProgressionService
     /**
      * Statuses that require retake.
      */
-    const RETAKE_STATUSES = ['Failed', 'Withdrawn', 'FDA'];
+    const RETAKE_STATUSES = AcademicStatus::RETAKE;
 
     /**
      * The strict ordering of terms in a 4-year program.
@@ -56,9 +57,9 @@ class AcademicProgressionService
         '2.25' => 'Good',
         '2.50' => 'Fair',
         '2.75' => 'Fair',
-        '3.00' => 'Passed',
-        '4.00' => 'INC',
-        '5.00' => 'Failed',
+        '3.00' => AcademicStatus::PASSED,
+        '4.00' => AcademicStatus::INC,
+        '5.00' => AcademicStatus::FAILED,
     ];
 
     public function __construct(private AcademicRecordQuery $records)
@@ -148,7 +149,7 @@ class AcademicProgressionService
         // and therefore do not match any TERM_ORDER key, so they are harmless here.
         $enrollments = Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived', 'Cancelled'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->with('subject')
             ->get();
 
@@ -213,7 +214,7 @@ class AcademicProgressionService
                 } elseif ($grade->grade_value !== null) {
                     // Legacy: has grade_value but no status — treat as complete
                     $hasFinaStatus = true;
-                } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', 'INC', 'WITHDRAWN', 'FDA', 'CREDITED'])) {
+                } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED'])) {
                     $hasFinaStatus = true;
                 }
             }
@@ -278,7 +279,7 @@ class AcademicProgressionService
             $fifthYearEnrollments = Enrollment::where('student_id', $student->student_id)
                 ->where('academic_year', $fifthYearAY)
                 ->whereNull('deleted_at')
-                ->whereNotIn('status', ['archived', 'Cancelled'])
+                ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
                 ->with('subject')
                 ->get();
 
@@ -301,7 +302,7 @@ class AcademicProgressionService
                     $hasFinal = $grade && (
                         ($grade->status && in_array($grade->status, self::FINAL_STATUSES))
                         || $grade->grade_value !== null
-                        || ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', 'INC', 'WITHDRAWN', 'FDA', 'CREDITED']))
+                        || ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED']))
                     );
                     if (!$hasFinal) {
                         $allDone = false;
@@ -425,7 +426,7 @@ class AcademicProgressionService
         $activelyEnrolledIds = Enrollment::where('student_id', $student->student_id)
             ->where('academic_year', $nextTerm['academic_year'] ?? '')
             ->where('semester', $semester)
-            ->where('status', 'Enrolled')
+            ->where('status', AcademicStatus::ENROLLED)
             ->whereNull('deleted_at')
             ->pluck('subject_id')
             ->toArray();
@@ -640,7 +641,7 @@ class AcademicProgressionService
                         $inner->where('grade_value', 5.00)
                             ->whereNull('status');
                     })
-                    ->orWhereIn('remarks', ['FAILED', 'Failed', 'WITHDRAWN', 'Withdrawn', 'FDA']);
+                    ->orWhereIn('remarks', ['FAILED', AcademicStatus::FAILED, 'WITHDRAWN', AcademicStatus::WITHDRAWN, AcademicStatus::FDA]);
             })
             ->with('subject')
             ->get();
@@ -663,7 +664,7 @@ class AcademicProgressionService
                 'academic_year' => $grade->academic_year,
                 'semester' => $grade->semester,
                 'grade_value' => $grade->grade_value,
-                'status' => $grade->status ?? $grade->remarks ?? 'Failed',
+                'status' => $grade->status ?? $grade->remarks ?? AcademicStatus::FAILED,
             ];
         }
 
@@ -677,7 +678,7 @@ class AcademicProgressionService
     {
         $enrollments = Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived'])
+            ->whereNotIn('status', [AcademicStatus::ARCHIVED])
             ->with('subject')
             ->orderBy('year_level')
             ->orderBy('semester')
@@ -1013,25 +1014,25 @@ class AcademicProgressionService
     {
         if ($status) {
             $upper = ucfirst(strtolower($status));
-            if (in_array($upper, ['Withdrawn', 'Fda', 'Credited', 'Cancelled'])) {
-                return $upper === 'Fda' ? 'FDA' : $upper;
+            if (in_array($upper, [AcademicStatus::WITHDRAWN, 'Fda', AcademicStatus::CREDITED, AcademicStatus::CANCELLED])) {
+                return $upper === 'Fda' ? AcademicStatus::FDA : $upper;
             }
         }
 
         if ($gradeValue !== null) {
             if ($gradeValue >= 1.00 && $gradeValue <= 3.00) {
-                return 'Passed';
+                return AcademicStatus::PASSED;
             }
             if (abs($gradeValue - 4.00) < 0.001) {
-                return 'INC';
+                return AcademicStatus::INC;
             }
             if (abs($gradeValue - 5.00) < 0.001) {
-                return 'Failed';
+                return AcademicStatus::FAILED;
             }
         }
 
-        if ($status === 'INC') {
-            return 'INC';
+        if ($status === AcademicStatus::INC) {
+            return AcademicStatus::INC;
         }
 
         return '';
@@ -1043,23 +1044,23 @@ class AcademicProgressionService
     public function autoStatusFromGrade(?float $gradeValue, ?string $explicitStatus): string
     {
         // If explicit status provided, use it
-        if ($explicitStatus && in_array($explicitStatus, ['Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited', 'Enrolled', 'Cancelled'])) {
+        if ($explicitStatus && in_array($explicitStatus, [AcademicStatus::PASSED, AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::CREDITED, AcademicStatus::ENROLLED, AcademicStatus::CANCELLED])) {
             return $explicitStatus;
         }
 
         if ($gradeValue !== null) {
             if ($gradeValue >= 1.00 && $gradeValue <= 3.00) {
-                return 'Passed';
+                return AcademicStatus::PASSED;
             }
             if (abs($gradeValue - 4.00) < 0.001) {
-                return 'INC';
+                return AcademicStatus::INC;
             }
             if (abs($gradeValue - 5.00) < 0.001) {
-                return 'Failed';
+                return AcademicStatus::FAILED;
             }
         }
 
-        return 'Enrolled';
+        return AcademicStatus::ENROLLED;
     }
 
     /**
@@ -1091,7 +1092,7 @@ class AcademicProgressionService
 
         $enrollments = Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived', 'Cancelled'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->get()
             ->groupBy('subject_id');
 
@@ -1143,16 +1144,16 @@ class AcademicProgressionService
                     if (in_array($latestGrade->status, self::PASSED_STATUSES) || in_array(strtoupper($latestGrade->remarks ?? ''), ['PASSED'])) {
                         $status = 'Completed';
                         $completedUnits += $subject->units;
-                    } elseif (in_array($latestGrade->status, self::RETAKE_STATUSES) || in_array(strtoupper($latestGrade->remarks ?? ''), ['FAILED', 'WITHDRAWN', 'FDA'])) {
+                    } elseif (in_array($latestGrade->status, self::RETAKE_STATUSES) || in_array(strtoupper($latestGrade->remarks ?? ''), ['FAILED', 'WITHDRAWN', AcademicStatus::FDA])) {
                         $status = 'Failed - Retake Required';
                         $failedSubjectsCount++;
-                    } elseif ($latestGrade->status === 'INC' || strtoupper($latestGrade->remarks ?? '') === 'INC') {
+                    } elseif ($latestGrade->status === AcademicStatus::INC || strtoupper($latestGrade->remarks ?? '') === AcademicStatus::INC) {
                         $status = 'Incomplete';
                     } else {
                         $status = $latestGrade->status ?? 'Unknown';
                     }
                 } elseif ($latestEnrollment) {
-                    if ($latestEnrollment->status === 'Enrolled') {
+                    if ($latestEnrollment->status === AcademicStatus::ENROLLED) {
                         $status = 'Currently Enrolled';
                     } else {
                         $status = $latestEnrollment->status;

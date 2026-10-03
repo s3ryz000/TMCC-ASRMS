@@ -2,6 +2,7 @@
 
 namespace App\Services\Enrollment;
 
+use App\Support\AcademicStatus;
 use App\Models\Enrollment;
 use App\Models\EnrollmentAuditLog;
 use App\Models\Grade;
@@ -104,7 +105,7 @@ class EnrollmentService
             'academic_year' => $term->academicYear,
             'semester'      => $term->semester,
             'year_level'    => $term->yearLevel,
-            'status'        => 'Enrolled',
+            'status'        => AcademicStatus::ENROLLED,
             'is_retake'     => $isRetake,
         ]);
 
@@ -120,7 +121,7 @@ class EnrollmentService
             ],
             [
                 'enrollment_id' => $enrollment->id,
-                'status'        => 'Enrolled',
+                'status'        => AcademicStatus::ENROLLED,
                 'grade_value'   => null,
                 'remarks'       => null,
             ],
@@ -139,7 +140,7 @@ class EnrollmentService
             'academic_year' => $term->academicYear,
             'semester'      => $term->semester,
             'old_status'    => null,
-            'new_status'    => 'Enrolled',
+            'new_status'    => AcademicStatus::ENROLLED,
             'changed_by'    => $actor?->id,
             'action'        => $isRetake ? 'retake_enrollment_created' : 'enrollment_created',
             'reason'        => $isRetake

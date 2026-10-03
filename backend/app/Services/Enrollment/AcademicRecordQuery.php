@@ -2,6 +2,7 @@
 
 namespace App\Services\Enrollment;
 
+use App\Support\AcademicStatus;
 use App\Models\Grade;
 use App\Models\Student;
 
@@ -18,7 +19,7 @@ use App\Models\Student;
 class AcademicRecordQuery
 {
     /** Statuses that count as "passed" for prerequisite purposes. */
-    public const PASSED_STATUSES = ['Passed', 'Credited'];
+    public const PASSED_STATUSES = AcademicStatus::PASSED_GROUP;
 
     /**
      * Subject IDs the student has passed or been credited for.
@@ -40,7 +41,7 @@ class AcademicRecordQuery
                     ->orWhere(function ($inner) {
                         // Legacy rows that recorded the outcome in remarks only.
                         $inner->whereNull('status')
-                            ->whereIn('remarks', ['PASSED', 'Passed', 'CREDITED', 'Credited']);
+                            ->whereIn('remarks', ['PASSED', AcademicStatus::PASSED, 'CREDITED', AcademicStatus::CREDITED]);
                     });
             })
             ->pluck('subject_id')
@@ -61,12 +62,12 @@ class AcademicRecordQuery
     {
         return Grade::where('student_id', $student->student_id)
             ->where(function ($q) {
-                $q->where('status', 'INC')
+                $q->where('status', AcademicStatus::INC)
                     ->orWhere(function ($inner) {
                         $inner->whereNull('status')
                             ->where(function ($sub) {
                                 $sub->where('grade_value', 4.00)
-                                    ->orWhereIn('remarks', ['INC', 'inc']);
+                                    ->orWhereIn('remarks', [AcademicStatus::INC, 'inc']);
                             });
                     });
             })

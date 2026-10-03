@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AcademicStatus;
 use App\Models\Curriculum;
 use App\Models\Enrollment;
 use App\Models\Grade;
@@ -199,7 +200,7 @@ class AcademicResidencyValidationService
     {
         return Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived', 'Cancelled'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->whereIn('year_level', [1, 2, 3, 4])
             ->select('year_level', 'semester')
             ->distinct()
@@ -214,7 +215,7 @@ class AcademicResidencyValidationService
     {
         return Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived', 'Cancelled'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->where('year_level', 5)
             ->select('semester')
             ->distinct()
@@ -229,7 +230,7 @@ class AcademicResidencyValidationService
     {
         return Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
-            ->whereNotIn('status', ['archived', 'Cancelled'])
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->whereNotNull('academic_year')
             ->pluck('academic_year')
             ->unique()
@@ -243,13 +244,13 @@ class AcademicResidencyValidationService
     {
         return Grade::where('student_id', $student->student_id)
             ->where(function ($q) {
-                $q->whereIn('status', ['Failed', 'Withdrawn', 'FDA'])
+                $q->whereIn('status', [AcademicStatus::FAILED, AcademicStatus::WITHDRAWN, AcademicStatus::FDA])
                   ->orWhere(function ($i) {
                       $i->where('grade_value', 5.00)->whereNull('status');
                   })
                   ->orWhere(function ($i) {
                       $i->whereNull('status')
-                        ->whereIn('remarks', ['FAILED', 'Failed', 'WITHDRAWN', 'Withdrawn', 'FDA']);
+                        ->whereIn('remarks', ['FAILED', AcademicStatus::FAILED, 'WITHDRAWN', AcademicStatus::WITHDRAWN, AcademicStatus::FDA]);
                   });
             })
             ->pluck('subject_id')

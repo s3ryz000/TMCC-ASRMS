@@ -2,6 +2,7 @@
 
 namespace App\Services\Enrollment\Rules;
 
+use App\Support\AcademicStatus;
 use App\Models\Enrollment;
 use App\Services\Enrollment\EnrollmentContext;
 use App\Services\Enrollment\EnrollmentPolicy;
@@ -19,14 +20,7 @@ use App\Services\Enrollment\RuleCategory;
 class NoActiveDuplicateRule implements EnrollmentRule
 {
     /** Statuses that no longer occupy an active seat. */
-    private const CLOSED_STATUSES = [
-        'archived', 'Archived',
-        'cancelled', 'Cancelled',
-        'failed', 'Failed',
-        'withdrawn', 'Withdrawn',
-        'fda', 'FDA',
-        'dropped', 'Dropped',
-    ];
+    private const CLOSED_STATUSES = AcademicStatus::CLOSED;
 
     public function category(): string
     {

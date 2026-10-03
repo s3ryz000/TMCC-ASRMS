@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Support\AcademicStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Requests\UpdateStudentSisRequest;
@@ -94,7 +95,7 @@ class StudentProfileController extends Controller
             ->with('subject')
             ->where('academic_year', $academicYear)
             ->where('semester', $semester)
-            ->where('status', 'enrolled')
+            ->where('status', AcademicStatus::ENROLLED)
             ->get()
             ->sortBy(fn ($e) => $e->subject?->code ?? '')
             ->values();

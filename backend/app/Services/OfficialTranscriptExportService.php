@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AcademicStatus;
 use App\Models\Student;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -147,7 +148,7 @@ class OfficialTranscriptExportService
             // Credited, ...). A subject still in progress stays blank.
             $gradeVal = $grade->grade_value !== null
                 ? number_format((float) $grade->grade_value, 2)
-                : $e($grade->remarks ?: ($grade->status === 'Enrolled' ? '' : $grade->status));
+                : $e($grade->remarks ?: ($grade->status === AcademicStatus::ENROLLED ? '' : $grade->status));
 
             $units = $grade->subject?->units !== null
                 ? number_format((float) $grade->subject->units, 2)
