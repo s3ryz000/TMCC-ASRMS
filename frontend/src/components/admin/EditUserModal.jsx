@@ -3,6 +3,7 @@ import Modal from '../ui/Modal';
 import { adminToast } from '../../lib/notifications';
 import { parseApiError } from '../../lib/api/errors';
 import { adminApi } from '../../lib/api/adminApi';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ROLES = [
   { value: 'student', label: 'Student' },
@@ -22,6 +23,9 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  // Admins can't change their own role or status (#81); the server refuses it too.
+  const { user: currentUser } = useAuth();
+  const isSelf = Boolean(user && currentUser && String(user.id) === String(currentUser.id));
 
   useEffect(() => {
     if (user) {
@@ -146,7 +150,9 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
               id="edit-user-role"
               value={form.role}
               onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-              className={`${inputBase} ${inputNormal}`}
+              className={`${inputBase} ${inputNormal} disabled:bg-gray-100 disabled:text-gray-500`}
+              disabled={isSelf}
+              aria-describedby={isSelf ? 'edit-user-self-note' : undefined}
             >
               {ROLES.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
@@ -174,11 +180,18 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
               id="edit-user-status"
               value={form.status}
               onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              className={`${inputBase} ${inputNormal}`}
+              className={`${inputBase} ${inputNormal} disabled:bg-gray-100 disabled:text-gray-500`}
+              disabled={isSelf}
+              aria-describedby={isSelf ? 'edit-user-self-note' : undefined}
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            {isSelf && (
+              <p id="edit-user-self-note" className="mt-1 text-xs text-gray-500">
+                You can’t change your own role or status.
+              </p>
+            )}
           </div>
 
           <div className="pt-4 border-t border-gray-200">

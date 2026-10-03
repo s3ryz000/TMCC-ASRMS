@@ -146,6 +146,11 @@ class UserController extends Controller
 
         $validated = $request->validated();
 
+        // Checked before anything is saved, so a refusal changes nothing (#81).
+        if ($refusal = $this->refuseAdminLockout($request->user(), $user, $validated['role'] ?? null, $validated['status'] ?? null)) {
+            return $refusal;
+        }
+
         // A blank password field means "leave the credential alone"; only hash
         // and store when the administrator actually supplied a new one.
         $passwordWasReset = filled($validated['password'] ?? null);
@@ -205,8 +210,41 @@ class UserController extends Controller
             return response()->json(['message' => 'You cannot delete your own account.'], 422);
         }
 
+        if ($refusal = $this->refuseAdminLockout($request->user(), $user, deleting: true)) {
+            return $refusal;
+        }
+
         $user->delete();
 
         return response()->json(['message' => 'User deleted successfully.']);
+    }
+
+    /**
+     * The one place that keeps administrators from locking everyone out (#81):
+     * nobody changes their own role or status, and the last active admin
+     * (users.role = admin, status = active) can't be deactivated, demoted or
+     * deleted. Returns the 422 response to send, or null when the change is
+     * allowed. Submitting a user's current role and status is not a change.
+     */
+    private function refuseAdminLockout(User $actor, User $target, ?string $newRole = null, ?string $newStatus = null, bool $deleting = false): ?JsonResponse
+    {
+        $roleAfter = $deleting ? null : ($newRole ?? $target->role);
+        $statusAfter = $deleting ? null : ($newStatus ?? $target->status);
+
+        if (! $deleting && (int) $actor->id === (int) $target->id
+            && ($roleAfter !== $target->role || $statusAfter !== $target->status)) {
+            return response()->json(['message' => 'You cannot change your own status or role.'], 422);
+        }
+
+        $isActiveAdmin = fn (?string $role, ?string $status) => $role === 'admin' && $status === 'active';
+
+        if ($isActiveAdmin($target->role, $target->status) && ! $isActiveAdmin($roleAfter, $statusAfter)) {
+            $otherActiveAdmins = User::where('role', 'admin')->where('status', 'active')->whereKeyNot($target->id)->count();
+            if ($otherActiveAdmins === 0) {
+                return response()->json(['message' => 'At least one active administrator is required.'], 422);
+            }
+        }
+
+        return null;
     }
 }
