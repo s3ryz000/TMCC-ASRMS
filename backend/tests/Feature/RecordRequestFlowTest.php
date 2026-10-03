@@ -41,10 +41,24 @@ class RecordRequestFlowTest extends TestCase
         $this->student = $this->makeStudent($this->program, [], $this->studentUser);
     }
 
-    /** A future office-hours slot, as the approval modal sends it. */
+    /**
+     * A future office-hours slot, as the approval modal sends it. A Sunday is
+     * moved to the Monday after, since Sundays are refused (#80).
+     */
     private function slot(int $daysAhead = 3, int $hour = 9): string
     {
-        return Carbon::now('Asia/Manila')->addDays($daysAhead)->setTime($hour, 0)->toIso8601String();
+        $day = Carbon::now('Asia/Manila')->addDays($daysAhead);
+        if ($day->isSunday()) {
+            $day->addDay();
+        }
+
+        return $day->setTime($hour, 0)->toIso8601String();
+    }
+
+    /** The next given weekday (Carbon::SUNDAY, Carbon::MONDAY, ...) at least two days ahead. */
+    private function next(int $weekday, int $hour = 9): Carbon
+    {
+        return Carbon::now('Asia/Manila')->addDays(2)->startOfDay()->next($weekday)->setTime($hour, 0);
     }
 
     private function submit(array $payload = ['record_type' => 'transcript', 'purpose' => 'Employment'])
@@ -140,6 +154,31 @@ class RecordRequestFlowTest extends TestCase
         $this->assertSame('approved', $request->status);
         $this->assertNotNull($request->processed_by);
         $this->assertNotNull($request->appointment_at);
+    }
+
+    public function test_approval_refuses_a_sunday(): void
+    {
+        $request = $this->pendingRequest();
+        $sunday = $this->next(Carbon::SUNDAY);
+
+        $this->approve($request, $sunday->toIso8601String())
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Selected appointment date is not an office day.');
+
+        $this->assertSame('pending', $request->fresh()->status);
+        $this->assertNull($request->fresh()->appointment_at);
+    }
+
+    public function test_a_weekday_9am_slot_saves_as_9am_that_day(): void
+    {
+        $request = $this->pendingRequest();
+        $monday = $this->next(Carbon::MONDAY);
+        // Sent the way the modal sends it: the instant in UTC (09:00 Manila = 01:00Z).
+        $sent = $monday->copy()->utc()->format('Y-m-d\TH:i:s.v\Z');
+
+        $this->approve($request, $sent)->assertOk();
+
+        $this->assertSame($monday->format('Y-m-d') . ' 09:00', $request->fresh()->appointment_at->setTimezone('Asia/Manila')->format('Y-m-d H:i'));
     }
 
     public function test_the_appointment_reads_back_as_booked(): void

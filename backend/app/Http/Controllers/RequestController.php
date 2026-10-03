@@ -114,6 +114,11 @@ class RequestController extends Controller
             return response()->json(['message' => 'Please select a future appointment date and time.'], 422);
         }
 
+        // The registrar's office is closed on Sundays (#80).
+        if ($appointmentAtOffice->isSunday()) {
+            return response()->json(['message' => 'Selected appointment date is not an office day.'], 422);
+        }
+
         if (! in_array($appointmentAtOffice->format('H:i'), $this->availableTimeSlots(), true)) {
             return response()->json(['message' => 'Selected appointment time is not available.'], 422);
         }

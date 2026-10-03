@@ -3,7 +3,7 @@ import { FiCheck, FiX, FiSearch, FiChevronUp, FiChevronDown, FiInbox, FiCheckCir
 import { staffToast } from '../lib/notifications';
 import { staffApi } from '../lib/api/staffApi';
 import { parseApiError } from '../lib/api/errors';
-import { formatDateTime } from '../lib/tools';
+import { formatDateTime, localDateString } from '../lib/tools';
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 const TABS = [
@@ -28,7 +28,12 @@ const sortData = (data, key, dir) => {
   });
 };
 
-const toDateInput = (date) => date.toISOString().slice(0, 10);
+// The local calendar day of a Date. toISOString() gave the UTC day, which in
+// Manila is the day before, so the clicked day was not the saved day (#80).
+const toDateInput = (date) => localDateString(date);
+
+// The registrar's office is closed on Sundays; the server refuses them too (#80).
+const isSunday = (dateKey) => Boolean(dateKey) && new Date(`${dateKey}T00:00:00`).getDay() === 0;
 
 const monthKeyFromDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -189,7 +194,9 @@ const StaffPendingRequestsPage = () => {
   const handleApprove = (id) => {
     const row = pendingRequests.find((r) => r.id === id);
     const now = new Date();
-    const initialDate = toDateInput(now);
+    // Start on the next office day when today is a Sunday.
+    const start = now.getDay() === 0 ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) : now;
+    const initialDate = toDateInput(start);
     setApproveModal(row || null);
     setApproveMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     setAppointmentDate(initialDate);
@@ -716,16 +723,19 @@ const StaffPendingRequestsPage = () => {
                   {monthCells.map((day) => {
                     const key = toDateInput(day);
                     const inMonth = day.getMonth() === approveMonth.getMonth();
+                    const closed = day.getDay() === 0;
                     const selected = key === appointmentDate;
                     const booked = fullyBookedDates.has(key);
                     return (
                       <button
                         type="button"
                         key={key}
-                        disabled={!inMonth}
+                        disabled={!inMonth || closed}
+                        title={closed && inMonth ? 'Closed on Sundays' : undefined}
                         onClick={() => setAppointmentDate(key)}
                         className={`py-2 rounded border text-center ${
-                          !inMonth ? 'opacity-35 cursor-not-allowed' : selected
+                          !inMonth ? 'opacity-35 cursor-not-allowed' : closed
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : selected
                             ? 'bg-tmcc text-white border-tmcc'
                             : booked ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                         }`}
@@ -760,7 +770,14 @@ const StaffPendingRequestsPage = () => {
                       type="date"
                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      onChange={(e) => {
+                        // A date input can't grey out weekdays, so refuse Sundays here.
+                        if (isSunday(e.target.value)) {
+                          staffToast.warning('Not an office day', "The registrar's office is closed on Sundays. Pick another date.");
+                          return;
+                        }
+                        setAppointmentDate(e.target.value);
+                      }}
                     />
                     <select
                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
