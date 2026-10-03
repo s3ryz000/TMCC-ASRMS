@@ -244,16 +244,23 @@ class ArchivedSubjectEnrollmentTest extends TestCase
         };
 
         [$gradesBefore, $summaryBefore, $htmlBefore] = $snapshot();
+        // Always let the clock move, so the subject's updated_at differs on
+        // every run instead of only sometimes.
+        $this->travel(2)->seconds();
         $this->archive('A');
         [$gradesAfter, $summaryAfter, $htmlAfter] = $snapshot();
 
-        // The embedded subject row now carries its archived_at; the student's
-        // record itself (grade, units, status, term) is otherwise identical.
+        // Archiving changes the embedded subject row's own archived_at and
+        // updated_at (the latter only when the clock ticks over a second); the
+        // student's record itself (grade, units, status, term) is identical.
         $withoutArchivedAt = function ($data) use (&$withoutArchivedAt) {
             if (! is_array($data)) {
                 return $data;
             }
             unset($data['archived_at']);
+            if (isset($data['subject']) && is_array($data['subject'])) {
+                unset($data['subject']['updated_at']);
+            }
 
             return array_map($withoutArchivedAt, $data);
         };
