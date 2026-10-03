@@ -329,7 +329,7 @@ class EnrollmentValidationTest extends TestCase
     private function newStudentPayload(array $subjectIds): array
     {
         return [
-            'student_number'  => '2026-9999',
+            'student_number'  => '269999',
             'first_name'      => 'Maria',
             'last_name'       => 'Santos',
             'date_of_birth'   => '2005-05-05',
@@ -353,7 +353,7 @@ class EnrollmentValidationTest extends TestCase
         ]));
 
         $response->assertStatus(201);
-        $this->assertDatabaseHas('students', ['student_number' => '2026-9999']);
+        $this->assertDatabaseHas('students', ['student_number' => '269999']);
     }
 
     public function test_path_c_rejects_subject_from_a_later_term(): void
@@ -365,8 +365,8 @@ class EnrollmentValidationTest extends TestCase
         $response->assertStatus(422);
 
         // The whole creation must roll back.
-        $this->assertDatabaseMissing('students', ['student_number' => '2026-9999']);
-        $this->assertDatabaseMissing('users', ['username' => '2026-9999']);
+        $this->assertDatabaseMissing('students', ['student_number' => '269999']);
+        $this->assertDatabaseMissing('users', ['username' => '269999']);
     }
 
     public function test_path_c_rejects_subject_from_another_program(): void
@@ -384,7 +384,7 @@ class EnrollmentValidationTest extends TestCase
         $response = $this->postJson('/api/staff/students', $this->newStudentPayload([$foreign->id]));
 
         $response->assertStatus(422);
-        $this->assertDatabaseMissing('students', ['student_number' => '2026-9999']);
+        $this->assertDatabaseMissing('students', ['student_number' => '269999']);
     }
 
     /** #75: what the restored New Student picker sends becomes the first term. */
@@ -395,7 +395,7 @@ class EnrollmentValidationTest extends TestCase
             $this->subjects['GENED1']->id,
         ]))->assertCreated();
 
-        $student = Student::where('student_number', '2026-9999')->firstOrFail();
+        $student = Student::where('student_number', '269999')->firstOrFail();
         $enrollments = Enrollment::where('student_id', $student->student_id)->get();
 
         $this->assertEqualsCanonicalizing(
@@ -417,7 +417,7 @@ class EnrollmentValidationTest extends TestCase
             $this->subjects['PROG1']->id,
         ]))->assertCreated();
 
-        $student = Student::where('student_number', '2026-9999')->firstOrFail();
+        $student = Student::where('student_number', '269999')->firstOrFail();
 
         $this->assertDatabaseHas('enrollments', [
             'student_id'    => $student->student_id,
@@ -433,7 +433,7 @@ class EnrollmentValidationTest extends TestCase
             $this->subjects['PROG1']->id,
         ]))->assertStatus(201);
 
-        $created = Student::where('student_number', '2026-9999')->first();
+        $created = Student::where('student_number', '269999')->first();
 
         $this->assertDatabaseHas('grades', [
             'student_id' => $created->student_id,

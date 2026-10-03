@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\StudentDocumentController;
 use App\Http\Controllers\Api\SubjectCodePrefixController;
+use App\Http\Controllers\Api\StudentNumberController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\auth\AuthController;
 use App\Http\Controllers\DashboardController;
@@ -75,6 +76,9 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 
 // ---- Registrar staff only: Student record CRUD ----
 Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(function () {
+    // Student numbers (#56): live availability for New Student
+    Route::get('/student-numbers/check', [StudentNumberController::class, 'check']);
+
     Route::post('/students/{id}/enrollments/add-next-term', [StudentController::class, 'addNextTerm']);
     Route::put('/students/{id}/grades/bulk-update', [StudentController::class, 'bulkUpdateGrades']);
 

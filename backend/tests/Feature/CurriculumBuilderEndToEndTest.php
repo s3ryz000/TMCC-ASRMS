@@ -103,7 +103,7 @@ class CurriculumBuilderEndToEndTest extends TestCase
 
         // ── 2. New Student with the first-term subjects (#75) ──────────────
         $studentId = $this->postJson('/api/staff/students', [
-            'student_number'  => '2026-0300',
+            'student_number'  => '260300',
             'first_name'      => 'Bea',
             'last_name'       => 'Santos',
             'date_of_birth'   => '2006-03-03',

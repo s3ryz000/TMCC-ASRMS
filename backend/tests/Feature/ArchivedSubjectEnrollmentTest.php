@@ -65,7 +65,7 @@ class ArchivedSubjectEnrollmentTest extends TestCase
     private function newStudentPayload(array $subjectIds): array
     {
         return [
-            'student_number'  => '2026-9999',
+            'student_number'  => '269999',
             'first_name'      => 'Maria',
             'last_name'       => 'Santos',
             'date_of_birth'   => '2005-05-05',
@@ -93,8 +93,8 @@ class ArchivedSubjectEnrollmentTest extends TestCase
             ->assertStatus(422);
 
         $this->assertStringContainsString($this->refusal('A'), json_encode($response->json()));
-        $this->assertDatabaseMissing('students', ['student_number' => '2026-9999']);
-        $this->assertDatabaseMissing('users', ['username' => '2026-9999']);
+        $this->assertDatabaseMissing('students', ['student_number' => '269999']);
+        $this->assertDatabaseMissing('users', ['username' => '269999']);
         $this->assertSame($before, Enrollment::count());
 
         $this->unarchive('A');

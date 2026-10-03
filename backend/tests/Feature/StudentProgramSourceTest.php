@@ -111,7 +111,7 @@ class StudentProgramSourceTest extends TestCase
 
         // New student with first-term subjects.
         $this->postJson('/api/staff/students', [
-            'student_number' => '2026-0100', 'first_name' => 'Ana', 'last_name' => 'Reyes',
+            'student_number' => '260100', 'first_name' => 'Ana', 'last_name' => 'Reyes',
             'date_of_birth' => '2006-02-02', 'email' => 'ana@tmcc.test', 'sex' => 'F',
             'enrollment_date' => '2026-06-01', 'program_id' => $this->program->id,
             'subject_ids' => $this->idsFor(['A', 'B']),

@@ -24,6 +24,8 @@ use App\Models\Subject;
 use App\Models\SystemLog;
 use App\Models\User;
 use App\Support\AcademicStatus;
+use App\Support\StudentNumber;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -119,9 +121,17 @@ class StudentController extends Controller
         unset($validated['subject_ids']);
 
         $studentNumber = $validated['student_number'];
+
+        // A taken number is refused with the holder's details so the registrar
+        // can compare with the paper records (#56).
+        if (! StudentNumber::isAvailable($studentNumber)) {
+            return response()->json(StudentNumber::takenResponse($studentNumber), 422);
+        }
+
         $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         $email = $validated['email'];
         $exactPassword = User::generatePassword();
+        try {
         $student = DB::transaction(function () use ($validated, $studentNumber, $name, $email, $exactPassword, $subjectIds, $user) {
             $account = User::create([
                 'name' => $name,
@@ -181,6 +191,15 @@ class StudentController extends Controller
 
             return $student;
         });
+        } catch (UniqueConstraintViolationException $e) {
+            // Two saves of the same number at once: the unique indexes on
+            // students.student_number and users.username let only the first
+            // through; the second gets the same answer as a taken number.
+            if (! StudentNumber::isAvailable($studentNumber)) {
+                return response()->json(StudentNumber::takenResponse($studentNumber), 422);
+            }
+            throw $e;
+        }
 
         SystemLog::create([
             'action' => 'Student created',
