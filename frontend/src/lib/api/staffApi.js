@@ -161,6 +161,9 @@ export const staffApi = {
   /**
    * Subject catalogue with usage counts (staff/admin).
    * Archived subjects are left out unless params.include_archived is 1.
+   * Each subject lists `programs` (codes whose curriculum uses it). Optional
+   * params.search (code or title) and params.per_page / params.page; paging
+   * adds `meta` { current_page, per_page, total, last_page } (#25).
    */
   getSubjects: async (params = {}) => {
     const { data } = await apiClient.get('/staff/subjects', { params });

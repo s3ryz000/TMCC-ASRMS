@@ -9,8 +9,10 @@ use App\Http\Requests\SaveSubjectRequest;
 use App\Models\Subject;
 use App\Models\SubjectCodePrefix;
 use App\Models\SystemLog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The subject catalogue. Reading is open to staff and admins; creating,
@@ -34,6 +36,12 @@ class SubjectController extends Controller
      * List subjects, with how widely each is used so the UI can explain why a
      * subject cannot be deleted. Archived subjects are left out unless the
      * caller asks for them with include_archived=1 (the catalogue screen).
+     *
+     * Each subject lists the programs whose curriculum uses it, so the
+     * curriculum builder can offer it for reuse (#25). `search` filters by code
+     * or title, ignoring case (and spaces or dashes in codes); `per_page` or
+     * `page` paginates and adds `meta`. Without them the full list comes back
+     * as before.
      */
     public function index(Request $request): JsonResponse
     {
@@ -44,30 +52,55 @@ class SubjectController extends Controller
             return $err;
         }
 
-        $request->validate(['include_archived' => ['sometimes', 'boolean']]);
+        $request->validate([
+            'include_archived' => ['sometimes', 'boolean'],
+            'search'           => ['sometimes', 'nullable', 'string', 'max:100'],
+            'per_page'         => ['sometimes', 'integer', 'between:1,100'],
+            'page'             => ['sometimes', 'integer', 'min:1'],
+        ]);
 
         $inUse = $this->idsInUse(self::USAGE);
         $prefixes = SubjectCodePrefix::activePrefixes();
+        $columns = ['id', 'code', 'title', 'units', 'description', 'archived_at'];
 
-        $subjects = Subject::withCount(['curriculum', 'grades'])
+        $query = Subject::withCount(['curriculum', 'grades'])
             ->when(! $request->boolean('include_archived'), fn ($query) => $query->whereNull('archived_at'))
+            ->when($request->filled('search'), fn ($query) => $this->applySearch($query, (string) $request->input('search')))
             ->orderBy('code')
-            ->orderBy('title')
-            ->get(['id', 'code', 'title', 'units', 'description', 'archived_at'])
-            ->map(fn (Subject $subject) => [
-                'id'               => $subject->id,
-                'code'             => $subject->code,
-                'title'            => $subject->title,
-                'units'            => $subject->units,
-                'description'      => $subject->description,
-                'curriculum_count' => $subject->curriculum_count,
-                'grades_count'     => $subject->grades_count,
-                'in_use'           => isset($inUse[$subject->id]),
-                'archived'         => $subject->archived_at !== null,
-                'prefix'           => SubjectCodePrefix::matchCode($subject->code, $prefixes),
-            ]);
+            ->orderBy('title');
 
-        return response()->json(['subjects' => $subjects]);
+        $paginated = $request->has('per_page') || $request->has('page');
+        $page = $paginated
+            ? $query->paginate((int) $request->input('per_page', 20), $columns, 'page', (int) $request->input('page', 1))
+            : null;
+        $subjects = $page ? $page->getCollection() : $query->get($columns);
+
+        $programs = $this->programCodesUsing();
+
+        $body = ['subjects' => $subjects->map(fn (Subject $subject) => [
+            'id'               => $subject->id,
+            'code'             => $subject->code,
+            'title'            => $subject->title,
+            'units'            => $subject->units,
+            'description'      => $subject->description,
+            'curriculum_count' => $subject->curriculum_count,
+            'grades_count'     => $subject->grades_count,
+            'in_use'           => isset($inUse[$subject->id]),
+            'archived'         => $subject->archived_at !== null,
+            'prefix'           => SubjectCodePrefix::matchCode($subject->code, $prefixes),
+            'programs'         => $programs[$subject->id] ?? [],
+        ])->values()];
+
+        if ($page) {
+            $body['meta'] = [
+                'current_page' => $page->currentPage(),
+                'per_page'     => $page->perPage(),
+                'total'        => $page->total(),
+                'last_page'    => $page->lastPage(),
+            ];
+        }
+
+        return response()->json($body);
     }
 
     public function store(SaveSubjectRequest $request): JsonResponse
@@ -115,7 +148,13 @@ class SubjectController extends Controller
 
         $this->log($request, "Subject updated: {$subject->code} — {$subject->title}");
 
-        return response()->json(['message' => 'Subject updated.', 'subject' => $subject]);
+        // A subject is shared by every program that places it (#25); the
+        // builder warns when an edit reaches more than one.
+        return response()->json([
+            'message'  => 'Subject updated.',
+            'subject'  => $subject,
+            'programs' => $this->programCodesUsing()[$subject->id] ?? [],
+        ]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse
@@ -179,6 +218,41 @@ class SubjectController extends Controller
         $this->log($request, "Subject {$verb}: {$subject->code} — {$subject->title}");
 
         return response()->json(['message' => "Subject {$verb}.", 'subject' => $subject]);
+    }
+
+    /**
+     * Code or title contains the search text, ignoring case. Codes are stored
+     * in the registrar format, so "gec 4" finds GEC4.
+     */
+    private function applySearch(Builder $query, string $search): Builder
+    {
+        $like = fn (string $value) => '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value) . '%';
+        $title = mb_strtolower(trim($search));
+        $code = Subject::formatCode($search);
+
+        return $query->where(function (Builder $q) use ($like, $title, $code) {
+            $q->whereRaw("LOWER(title) LIKE ? ESCAPE '!'", [$like($title)]);
+            if ($code !== '') {
+                $q->orWhereRaw("UPPER(code) LIKE ? ESCAPE '!'", [$like($code)]);
+            }
+        });
+    }
+
+    /**
+     * The programs whose curriculum places each subject.
+     *
+     * @return array<int, string[]> subject id => program codes, sorted
+     */
+    private function programCodesUsing(): array
+    {
+        return DB::table('curriculum')
+            ->join('programs', 'programs.id', '=', 'curriculum.program_id')
+            ->distinct()
+            ->orderBy('programs.code')
+            ->get(['curriculum.subject_id', 'programs.code'])
+            ->groupBy('subject_id')
+            ->map(fn ($rows) => $rows->pluck('code')->all())
+            ->all();
     }
 
     private function log(Request $request, string $action): void
