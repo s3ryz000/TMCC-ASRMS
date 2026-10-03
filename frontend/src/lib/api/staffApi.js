@@ -217,6 +217,25 @@ export const staffApi = {
     return data;
   },
 
+  // ── Curriculum builder (registrar staff, #24) ──
+  // After any of these, call invalidateCurriculum(queryClient, programId).
+
+  /** Place a subject in a program. Payload: subject_id, year_level (1-4), semester (1 or 2). */
+  addCurriculumEntry: async (programId, payload) => {
+    const { data } = await apiClient.post(`/staff/programs/${programId}/curriculum`, payload);
+    return data;
+  },
+  /** Move an entry to another term. Payload: year_level (1-4), semester (1 or 2). */
+  moveCurriculumEntry: async (entryId, payload) => {
+    const { data } = await apiClient.patch(`/staff/curriculum/${entryId}`, payload);
+    return data;
+  },
+  /** Remove an entry; 409 when another entry lists its subject as a prerequisite. */
+  removeCurriculumEntry: async (entryId) => {
+    const { data } = await apiClient.delete(`/staff/curriculum/${entryId}`);
+    return data;
+  },
+
   /** Add enrollment. Required: subject_id, academic_year, semester. Optional: status. */
   createEnrollment: async (studentId, payload) => {
     const { data } = await apiClient.post(`/staff/students/${studentId}/enrollments`, payload);

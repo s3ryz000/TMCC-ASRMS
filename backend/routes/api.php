@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Api\CurriculumEntryController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\StudentDocumentController;
@@ -99,6 +100,11 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::delete('/programs/{id}', [ProgramController::class, 'destroy']);
     Route::patch('/programs/{id}/archive', [ProgramController::class, 'archive']);
     Route::patch('/programs/{id}/unarchive', [ProgramController::class, 'unarchive']);
+
+    // Curriculum builder: place, move and remove subjects (#24)
+    Route::post('/programs/{programId}/curriculum', [CurriculumEntryController::class, 'store']);
+    Route::patch('/curriculum/{entryId}', [CurriculumEntryController::class, 'update']);
+    Route::delete('/curriculum/{entryId}', [CurriculumEntryController::class, 'destroy']);
 });
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;
