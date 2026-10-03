@@ -98,6 +98,11 @@ export const staffApi = {
     return data;
   },
 
+  /**
+   * A program's curriculum rows plus live `totals` (#26):
+   * { maximum_units, terms: [{ year_level, semester, units, subjects, over_max }],
+   *   years: [{ year_level, units, subjects }], program: { units, subjects } }.
+   */
   getProgramCurriculum: async (programId) => {
     const { data } = await apiClient.get(`/staff/programs/${programId}/curriculum`);
     return data;

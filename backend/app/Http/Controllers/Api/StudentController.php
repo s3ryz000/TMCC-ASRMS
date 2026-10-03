@@ -10,6 +10,7 @@ use App\Models\ArchiveRecord;
 use App\Models\Curriculum;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\AcademicProgressionService;
+use App\Services\CurriculumTotals;
 use App\Services\Enrollment\EnrollmentPolicy;
 use App\Services\Enrollment\EnrollmentService;
 use App\Services\Enrollment\EnrollmentTerm;
@@ -451,7 +452,11 @@ class StudentController extends Controller
         // each subject says whether it is archived so pickers can leave it out (#68).
         $curriculum->each(fn ($row) => $row->subject?->append('archived'));
 
-        return response()->json(['curriculum' => $curriculum]);
+        // Live unit totals for the whole program, whatever the filters (#26).
+        return response()->json([
+            'curriculum' => $curriculum,
+            'totals'     => app(CurriculumTotals::class)->forProgram($id),
+        ]);
     }
 
     /**
