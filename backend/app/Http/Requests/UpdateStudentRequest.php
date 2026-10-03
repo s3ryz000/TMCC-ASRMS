@@ -22,12 +22,17 @@ class UpdateStudentRequest extends FormRequest
         $userId = $student?->user_id;
 
         return [
+            // The number is the login username: it changes only through
+            // Change Student Number, which needs a reason and is audited (#56).
             'student_number' => [
                 'required',
                 'string',
                 'max:20',
-                Rule::unique('students', 'student_number')->ignore($studentId, 'student_id'),
-                Rule::unique('users', 'username')->ignore($userId),
+                function (string $attribute, mixed $value, \Closure $fail) use ($student) {
+                    if ($student && $value !== $student->student_number) {
+                        $fail('Use Change Student Number to change a student number; a reason is required.');
+                    }
+                },
             ],
             'first_name' => ['required', 'string', 'max:50'],
             'middle_name' => ['nullable', 'string', 'max:50'],
@@ -62,7 +67,6 @@ class UpdateStudentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'student_number.unique' => 'This student number is already registered.',
             'email.unique' => 'This email is already registered.',
         ];
     }

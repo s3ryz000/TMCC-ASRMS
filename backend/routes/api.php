@@ -78,6 +78,8 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(function () {
     // Student numbers (#56): live availability for New Student
     Route::get('/student-numbers/check', [StudentNumberController::class, 'check']);
+    Route::get('/student-numbers/mismatches', [StudentNumberController::class, 'mismatches']);
+    Route::patch('/students/{id}/student-number', [StudentNumberController::class, 'change']);
 
     Route::post('/students/{id}/enrollments/add-next-term', [StudentController::class, 'addNextTerm']);
     Route::put('/students/{id}/grades/bulk-update', [StudentController::class, 'bulkUpdateGrades']);
