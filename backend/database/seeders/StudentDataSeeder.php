@@ -85,7 +85,8 @@ class StudentDataSeeder extends Seeder
             $student = Student::create([
                 'user_id' => $studentUser->id,
                 'program_id' => $program->id,
-                'student_number' => 'TMCC-2025-001',
+                // YY of the enrollment year + 4 digits (#56).
+                'student_number' => '240001',
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'date_of_birth' => '2002-05-15',
