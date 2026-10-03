@@ -140,8 +140,19 @@ class GradeEndpointsTest extends TestCase
 
     // ----------------------------------------------------------- single create
 
+    /** An enrollment with no grade row yet (e.g. its grade was deleted), as #78 requires. */
+    private function enrollmentWithoutGrade(string $code, string $semester = '1', string $status = 'Enrolled'): Enrollment
+    {
+        return Enrollment::create([
+            'student_id' => $this->student->student_id, 'subject_id' => $this->subjects[$code]->id,
+            'academic_year' => '2026-2027', 'semester' => $semester, 'year_level' => 1, 'status' => $status,
+        ]);
+    }
+
     public function test_a_new_grade_gets_a_status_from_its_value(): void
     {
+        $this->enrollmentWithoutGrade('B');
+
         $this->postJson($this->gradeUrl(), [
             'subject_id'    => $this->subjects['B']->id,
             'academic_year' => '2026-2027',
@@ -150,6 +161,43 @@ class GradeEndpointsTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('grade.status', 'Passed')
             ->assertJsonPath('grade.remarks', 'Passed');
+    }
+
+    public function test_a_grade_needs_an_enrollment_for_that_subject_and_term(): void
+    {
+        $before = Grade::count();
+
+        $this->postJson($this->gradeUrl(), [
+            'subject_id' => $this->subjects['B']->id, 'academic_year' => '2026-2027', 'semester' => '1st', 'grade_value' => 1.75,
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.subject_id.0', "{$this->student->student_number} is not enrolled in B for 2026-2027, 1st semester.");
+
+        $this->assertSame($before, Grade::count());
+    }
+
+    public function test_an_enrollment_in_another_term_or_a_cancelled_one_does_not_count(): void
+    {
+        $this->enrollmentWithoutGrade('B', '2');
+        $this->enrollmentWithoutGrade('A', '1', 'Cancelled');
+
+        foreach (['B', 'A'] as $code) {
+            $this->postJson($this->gradeUrl(), [
+                'subject_id' => $this->subjects[$code]->id, 'academic_year' => '2026-2027', 'semester' => '1', 'grade_value' => 2.00,
+            ])->assertStatus(422)->assertJsonValidationErrors('subject_id');
+        }
+        $this->assertSame(0, Grade::count());
+    }
+
+    public function test_a_grade_for_an_enrolled_subject_is_linked_to_its_enrollment(): void
+    {
+        // Stored as "1", requested as "1st": semesters compare normalised.
+        $enrollment = $this->enrollmentWithoutGrade('B', '1');
+
+        $id = $this->postJson($this->gradeUrl(), [
+            'subject_id' => $this->subjects['B']->id, 'academic_year' => '2026-2027', 'semester' => '1st', 'grade_value' => 2.25,
+        ])->assertCreated()->json('grade.id');
+
+        $this->assertSame($enrollment->id, Grade::find($id)->enrollment_id);
     }
 
     // ------------------------------------------------------------ bulk update

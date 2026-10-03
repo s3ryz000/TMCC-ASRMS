@@ -827,6 +827,33 @@ class StudentController extends Controller
         if (isset($validated['grade_value'])) {
             $validated['grade_value'] = round((float) $validated['grade_value'], 2);
         }
+
+        // A grade belongs to an enrollment: refuse one for a subject the
+        // student is not enrolled in for that term (#78).
+        $semester = EnrollmentTerm::normaliseSemester($validated['semester']);
+        if ($semester === null) {
+            return response()->json([
+                'message' => 'Semester must be 1st or 2nd.',
+                'errors'  => ['semester' => ['Semester must be 1st or 2nd.']],
+            ], 422);
+        }
+        $enrollment = Enrollment::where('student_id', $student->student_id)
+            ->where('subject_id', $validated['subject_id'])
+            ->where('academic_year', $validated['academic_year'])
+            ->whereNotIn('status', ['Cancelled', 'archived'])
+            ->get()
+            ->first(fn (Enrollment $e) => EnrollmentTerm::normaliseSemester($e->semester) === $semester);
+        if (! $enrollment) {
+            $code = Subject::find($validated['subject_id'])?->code ?? "subject #{$validated['subject_id']}";
+            $term = $semester === 1 ? '1st' : '2nd';
+
+            return response()->json([
+                'message' => "{$student->student_number} is not enrolled in {$code} for {$validated['academic_year']}, {$term} semester.",
+                'errors'  => ['subject_id' => ["{$student->student_number} is not enrolled in {$code} for {$validated['academic_year']}, {$term} semester."]],
+            ], 422);
+        }
+        $validated['enrollment_id'] = $enrollment->id;
+
         $exists = Grade::where('student_id', $student->student_id)
             ->where('subject_id', $validated['subject_id'])
             ->where('academic_year', $validated['academic_year'])
