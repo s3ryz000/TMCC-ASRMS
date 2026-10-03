@@ -53,16 +53,24 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     enabled: !!form.program_id,
   });
 
+  // Year 1 / 1st semester rows of the chosen program, in code order. The API
+  // sends semester as a string ("1"), so compare as numbers (#75).
+  const firstTermRows = React.useMemo(
+    () =>
+      (curriculumData?.curriculum ?? [])
+        .filter((c) => Number(c.year_level) === 1 && Number(c.semester) === 1)
+        .sort((a, b) => String(a.subject?.code ?? '').localeCompare(String(b.subject?.code ?? ''), undefined, { numeric: true })),
+    [curriculumData],
+  );
+
   React.useEffect(() => {
     if (curriculumData?.curriculum) {
-      // Default auto-select 1st year, 1st semester subjects. Archived subjects
-      // can't be enrolled (#68), so they are never selected.
-      const firstSemSubjects = curriculumData.curriculum
-        .filter((c) => c.year_level === 1 && c.semester === 1 && !c.subject?.archived)
-        .map((c) => c.subject_id);
+      // Pre-select every first-term subject the student can be enrolled in.
+      // Archived subjects can't be enrolled (#68), so they are never selected.
+      const firstSemSubjects = firstTermRows.filter((c) => !c.subject?.archived).map((c) => c.subject_id);
       setForm((prev) => ({ ...prev, subject_ids: firstSemSubjects }));
     }
-  }, [curriculumData]);
+  }, [curriculumData, firstTermRows]);
 
   const toggleSubject = (subjectId) => {
     setForm((prev) => {
@@ -86,10 +94,14 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         }
         return newForm;
       });
+    } else if (name === 'program_id') {
+      // A different program has a different first term; its subjects are
+      // selected again once its curriculum loads.
+      setForm((prev) => ({ ...prev, program_id: value, subject_ids: [] }));
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
     if (submitStatus) setSubmitStatus(null);
   };
@@ -232,7 +244,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         // Jump to the first step that has an error
         const phase1Fields = ["student_number", "first_name", "last_name", "date_of_birth"];
         const phase2Fields = ["email", "contact_number", "address"];
-        const phase3Fields = ["program_id", "enrollment_date", "graduation_date"];
+        const phase3Fields = ["program_id", "enrollment_date", "graduation_date", "subject_ids"];
         const phase4Fields = ["record_type", "cabinet_no", "shelf_no", "folder_code", "document_status"];
         const errorKeys = Object.keys(errMap);
         if (errorKeys.some((k) => phase1Fields.includes(k))) setCurrentPhase(1);
@@ -586,6 +598,70 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                     )}
                   </div>
                 </div>
+
+                {form.program_id && (
+                  <fieldset className="mb-6 p-4 rounded-lg border border-gray-200">
+                    <legend className="px-1 text-sm font-medium text-gray-600">
+                      First-term subjects (Year 1, 1st semester)
+                    </legend>
+                    {loadingCurriculum ? (
+                      <p className="m-0 text-sm text-gray-500">Loading curriculum...</p>
+                    ) : firstTermRows.length === 0 ? (
+                      <p className="m-0 text-sm text-gray-500">
+                        This program has no Year 1, 1st semester subjects in its curriculum.
+                      </p>
+                    ) : (
+                      <>
+                        <ul className="m-0 p-0 list-none flex flex-col gap-1">
+                          {firstTermRows.map((row) => {
+                            const archived = Boolean(row.subject?.archived);
+                            const id = `subject-${row.subject_id}`;
+                            return (
+                              <li key={row.subject_id}>
+                                <label
+                                  htmlFor={id}
+                                  className={`flex items-center gap-3 py-1.5 px-2 rounded text-sm ${
+                                    archived ? 'text-gray-400 cursor-not-allowed' : 'text-gray-800 cursor-pointer hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <input
+                                    id={id}
+                                    type="checkbox"
+                                    className="w-4 h-4 accent-tmcc"
+                                    checked={!archived && form.subject_ids.includes(row.subject_id)}
+                                    disabled={archived}
+                                    onChange={() => toggleSubject(row.subject_id)}
+                                  />
+                                  <span className="font-medium w-24 shrink-0">{row.subject?.code}</span>
+                                  <span className="flex-1">{row.subject?.title}</span>
+                                  <span className="w-16 text-right">{row.subject?.units} u</span>
+                                  {archived && (
+                                    <span
+                                      className="inline-block py-0.5 px-2 rounded-full text-[0.65rem] font-medium bg-gray-200 text-gray-600"
+                                      title="Archived subjects can't be added to new enrollments"
+                                    >
+                                      Archived
+                                    </span>
+                                  )}
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="mt-3 mb-0 text-xs text-gray-500">
+                          {form.subject_ids.length} of {firstTermRows.filter((r) => !r.subject?.archived).length} selected ·{' '}
+                          {firstTermRows
+                            .filter((r) => form.subject_ids.includes(r.subject_id))
+                            .reduce((total, r) => total + (Number(r.subject?.units) || 0), 0)}{' '}
+                          units. Untick a subject to leave it out of the first term.
+                        </p>
+                      </>
+                    )}
+                    {errors.subject_ids && (
+                      <p className="mt-2 mb-0 text-xs text-red-600">{errors.subject_ids}</p>
+                    )}
+                  </fieldset>
+                )}
 
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
                   <div className="flex flex-col gap-1.5">

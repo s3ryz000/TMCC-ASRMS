@@ -387,6 +387,26 @@ class EnrollmentValidationTest extends TestCase
         $this->assertDatabaseMissing('students', ['student_number' => '2026-9999']);
     }
 
+    /** #75: what the restored New Student picker sends becomes the first term. */
+    public function test_path_c_enrolls_every_selected_first_term_subject(): void
+    {
+        $this->postJson('/api/staff/students', $this->newStudentPayload([
+            $this->subjects['PROG1']->id,
+            $this->subjects['GENED1']->id,
+        ]))->assertCreated();
+
+        $student = Student::where('student_number', '2026-9999')->firstOrFail();
+        $enrollments = Enrollment::where('student_id', $student->student_id)->get();
+
+        $this->assertEqualsCanonicalizing(
+            [$this->subjects['PROG1']->id, $this->subjects['GENED1']->id],
+            $enrollments->pluck('subject_id')->all()
+        );
+        $this->assertSame([1], $enrollments->pluck('year_level')->map(fn ($v) => (int) $v)->unique()->values()->all());
+        $this->assertSame([1], $enrollments->pluck('semester')->map(fn ($v) => (int) $v)->unique()->values()->all());
+        $this->assertSame(2, Grade::where('student_id', $student->student_id)->count());
+    }
+
     public function test_path_c_first_term_follows_the_enrollment_date(): void
     {
         // The "current term" setting disagrees with the enrollment date, as it
