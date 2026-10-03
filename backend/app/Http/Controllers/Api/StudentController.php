@@ -18,7 +18,6 @@ use App\Models\EnrollmentAuditLog;
 use App\Models\Grade;
 use App\Models\Program;
 use App\Models\ProgramChangeLog;
-use App\Models\ProgramMapping;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SystemLog;
@@ -676,7 +675,6 @@ class StudentController extends Controller
      * - Checks for existing grade and warns frontend.
      * - Uses soft delete to preserve history.
      * - Writes enrollment audit log.
-     * - Cleans up ProgramMapping if no more active subjects remain in that semester group.
      */
     public function destroyEnrollment(Request $request, int $id, int $enrollmentId): JsonResponse
     {
@@ -767,21 +765,6 @@ class StudentController extends Controller
                 'had_grade'     => !is_null($grade),
                 'user_role'     => $user->roles->first()?->name ?? $user->role ?? null,
             ]);
-
-            // Clean up ProgramMapping if last active subject in semester group
-            $remainingActive = Enrollment::where('student_id', $enrollment->student_id)
-                ->where('academic_year', $enrollment->academic_year)
-                ->where('semester', $enrollment->semester)
-                ->whereNull('deleted_at')
-                ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
-                ->count();
-
-            if ($remainingActive === 0) {
-                ProgramMapping::where('student_id', $enrollment->student_id)
-                    ->where('academic_year', $enrollment->academic_year)
-                    ->where('semester', $enrollment->semester)
-                    ->update(['status' => 'archived']);
-            }
         });
 
         SystemLog::create([
@@ -1217,8 +1200,6 @@ class StudentController extends Controller
             $retakeCount = $enrollmentService->persistMany(
                 $student, $term, $data['retake_ids'], $user, true
             );
-
-            $enrollmentService->upsertProgramMapping($student, $term);
         });
 
         $total = $enrolledCount + $retakeCount;

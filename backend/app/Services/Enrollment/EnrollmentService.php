@@ -6,7 +6,6 @@ use App\Support\AcademicStatus;
 use App\Models\Enrollment;
 use App\Models\EnrollmentAuditLog;
 use App\Models\Grade;
-use App\Models\ProgramMapping;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +55,6 @@ class EnrollmentService
 
         DB::transaction(function () use ($student, $term, $outcome, $actor, $isRetake, &$enrolled) {
             $enrolled = $this->persistMany($student, $term, $outcome->validSubjectIds, $actor, $isRetake);
-            $this->upsertProgramMapping($student, $term);
         });
 
         return new EnrollmentResult(outcome: $outcome, enrolledCount: $enrolled);
@@ -151,19 +149,4 @@ class EnrollmentService
         ]);
     }
 
-    public function upsertProgramMapping(Student $student, EnrollmentTerm $term): void
-    {
-        ProgramMapping::updateOrCreate(
-            [
-                'student_id'    => $student->student_id,
-                'program_id'    => $student->program_id,
-                'academic_year' => $term->academicYear,
-                'semester'      => $term->semester,
-            ],
-            [
-                'status'     => 'enrolled',
-                'year_level' => $term->yearLevel,
-            ],
-        );
-    }
 }

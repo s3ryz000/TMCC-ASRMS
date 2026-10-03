@@ -24,6 +24,7 @@ class ProgramController extends Controller
     private const USAGE = [
         'student'                  => ['students', 'program_id'],
         'curriculum entry'         => ['curriculum', 'program_id'],
+        // No longer written (#21), but historical rows still point at programs.
         'program mapping'          => ['program_mappings', 'program_id'],
         'program change log entry' => ['program_change_logs', ['old_program_id', 'new_program_id']],
     ];

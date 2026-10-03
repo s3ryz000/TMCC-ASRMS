@@ -55,6 +55,7 @@ class Student extends Model
         'GPA' => 'decimal:2',
     ];
 
+    /** @deprecated Read-only history; see ProgramMapping (#21). */
     public function programMappings()
     {
         return $this->hasMany(ProgramMapping::class, 'student_id', 'student_id');

@@ -56,11 +56,11 @@ const StudentLayout = () => {
   const handleChangePassword = () => setChangePasswordOpen(true);
 
   const student = profile?.student;
-  const programMapping = profile?.program_mapping;
   const academicYear = profile?.academic_year || '';
   const semester = profile?.semester || '';
   const institutionName = profile?.institution_name || 'Trece Martires City College';
-  const programName = profile?.program_mapping?.program?.name || student?.program_mapping?.program?.code || '';
+  // The student's own program (#21); program_mapping is the older shape.
+  const programName = profile?.program?.name || profile?.program_mapping?.program?.name || '';
   const fullName = student
     ? `${(student.last_name || '').toUpperCase()}, ${(student.first_name || '').toUpperCase()}`
     : '—';

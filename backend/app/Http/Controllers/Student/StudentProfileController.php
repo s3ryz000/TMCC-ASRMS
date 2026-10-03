@@ -6,7 +6,6 @@ use App\Support\AcademicStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Requests\UpdateStudentSisRequest;
-use App\Models\ProgramMapping;
 use App\Models\SystemLog;
 use App\Models\SystemSetting;
 use App\Models\PendingStudentUpdate;
@@ -41,23 +40,34 @@ class StudentProfileController extends Controller
         }
 
         $student->load('program');
-        $student->load('programMappings.program');
         $academicYear = SystemSetting::getValue('academic_year') ?: date('Y') . '-' . (date('Y') + 1);
         $semester = SystemSetting::getValue('semester') ?: '2nd Semester';
-        $semesterMapping  = [
-            '2nd Semester' => 2,
-            '1st Semester' => 1
-        ];
-        
-        $programMapping = ProgramMapping::where('student_id',$student->student_id)->where('academic_year', $academicYear)->where('semester', $semesterMapping[$semester])->first();
-       
+
+        // The program is the student's own (students.program_id) and the
+        // current term and year level come from their latest active
+        // enrollment. program_mappings duplicated both and went stale after a
+        // program change (#21); the response keeps its old keys and shape.
+        $latest = $student->enrollments()
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
+            ->orderByDesc('academic_year')
+            ->orderByDesc('semester')
+            ->orderByDesc('id')
+            ->first();
+        $programMapping = $student->program ? [
+            'program_id'    => $student->program_id,
+            'program'       => $student->program,
+            'academic_year' => $latest?->academic_year,
+            'semester'      => $latest?->semester,
+            'year_level'    => $latest?->year_level,
+        ] : null;
+
         $service = app(\App\Services\AcademicStandingService::class);
         $summary = $service->getAcademicSummary($student);
 
         return response()->json([
             'student' => $student,
             'academic_year' => $academicYear,
-            'program' => $programMapping?->program,
+            'program' => $student->program,
             'program_mapping' => $programMapping,
             'semester' => $semester,
             'institution_name' => SystemSetting::getValue('institution_name') ?: 'Trece Martires City College',

@@ -24,6 +24,7 @@ class Program extends Model
         return $this->hasMany(Curriculum::class);
     }
 
+    /** @deprecated Read-only history; see ProgramMapping (#21). */
     public function programMappings()
     {
         return $this->hasMany(ProgramMapping::class);
