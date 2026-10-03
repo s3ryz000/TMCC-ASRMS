@@ -110,6 +110,8 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::put('/curriculum/{entryId}/prerequisites', [CurriculumEntryController::class, 'prerequisites']);
     // New Curriculum: a program with its curriculum in one transaction (#70)
     Route::post('/curriculums', [CurriculumController::class, 'store']);
+    // A revised curriculum for a new batch is a copy as a new program (#31)
+    Route::post('/programs/{id}/clone', [CurriculumController::class, 'clone']);
 });
 
 use App\Http\Controllers\Api\PendingStudentUpdateController;

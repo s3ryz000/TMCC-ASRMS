@@ -238,6 +238,14 @@ export const staffApi = {
     const { data } = await apiClient.post('/staff/curriculums', payload);
     return data;
   },
+  /**
+   * Copy a program's curriculum, prerequisites included, into a new program (#31).
+   * Payload: { code, name, description? }; 422 for a taken code, nothing saved.
+   */
+  cloneProgram: async (programId, payload) => {
+    const { data } = await apiClient.post(`/staff/programs/${programId}/clone`, payload);
+    return data;
+  },
 
   /** Place a subject in a program. Payload: subject_id, year_level (1-4), semester (1 or 2). */
   addCurriculumEntry: async (programId, payload) => {
