@@ -16,9 +16,10 @@ const LANDINGS = {
   programs: {
     title: 'Programs',
     intro: 'The degree programs offered by the college.',
-    note: 'New programs are created together with their curriculum (New Curriculum, coming in #70).',
     cards: [
       { path: '/staff/catalog/programs/view', label: 'View programs', icon: FiList, description: 'Search, edit and archive programs' },
+      // A program is always created together with its curriculum (#70).
+      { path: '/staff/catalog/programs/new', label: 'New Curriculum', icon: FiPlusCircle, description: 'Create a program and place its subjects year by year', registrarOnly: true },
     ],
   },
 };

@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FiChevronLeft, FiPrinter } from 'react-icons/fi';
+import { FiChevronLeft, FiEdit2, FiPrinter } from 'react-icons/fi';
 import { staffApi } from '../../lib/api/staffApi';
+import { useAuth } from '../../contexts/AuthContext';
 import { parseApiError } from '../../lib/api/errors';
 import { queryKeys } from '../../lib/react-query/queryKeys';
 import { buildCurriculumLayout, formatUnits } from '../../features/catalog/curriculumLayout';
@@ -21,6 +22,7 @@ const BackLink = () => (
 /** A program's whole curriculum, year by year and semester by semester (read-only; staff and admin). */
 const StaffProgramCurriculumPage = () => {
   const { programId } = useParams();
+  const { role } = useAuth();
 
   // Same key, request and shape as Student Records' course filter (raw response, archived included).
   const programsQuery = useQuery({
@@ -77,15 +79,25 @@ const StaffProgramCurriculumPage = () => {
             <span className="inline-block mt-2 py-1 px-3 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Archived program</span>
           )}
         </div>
-        {curriculumQuery.isSuccess && layout.subjectCount > 0 && (
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm bg-tmcc text-white hover:bg-tmcc-dark focus:outline-none focus:ring-2 focus:ring-tmcc/30 print:hidden"
-          >
-            <FiPrinter aria-hidden /> Print
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2 print:hidden">
+          {role === 'staff' && (
+            <Link
+              to={`/staff/catalog/programs/${programId}/curriculum/edit`}
+              className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-medium no-underline bg-white text-tmcc border border-tmcc hover:bg-tmcc/5 focus:outline-none focus:ring-2 focus:ring-tmcc/30"
+            >
+              <FiEdit2 aria-hidden /> Edit curriculum
+            </Link>
+          )}
+          {curriculumQuery.isSuccess && layout.subjectCount > 0 && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm bg-tmcc text-white hover:bg-tmcc-dark focus:outline-none focus:ring-2 focus:ring-tmcc/30"
+            >
+              <FiPrinter aria-hidden /> Print
+            </button>
+          )}
+        </div>
       </section>
 
       {curriculumQuery.isLoading && <p className="py-8 text-center text-gray-500">Loading curriculum...</p>}
