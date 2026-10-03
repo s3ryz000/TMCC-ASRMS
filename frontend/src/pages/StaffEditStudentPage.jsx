@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import { staffApi } from "../lib/api/staffApi";
 import { staffToast } from "../lib/notifications";
+import { localDateString, toDateInputValue } from "../lib/tools";
 import { queryKeys } from "../lib/react-query/queryKeys";
 import AcademicProgressionStep4 from "../components/AcademicProgressionStep4";
 
@@ -48,11 +49,9 @@ const generateAcademicYears = () => {
 const ACADEMIC_YEAR_OPTIONS = generateAcademicYears();
 const CURRENT_ACADEMIC_YEAR = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
 
-const formatDateForInput = (val) => {
-  if (!val) return "";
-  const d = typeof val === "string" ? new Date(val) : val;
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
-};
+// The API sends calendar dates as "YYYY-MM-DD"; use them as they are. Going
+// through new Date(...).toISOString() turned them into the previous day (#77).
+const formatDateForInput = toDateInputValue;
 
 const StaffEditStudentPage = ({ basePath = "/staff" }) => {
   const { id } = useParams();
@@ -154,7 +153,7 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
         address: s.address ?? "",
         enrollment_date:
           formatDateForInput(s.enrollment_date) ||
-          new Date().toISOString().slice(0, 10),
+          localDateString(),
         graduation_date: formatDateForInput(s.graduation_date),
 
       });
@@ -274,7 +273,7 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
       if (!form.enrollment_date) {
         err.enrollment_date = "Enrollment date is required.";
       } else {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateString();
         if (form.enrollment_date > today) {
           err.enrollment_date = "Enrollment date cannot be later than today.";
         }
@@ -301,7 +300,7 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
     if (!form.enrollment_date) {
       err.enrollment_date = "Enrollment date is required.";
     } else {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateString();
       if (form.enrollment_date > today) {
         err.enrollment_date = "Enrollment date cannot be later than today.";
       }
@@ -986,7 +985,7 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
                       type="date"
                       value={form.enrollment_date}
                       onChange={handleChange}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={localDateString()}
                       className={`${inputBase} ${errors.enrollment_date ? inputError : inputNormal}`}
                       aria-invalid={!!errors.enrollment_date}
                     />

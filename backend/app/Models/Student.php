@@ -45,9 +45,11 @@ class Student extends Model
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
-        'enrollment_date' => 'date',
-        'graduation_date' => 'date',
+        // Calendar dates, so JSON carries "2006-06-21" rather than a UTC
+        // timestamp that a browser can read as the previous day (#77).
+        'date_of_birth' => 'date:Y-m-d',
+        'enrollment_date' => 'date:Y-m-d',
+        'graduation_date' => 'date:Y-m-d',
         'elementary_year' => 'integer',
         'high_school_year' => 'integer',
         'GPA' => 'decimal:2',

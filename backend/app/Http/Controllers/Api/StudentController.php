@@ -1081,7 +1081,7 @@ class StudentController extends Controller
                 'name' => trim($student->first_name . ' ' . $student->last_name),
                 'program' => $student->program?->name,
                 'program_code' => $student->program?->code,
-                'enrollment_date' => $student->enrollment_date,
+                'enrollment_date' => $student->enrollment_date?->toDateString(),
             ],
             'summary' => $summary,
             'curriculum' => $roadmapData,

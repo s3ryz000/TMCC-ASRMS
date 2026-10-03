@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { FiX, FiUser, FiMail, FiAward, FiEdit2, FiArchive } from 'react-icons/fi';
+import { formatDateOnly } from '../lib/tools';
 const ViewStudentModal = ({ isOpen, onClose, student, studentId, onFetchStudent, onEdit }) => {
   const modalRef = useRef(null);
   const previousActiveElement = useRef(null);
@@ -90,11 +91,8 @@ const ViewStudentModalContent = ({ student, studentId, onFetchStudent, onClose, 
 
   const displayStudent = student ?? fetchedStudent;
 
-  const formatDate = (val) => {
-    if (!val) return '—';
-    const d = typeof val === 'string' ? new Date(val) : val;
-    return isNaN(d.getTime()) ? val : d.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
-  };
+  // Calendar dates ("2006-06-21") shown without a timezone shift (#77).
+  const formatDate = (val) => (val ? formatDateOnly(val) : '—');
 
   const formatGPA = (val) => {
     if (val == null || val === '') return '—';

@@ -7,6 +7,7 @@ import Modal from "../components/ui/Modal";
 import { staffApi } from "../lib/api/staffApi";
 import { parseApiError } from "../lib/api/errors";
 import { queryKeys } from "../lib/react-query/queryKeys";
+import { localDateString } from "../lib/tools";
 
 const defaultForm = {
   student_number: "",
@@ -17,7 +18,7 @@ const defaultForm = {
   email: "",
   contact_number: "",
   address: "",
-  enrollment_date: new Date().toISOString().slice(0, 10),
+  enrollment_date: localDateString(),
   graduation_date: "",
 
   program_id: "",
@@ -113,7 +114,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
       if (!form.enrollment_date) {
         err.enrollment_date = "Enrollment date is required.";
       } else {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateString();
         if (form.enrollment_date > today) {
           err.enrollment_date = "Enrollment date cannot be later than today.";
         }
@@ -148,7 +149,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     if (!form.enrollment_date) {
       err.enrollment_date = "Enrollment date is required.";
     } else {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateString();
       if (form.enrollment_date > today) {
         err.enrollment_date = "Enrollment date cannot be later than today.";
       }
@@ -600,7 +601,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       type="date"
                       value={form.enrollment_date}
                       onChange={handleChange}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={localDateString()}
                       className={`${inputBase} ${errors.enrollment_date ? inputError : inputNormal}`}
                       aria-invalid={!!errors.enrollment_date}
                     />
