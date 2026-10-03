@@ -8,6 +8,7 @@ use App\Models\Curriculum;
 use App\Models\Program;
 use App\Models\Subject;
 use App\Models\SystemLog;
+use App\Services\CurriculumImpact;
 use App\Services\Enrollment\EnrollmentTerm;
 use Closure;
 use Illuminate\Http\JsonResponse;
@@ -20,11 +21,17 @@ use Illuminate\Validation\Rule;
  * semester). Placing, moving and removing entries is registrar work (#24).
  *
  * Only `curriculum` and `curriculum_prerequisites` are ever written here;
- * enrollments and grades keep the terms they were recorded against.
+ * enrollments and grades keep the terms they were recorded against and are
+ * never re-validated. An entry that students of the program already have
+ * records for is not moved or removed (#28); placing is always allowed.
  */
 class CurriculumEntryController extends Controller
 {
     use AuthorizesRole;
+
+    public function __construct(private CurriculumImpact $impact)
+    {
+    }
 
     /** POST /staff/programs/{programId}/curriculum {subject_id, year_level, semester} */
     public function store(Request $request, int $programId): JsonResponse
@@ -110,6 +117,10 @@ class CurriculumEntryController extends Controller
             ]);
         }
 
+        if ($refusal = $this->refuseIfHistory($entry)) {
+            return $refusal;
+        }
+
         $entry->update(['year_level' => $yearLevel, 'semester' => (string) $semester]);
 
         $this->log($request, "Curriculum: moved {$code} in {$programCode} from "
@@ -139,9 +150,13 @@ class CurriculumEntryController extends Controller
         $code = $entry->subject->code;
         $programCode = $entry->program->code;
 
+        if ($refusal = $this->refuseIfHistory($entry)) {
+            return $refusal;
+        }
+
         // Removing a subject other entries of this program require would leave
         // their prerequisite pointing outside the curriculum.
-        $dependents = $this->entriesRequiring($entry);
+        $dependents = $this->impact->entriesRequiring($entry);
         if ($dependents->isNotEmpty()) {
             $codes = $dependents->pluck('subject.code');
             $list = $codes->count() > 1
@@ -151,7 +166,7 @@ class CurriculumEntryController extends Controller
             return response()->json([
                 'message' => "{$code} can't be removed from {$programCode}: {$list} "
                     . ($codes->count() > 1 ? 'list' : 'lists') . ' it as a prerequisite.',
-                'required_by' => $dependents->map(fn (Curriculum $d) => $this->summary($d))->values(),
+                'required_by' => $dependents->map(fn (Curriculum $d) => CurriculumImpact::summary($d))->values(),
             ], 409);
         }
 
@@ -167,6 +182,43 @@ class CurriculumEntryController extends Controller
         return response()->json(['message' => "{$code} removed from {$programCode}."]);
     }
 
+    /**
+     * GET /staff/curriculum/{entryId}/impact (staff and admin): the students
+     * of this program with records in the subject and the entries that
+     * require it, so the builder can say why a move or removal is refused.
+     */
+    public function impact(Request $request, int $entryId): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
+            return $err;
+        }
+
+        $entry = Curriculum::with(['program', 'subject'])->find($entryId);
+        if (! $entry) {
+            return response()->json(['message' => 'Curriculum entry not found.'], 404);
+        }
+
+        return response()->json($this->impact->report($entry));
+    }
+
+    /**
+     * Curriculum changes never rewrite student history (#28): an entry whose
+     * subject has an enrollment or grade from a student of this program is
+     * not moved or removed.
+     */
+    private function refuseIfHistory(Curriculum $entry): ?JsonResponse
+    {
+        $message = $this->impact->historyBlock($entry);
+
+        return $message === null ? null : response()->json([
+            'message' => $message,
+            'impact'  => $this->impact->report($entry),
+        ], 409);
+    }
+
     /** Year level 1-4 and a semester normaliseSemester() recognises; no silent default. */
     private function termRules(): array
     {
@@ -180,23 +232,6 @@ class CurriculumEntryController extends Controller
         ];
     }
 
-    /**
-     * Entries of the same program that list this entry's subject as a
-     * prerequisite.
-     *
-     * @return \Illuminate\Support\Collection<int, Curriculum>
-     */
-    private function entriesRequiring(Curriculum $entry)
-    {
-        return Curriculum::with('subject')
-            ->where('program_id', $entry->program_id)
-            ->whereKeyNot($entry->id)
-            ->whereHas('prerequisites', fn ($q) => $q->whereKey($entry->subject_id))
-            ->get()
-            ->sortBy(fn (Curriculum $c) => [$c->year_level, $c->semester, $c->subject->code])
-            ->values();
-    }
-
     /** An entry as the program curriculum endpoint lists it. */
     private function present(Curriculum $entry): Curriculum
     {
@@ -205,18 +240,6 @@ class CurriculumEntryController extends Controller
         $entry->unsetRelation('program');
 
         return $entry;
-    }
-
-    private function summary(Curriculum $entry): array
-    {
-        return [
-            'entry_id'   => $entry->id,
-            'subject_id' => $entry->subject_id,
-            'code'       => $entry->subject->code,
-            'title'      => $entry->subject->title,
-            'year_level' => (int) $entry->year_level,
-            'semester'   => (int) $entry->semester,
-        ];
     }
 
     private function refuse(string $field, string $message): JsonResponse

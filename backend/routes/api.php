@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
     Route::get('/subject-prefixes', [SubjectCodePrefixController::class, 'index']);
     Route::get('/programs', [ProgramController::class, 'index']);
     Route::get('/programs/{id}/curriculum', [StudentController::class, 'programSubjects']);
+    Route::get('/curriculum/{entryId}/impact', [CurriculumEntryController::class, 'impact']);
 
     // Academic Progression reads (defined first to prevent wildcard parameter conflict)
     Route::get('/students/{id}/academic-progress', [StudentController::class, 'academicProgress']);

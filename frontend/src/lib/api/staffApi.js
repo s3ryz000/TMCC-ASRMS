@@ -238,9 +238,22 @@ export const staffApi = {
     const { data } = await apiClient.patch(`/staff/curriculum/${entryId}`, payload);
     return data;
   },
-  /** Remove an entry; 409 when another entry lists its subject as a prerequisite. */
+  /**
+   * Remove an entry. Move and remove answer 409 when students of the program
+   * already have records for the subject (#28), and remove also when another
+   * entry lists its subject as a prerequisite.
+   */
   removeCurriculumEntry: async (entryId) => {
     const { data } = await apiClient.delete(`/staff/curriculum/${entryId}`);
+    return data;
+  },
+  /**
+   * What an entry touches (staff/admin, #28): students with records (count,
+   * up to 20 shown), enrollments/grades by status, entries requiring it,
+   * can_move and can_remove.
+   */
+  getCurriculumImpact: async (entryId) => {
+    const { data } = await apiClient.get(`/staff/curriculum/${entryId}/impact`);
     return data;
   },
 
