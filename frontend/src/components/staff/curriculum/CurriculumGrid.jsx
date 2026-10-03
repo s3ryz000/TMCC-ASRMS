@@ -9,7 +9,7 @@ import { compareCodes, formatUnits, yearLabel } from '../../../features/catalog/
  * rows: builder rows with yearLevel and semester (see TermCard)
  * totals: computeGridTotals() / gridTotalsFromApi() shape
  */
-const CurriculumGrid = ({ rows, totals, canEdit, canAdd = canEdit, onAdd, renderRowActions }) => (
+const CurriculumGrid = ({ rows, totals, canEdit, canAdd = canEdit, onAdd, renderRowActions, renderPrerequisiteAction }) => (
   <>
     {totals.years.map((year) => (
       <section key={year.yearLevel} className="mb-6" aria-labelledby={`builder-year-${year.yearLevel}`}>
@@ -37,6 +37,7 @@ const CurriculumGrid = ({ rows, totals, canEdit, canAdd = canEdit, onAdd, render
                 canAdd={canAdd}
                 onAdd={onAdd}
                 renderRowActions={(row) => renderRowActions(row, term)}
+                renderPrerequisiteAction={renderPrerequisiteAction}
               />
             ))}
         </div>

@@ -12,10 +12,13 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import CurriculumGrid from '../../components/staff/curriculum/CurriculumGrid';
 import AddSubjectPanel from '../../components/staff/curriculum/AddSubjectPanel';
 import EntryActionsMenu from '../../components/staff/curriculum/EntryActionsMenu';
+import PrerequisitesDialog from '../../components/staff/curriculum/PrerequisitesDialog';
 import {
   computeGridTotals,
   gridTotalsFromApi,
   joinSubjectCode,
+  prerequisiteCandidates,
+  prerequisiteLabel,
   prerequisiteText,
   splitCurriculumErrors,
   termLabel,
@@ -31,6 +34,18 @@ const secondaryButton = 'py-2.5 px-5 rounded-lg text-sm font-medium bg-gray-200 
 
 const Alert = ({ children }) => (
   <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm" role="alert">{children}</div>
+);
+
+/** Opens the prerequisite editor for a row (#27). */
+const PrerequisitesButton = ({ row, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={`Prerequisites for ${row.code}`}
+    className="p-0 bg-transparent border-0 text-xs font-medium text-tmcc underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-tmcc/30 rounded"
+  >
+    Prerequisites…
+  </button>
 );
 
 /**
@@ -90,6 +105,7 @@ const NewCurriculum = () => {
   const [entryErrors, setEntryErrors] = useState({});
   const [generalErrors, setGeneralErrors] = useState([]);
   const [panelTerm, setPanelTerm] = useState(null);
+  const [prerequisiteRow, setPrerequisiteRow] = useState(null);
   const [saving, setSaving] = useState(false);
   const nextKey = useRef(1);
   const saved = useRef(false);
@@ -112,9 +128,9 @@ const NewCurriculum = () => {
 
   const programCode = String(program.code ?? '').trim() || 'this program';
 
-  const rows = useMemo(
-    () =>
-      entries.map((entry) => {
+  const rows = useMemo(() => {
+    const codeByKey = new Map(entries.map((e) => [e.key, (e.subject ?? e.newSubject).code]));
+    return entries.map((entry) => {
         const subject = entry.subject ?? entry.newSubject;
         const others = entry.subject?.programs ?? [];
         return {
@@ -126,16 +142,17 @@ const NewCurriculum = () => {
           units: Number(subject.units) || 0,
           archived: false,
           isNew: Boolean(entry.newSubject),
-          prerequisites: '',
+          prerequisites: prerequisiteLabel(entry.prerequisiteKeys.map((k) => codeByKey.get(k)).filter(Boolean), entry.prerequisiteLogic),
+          prerequisiteValues: entry.prerequisiteKeys,
+          prerequisiteLogic: entry.prerequisiteLogic,
           unresolvedPrerequisites: '',
           // Shared once saved: the programs already using it plus this one.
           usedIn: others.length > 0 ? others.length + 1 : null,
           usedInCodes: [...others, programCode],
           errors: entryErrors[entry.key],
         };
-      }),
-    [entries, entryErrors, programCode],
-  );
+      });
+  }, [entries, entryErrors, programCode]);
 
   const totals = useMemo(() => computeGridTotals(rows), [rows]);
   const placedSubjectIds = useMemo(() => new Set(entries.filter((e) => e.subject).map((e) => e.subject.id)), [entries]);
@@ -148,7 +165,10 @@ const NewCurriculum = () => {
 
   const addEntry = (term, fields) => {
     const key = `draft-${nextKey.current++}`;
-    setEntries((list) => [...list, { key, yearLevel: term.yearLevel, semester: term.semester, subject: null, newSubject: null, ...fields }]);
+    setEntries((list) => [
+      ...list,
+      { key, yearLevel: term.yearLevel, semester: term.semester, subject: null, newSubject: null, prerequisiteKeys: [], prerequisiteLogic: 'AND', ...fields },
+    ]);
     setGeneralErrors([]);
   };
 
@@ -168,7 +188,17 @@ const NewCurriculum = () => {
   };
 
   const handleRemove = async (row) => {
-    setEntries((list) => list.filter((e) => e.key !== row.key));
+    // A removed subject is no longer anyone's prerequisite.
+    setEntries((list) =>
+      list
+        .filter((e) => e.key !== row.key)
+        .map((e) => (e.prerequisiteKeys.includes(row.key) ? { ...e, prerequisiteKeys: e.prerequisiteKeys.filter((k) => k !== row.key) } : e)),
+    );
+    clearEntryError(row.key);
+  };
+
+  const handleSetPrerequisites = async (row, { values, logic }) => {
+    setEntries((list) => list.map((e) => (e.key === row.key ? { ...e, prerequisiteKeys: values, prerequisiteLogic: logic } : e)));
     clearEntryError(row.key);
   };
 
@@ -183,12 +213,16 @@ const NewCurriculum = () => {
 
     // Entry order is the index the server keys its errors by.
     const order = [...entries];
+    const indexByKey = new Map(order.map((e, i) => [e.key, i]));
     const payload = {
       program: toPayload(PROGRAM_FIELDS, program),
       entries: order.map((e) => ({
         ...(e.subject ? { subject_id: e.subject.id } : { new_subject: e.newSubject }),
         year_level: e.yearLevel,
         semester: e.semester,
+        // Prerequisites point at other entries of this payload by index (#27).
+        prerequisites: e.prerequisiteKeys.map((k) => indexByKey.get(k)).filter((i) => i !== undefined),
+        prerequisite_logic: e.prerequisiteLogic,
       })),
     };
 
@@ -279,7 +313,19 @@ const NewCurriculum = () => {
             onRemove={() => handleRemove(row)}
           />
         )}
+        renderPrerequisiteAction={(row) => <PrerequisitesButton row={row} onClick={() => setPrerequisiteRow(row)} />}
       />
+
+      {prerequisiteRow && (
+        <PrerequisitesDialog
+          row={prerequisiteRow}
+          candidates={prerequisiteCandidates(rows, prerequisiteRow).map((r) => ({ value: r.key, code: r.code, title: r.title, yearLevel: r.yearLevel, semester: r.semester }))}
+          selected={prerequisiteRow.prerequisiteValues}
+          logic={prerequisiteRow.prerequisiteLogic}
+          onSave={(choice) => handleSetPrerequisites(prerequisiteRow, choice)}
+          onClose={() => setPrerequisiteRow(null)}
+        />
+      )}
 
       <div className="flex justify-end gap-3 mt-6">
         <button type="button" onClick={handleSave} disabled={saving} className={primaryButton}>
@@ -326,6 +372,7 @@ const EditCurriculum = ({ programId }) => {
   const [panelTerm, setPanelTerm] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
+  const [prerequisiteRow, setPrerequisiteRow] = useState(null);
 
   // Same key, request and shape as the #71 page (raw response, archived included).
   const programsQuery = useQuery({
@@ -352,6 +399,9 @@ const EditCurriculum = ({ programId }) => {
         return {
           key: String(row.id),
           entryId: row.id,
+          subjectId: row.subject_id,
+          prerequisiteValues: (row.prerequisites ?? []).map((p) => p.id),
+          prerequisiteLogic: row.prerequisite_logic ?? 'AND',
           yearLevel: Number(row.year_level),
           semester: Number(row.semester),
           code: row.subject?.code ?? '',
@@ -409,6 +459,13 @@ const EditCurriculum = ({ programId }) => {
       staffToast.error(`Could not move ${row.code}`, parseApiError(err).message);
       throw err;
     }
+  };
+
+  // Applies to future enrollments; a 422 (earlier terms only, no loops) stays in the dialog.
+  const handleSetPrerequisites = async (row, { values, logic }) => {
+    const result = await staffApi.setCurriculumPrerequisites(row.entryId, { subject_ids: values, logic });
+    staffToast.success('Prerequisites saved', result?.message);
+    refresh();
   };
 
   const confirmRemove = async () => {
@@ -487,7 +544,20 @@ const EditCurriculum = ({ programId }) => {
             onRemove={async () => setPendingRemove(row)}
           />
         )}
+        renderPrerequisiteAction={(row) => <PrerequisitesButton row={row} onClick={() => setPrerequisiteRow(row)} />}
       />
+
+      {prerequisiteRow && (
+        <PrerequisitesDialog
+          row={prerequisiteRow}
+          candidates={prerequisiteCandidates(rows, prerequisiteRow).map((r) => ({ value: r.subjectId, code: r.code, title: r.title, yearLevel: r.yearLevel, semester: r.semester }))}
+          selected={prerequisiteRow.prerequisiteValues}
+          logic={prerequisiteRow.prerequisiteLogic}
+          loadImpact={() => staffApi.getCurriculumImpact(prerequisiteRow.entryId)}
+          onSave={(choice) => handleSetPrerequisites(prerequisiteRow, choice)}
+          onClose={() => setPrerequisiteRow(null)}
+        />
+      )}
 
       {panelTerm && (
         <AddSubjectPanel

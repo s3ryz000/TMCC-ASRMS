@@ -4,7 +4,10 @@ import {
   gridTotalsFromApi,
   impactRefusal,
   joinSubjectCode,
+  prerequisiteCandidates,
+  prerequisiteLabel,
   splitCurriculumErrors,
+  termIndex,
 } from './curriculumLayout';
 
 describe('joinSubjectCode (registrar format, #70)', () => {
@@ -78,6 +81,31 @@ describe('splitCurriculumErrors', () => {
       program: { code: 'A program with this code already exists.' },
       other: ['Add at least one subject to the curriculum.'],
     });
+  });
+});
+
+describe('prerequisite helpers (#27)', () => {
+  const rows = [
+    { key: 'a', code: 'THC1', yearLevel: 1, semester: 1 },
+    { key: 'b', code: 'GEC5', yearLevel: 1, semester: 1 },
+    { key: 'c', code: 'THC2', yearLevel: 1, semester: 2 },
+    { key: 'd', code: 'THC4', yearLevel: 2, semester: 1 },
+    { key: 'e', code: 'THC5', yearLevel: 2, semester: 1 },
+  ];
+
+  test('termIndex orders Year 1 1st, Year 1 2nd, Year 2 1st', () => {
+    expect([termIndex(1, 1), termIndex(1, 2), termIndex(2, 1), termIndex(4, 2)]).toEqual([1, 2, 3, 8]);
+  });
+
+  test('only earlier terms are candidates, in term then code order', () => {
+    expect(prerequisiteCandidates(rows, rows[3]).map((r) => r.code)).toEqual(['GEC5', 'THC1', 'THC2']);
+    expect(prerequisiteCandidates(rows, rows[0])).toEqual([]);
+  });
+
+  test('labels join with commas for AND and "or" for OR', () => {
+    expect(prerequisiteLabel(['THC1', 'GEC5'], 'AND')).toBe('GEC5, THC1');
+    expect(prerequisiteLabel(['THC1', 'GEC5'], 'or')).toBe('GEC5 or THC1');
+    expect(prerequisiteLabel([], 'AND')).toBe('');
   });
 });
 

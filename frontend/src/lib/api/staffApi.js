@@ -259,6 +259,14 @@ export const staffApi = {
     return data;
   },
   /**
+   * Replace an entry's prerequisites (#27). Payload: { subject_ids: [...], logic: 'AND' | 'OR' };
+   * an empty list clears them. Each must sit earlier in the same program; no loops.
+   */
+  setCurriculumPrerequisites: async (entryId, payload) => {
+    const { data } = await apiClient.put(`/staff/curriculum/${entryId}/prerequisites`, payload);
+    return data;
+  },
+  /**
    * What an entry touches (staff/admin, #28): students with records (count,
    * up to 20 shown), enrollments/grades by status, entries requiring it,
    * can_move and can_remove.

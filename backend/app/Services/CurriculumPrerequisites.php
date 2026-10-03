@@ -54,7 +54,7 @@ class CurriculumPrerequisites
                 $code = Subject::find($subjectId)?->code ?? "Subject #{$subjectId}";
                 $errors[$key] = "{$code} is not in {$entry->program->code}'s curriculum.";
             } elseif (self::termIndex($prereq->year_level, $prereq->semester) >= $entryTerm) {
-                $errors[$key] = $this->notEarlier($prereq->subject->code, $prereq->year_level, $prereq->semester, $entry->subject->code, $entry->year_level, $entry->semester);
+                $errors[$key] = self::notEarlier($prereq->subject->code, $prereq->year_level, $prereq->semester, $entry->subject->code, $entry->year_level, $entry->semester);
             } elseif ($path = self::path($graph, (int) $subjectId, (int) $entry->subject_id)) {
                 $codes = array_map(fn ($id) => $placed[$id]->subject->code ?? "#{$id}", $path);
                 $errors[$key] = "{$prereq->subject->code} already depends on {$entry->subject->code} ("
@@ -86,7 +86,7 @@ class CurriculumPrerequisites
             . ($prerequisiteCodes->isEmpty() ? 'cleared' : 'set to ' . $prerequisiteCodes->join(" {$logic} "));
     }
 
-    public function notEarlier(string $prereqCode, int|string $prereqYear, int|string $prereqSemester, string $code, int|string $year, int|string $semester): string
+    public static function notEarlier(string $prereqCode, int|string $prereqYear, int|string $prereqSemester, string $code, int|string $year, int|string $semester): string
     {
         return "{$prereqCode} (" . CurriculumRules::termLabel($prereqYear, $prereqSemester) . ") must come before {$code} ("
             . CurriculumRules::termLabel($year, $semester) . ').';

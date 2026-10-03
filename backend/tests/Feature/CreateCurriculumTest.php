@@ -180,6 +180,47 @@ class CreateCurriculumTest extends TestCase
         $this->assertSame($before, $this->counts());
     }
 
+    public function test_prerequisites_are_saved_by_entry_index(): void
+    {
+        $payload = $this->payload();
+        // IT102 (Y1S2) requires IT101 (new, index 2) OR GEC4 (index 0).
+        $payload['entries'][3]['prerequisites'] = [2, 0];
+        $payload['entries'][3]['prerequisite_logic'] = 'or';
+
+        $this->postJson('/api/staff/curriculums', $payload)->assertCreated();
+
+        $program = Program::where('code', 'BSIT')->firstOrFail();
+        $it102 = Curriculum::where('program_id', $program->id)->where('subject_id', Subject::where('code', 'IT102')->value('id'))->firstOrFail();
+        $this->assertSame('OR', $it102->prerequisite_logic);
+        $this->assertSame(['GEC4', 'IT101'], $it102->prerequisites->pluck('code')->sort()->values()->all());
+        $this->assertSame(1, DB::table('curriculum_prerequisites')->whereIn('curriculum_id', Curriculum::where('program_id', $program->id)->select('id'))->distinct()->count('curriculum_id'));
+        $this->assertSame('AND', Curriculum::where('program_id', $program->id)->where('subject_id', $this->subjects['GEC4']->id)->value('prerequisite_logic'));
+    }
+
+    public function test_invalid_prerequisites_in_the_payload_save_nothing(): void
+    {
+        $before = $this->counts();
+        $cases = [
+            'same term'  => [1, [0], 'entries.1.prerequisites.0', "GEC4 (Year 1 1st semester) must come before NSTP1 (Year 1 1st semester)."],
+            'later term' => [0, [3], 'entries.0.prerequisites.0', "IT102 (Year 1 2nd semester) must come before GEC4 (Year 1 1st semester)."],
+            'itself'     => [3, [3], 'entries.3.prerequisites.0', "IT102 can't be its own prerequisite."],
+            'no entry'   => [3, [9], 'entries.3.prerequisites.0', 'This prerequisite is not in this curriculum.'],
+        ];
+
+        foreach ($cases as $name => [$entry, $prerequisites, $key, $message]) {
+            $payload = $this->payload();
+            $payload['entries'][$entry]['prerequisites'] = $prerequisites;
+            $response = $this->postJson('/api/staff/curriculums', $payload)->assertStatus(422);
+            $this->assertSame($message, $response->json('errors')[$key][0] ?? null, $name);
+            $this->assertSame($before, $this->counts(), $name);
+        }
+
+        $payload = $this->payload();
+        $payload['entries'][3]['prerequisite_logic'] = 'XOR';
+        $this->postJson('/api/staff/curriculums', $payload)->assertStatus(422);
+        $this->assertSame($before, $this->counts());
+    }
+
     public function test_a_failure_while_writing_rolls_everything_back(): void
     {
         $before = $this->counts();

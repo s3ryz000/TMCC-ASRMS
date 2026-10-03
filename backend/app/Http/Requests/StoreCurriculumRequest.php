@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Subject;
+use App\Services\CurriculumPrerequisites;
 use App\Support\CurriculumRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,7 +13,8 @@ use Illuminate\Validation\Validator;
  * Create a program together with its curriculum (#70):
  *
  *   { program: {code, name, description?},
- *     entries: [{subject_id | new_subject: {code, title, units, description?}, year_level, semester}] }
+ *     entries: [{subject_id | new_subject: {code, title, units, description?}, year_level, semester,
+ *                prerequisites?: [entry indexes], prerequisite_logic?: AND|OR}] }
  *
  * The program follows SaveProgramRequest, new subjects follow
  * SaveSubjectRequest (registrar code format, no duplicate codes or
@@ -38,6 +40,9 @@ class StoreCurriculumRequest extends FormRequest
         }
 
         foreach ($entries as $i => $entry) {
+            if (is_array($entry) && is_string($logic = $entry['prerequisite_logic'] ?? null)) {
+                $entries[$i]['prerequisite_logic'] = strtoupper(trim($logic));
+            }
             if (! is_array($entry) || ! is_array($entry['new_subject'] ?? null)) {
                 continue;
             }
@@ -62,6 +67,10 @@ class StoreCurriculumRequest extends FormRequest
             'entries.*.new_subject'  => ['nullable', 'required_without:entries.*.subject_id', 'array'],
             'entries.*.year_level'   => CurriculumRules::YEAR_LEVEL,
             'entries.*.semester'     => CurriculumRules::semester(),
+            // Prerequisites point at other entries of this payload by index (#27).
+            'entries.*.prerequisites'      => ['sometimes', 'array', 'max:20'],
+            'entries.*.prerequisites.*'    => ['integer', 'min:0', 'distinct'],
+            'entries.*.prerequisite_logic' => ['nullable', Rule::in(CurriculumPrerequisites::LOGIC)],
         ];
 
         foreach (SaveProgramRequest::fieldRules() as $field => $fieldRules) {
@@ -113,7 +122,62 @@ class StoreCurriculumRequest extends FormRequest
     /** Rules that need the database or the other entries. */
     public function after(): array
     {
-        return [fn (Validator $validator) => $this->checkEntries($validator)];
+        return [
+            fn (Validator $validator) => $this->checkEntries($validator),
+            fn (Validator $validator) => $this->checkPrerequisites($validator),
+        ];
+    }
+
+    /**
+     * Each prerequisite is another entry of this payload, at an earlier term
+     * (#27). Links that only point to earlier terms can't form a loop, so the
+     * editor's chain check isn't needed for a new curriculum.
+     */
+    private function checkPrerequisites(Validator $validator): void
+    {
+        $entries = $this->input('entries');
+        if (! is_array($entries)) {
+            return;
+        }
+
+        $errors = $validator->errors();
+        $existing = Subject::whereIn('id', collect($entries)->pluck('subject_id')->filter(fn ($id) => is_int($id) || ctype_digit((string) $id)))
+            ->pluck('code', 'id');
+        $code = fn ($i) => is_array($entries[$i] ?? null)
+            ? ($existing[(int) ($entries[$i]['subject_id'] ?? 0)] ?? $entries[$i]['new_subject']['code'] ?? 'Entry ' . ((int) $i + 1))
+            : 'Entry ' . ((int) $i + 1);
+        $term = fn ($entry) => is_array($entry)
+            && in_array($entry['year_level'] ?? null, [1, 2, 3, 4, '1', '2', '3', '4'], true)
+            && ($semester = CurriculumRules::semesterNumber($entry['semester'] ?? null))
+                ? CurriculumPrerequisites::termIndex($entry['year_level'], $semester)
+                : null;
+
+        foreach ($entries as $i => $entry) {
+            if (! is_array($entry) || ! is_array($entry['prerequisites'] ?? null)) {
+                continue;
+            }
+            $entryTerm = $term($entry);
+
+            foreach (array_values($entry['prerequisites']) as $j => $index) {
+                $key = "entries.{$i}.prerequisites.{$j}";
+                if ($errors->has($key) || ! (is_int($index) || ctype_digit((string) $index))) {
+                    continue;
+                }
+                $index = (int) $index;
+                $other = $entries[$index] ?? null;
+
+                if ($index === (int) $i) {
+                    $errors->add($key, "{$code($i)} can't be its own prerequisite.");
+                } elseif (! is_array($other)) {
+                    $errors->add($key, 'This prerequisite is not in this curriculum.');
+                } elseif ($entryTerm !== null && ($otherTerm = $term($other)) !== null && $otherTerm >= $entryTerm) {
+                    $errors->add($key, CurriculumPrerequisites::notEarlier(
+                        $code($index), $other['year_level'], CurriculumRules::semesterNumber($other['semester']),
+                        $code($i), $entry['year_level'], CurriculumRules::semesterNumber($entry['semester']),
+                    ));
+                }
+            }
+        }
     }
 
     private function checkEntries(Validator $validator): void

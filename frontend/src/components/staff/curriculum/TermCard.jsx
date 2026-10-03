@@ -13,7 +13,7 @@ const tdClass = 'py-2 px-3 border-b border-gray-100 align-top';
  *          usedIn, usedInCodes, errors }]
  * total: { units, subjects, overMax }
  */
-const TermCard = ({ yearLevel, semester, rows, total, canEdit, canAdd = canEdit, onAdd, renderRowActions }) => {
+const TermCard = ({ yearLevel, semester, rows, total, canEdit, canAdd = canEdit, onAdd, renderRowActions, renderPrerequisiteAction }) => {
   const headingId = `term-${yearLevel}-${semester}`;
 
   return (
@@ -80,13 +80,18 @@ const TermCard = ({ yearLevel, semester, rows, total, canEdit, canAdd = canEdit,
                   ))}
                 </td>
                 <td className={`${tdClass} text-center`}>{formatUnits(row.units)}</td>
-                {/* Prerequisites are read-only here; the prerequisite editor (#27) goes in this cell. */}
                 <td className={`${tdClass} text-gray-700`}>
                   {row.prerequisites || (row.unresolvedPrerequisites ? '' : <span className="text-gray-400">—</span>)}
-                  {row.prerequisites && row.unresolvedPrerequisites && ', '}
+                  {/* A prerequisite the seeder couldn't link (#20): enrollment is blocked until the registrar sets it (#27). */}
                   {row.unresolvedPrerequisites && (
-                    <span className="italic text-gray-400" title="Not linked to a subject">{row.unresolvedPrerequisites}</span>
+                    <span
+                      className="block mt-0.5 py-0.5 px-1.5 rounded-md text-[0.7rem] font-medium bg-amber-100 text-amber-900"
+                      title="Not linked to a subject; enrollment in this subject is blocked until the prerequisites are set"
+                    >
+                      Unresolved prerequisite: {row.unresolvedPrerequisites}
+                    </span>
                   )}
+                  {canEdit && renderPrerequisiteAction && <span className="block mt-1">{renderPrerequisiteAction(row)}</span>}
                 </td>
                 {canEdit && <td className={`${tdClass} text-right`}>{renderRowActions(row)}</td>}
               </tr>

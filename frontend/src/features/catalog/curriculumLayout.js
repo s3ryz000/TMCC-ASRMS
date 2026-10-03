@@ -97,6 +97,24 @@ function withYearAndProgramTotals(terms) {
   };
 }
 
+/** Terms in order: Y1S1 = 1, Y1S2 = 2, Y2S1 = 3 ... (CurriculumPrerequisites::termIndex). */
+export const termIndex = (yearLevel, semester) => (Number(yearLevel) - 1) * 2 + Number(semester);
+
+/**
+ * The rows that can be prerequisites of `row` (#27): every other row in an
+ * earlier term, in term order and then by code.
+ */
+export function prerequisiteCandidates(rows, row) {
+  const before = termIndex(row.yearLevel, row.semester);
+  return (rows ?? [])
+    .filter((r) => r.key !== row.key && termIndex(r.yearLevel, r.semester) < before)
+    .sort((a, b) => termIndex(a.yearLevel, a.semester) - termIndex(b.yearLevel, b.semester) || compareCodes(a.code, b.code));
+}
+
+/** "GEC5, THC1" for AND, "GEC5 or THC1" for OR, as the curriculum page writes them. */
+export const prerequisiteLabel = (codes, logic) =>
+  [...(codes ?? [])].sort(compareCodes).join(String(logic ?? '').toUpperCase() === 'OR' ? ' or ' : ', ');
+
 /**
  * Splits a 422's errors from POST /staff/curriculums: `entries.3.subject_id`
  * goes to entry 3, `program.code` to the program form, anything else to `other`.

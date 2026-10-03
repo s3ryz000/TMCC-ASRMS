@@ -46,7 +46,8 @@ class CurriculumController extends Controller
             ]);
 
             $newSubjects = [];
-            foreach ($validated['entries'] as $entry) {
+            $created = [];
+            foreach ($validated['entries'] as $index => $entry) {
                 $subjectId = $entry['subject_id'] ?? null;
 
                 if (isset($entry['new_subject'])) {
@@ -61,12 +62,23 @@ class CurriculumController extends Controller
                     $this->log($user, $role, "Subject created: {$subject->code} — {$subject->title}");
                 }
 
-                Curriculum::create([
-                    'program_id' => $program->id,
-                    'subject_id' => $subjectId,
-                    'year_level' => (int) $entry['year_level'],
-                    'semester'   => (string) CurriculumRules::semesterNumber($entry['semester']),
+                $created[$index] = Curriculum::create([
+                    'program_id'         => $program->id,
+                    'subject_id'         => $subjectId,
+                    'year_level'         => (int) $entry['year_level'],
+                    'semester'           => (string) CurriculumRules::semesterNumber($entry['semester']),
+                    'prerequisite_logic' => $entry['prerequisite_logic'] ?? 'AND',
                 ]);
+            }
+
+            // Prerequisites name other entries by index (#27); their subjects
+            // exist now, new ones included.
+            foreach ($validated['entries'] as $index => $entry) {
+                if (! empty($entry['prerequisites'])) {
+                    $created[$index]->prerequisites()->sync(
+                        array_map(fn ($i) => $created[(int) $i]->subject_id, $entry['prerequisites'])
+                    );
+                }
             }
 
             $count = count($validated['entries']);
