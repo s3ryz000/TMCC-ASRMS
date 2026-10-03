@@ -107,6 +107,7 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::post('/programs/{programId}/curriculum', [CurriculumEntryController::class, 'store']);
     Route::patch('/curriculum/{entryId}', [CurriculumEntryController::class, 'update']);
     Route::delete('/curriculum/{entryId}', [CurriculumEntryController::class, 'destroy']);
+    Route::put('/curriculum/{entryId}/prerequisites', [CurriculumEntryController::class, 'prerequisites']);
     // New Curriculum: a program with its curriculum in one transaction (#70)
     Route::post('/curriculums', [CurriculumController::class, 'store']);
 });

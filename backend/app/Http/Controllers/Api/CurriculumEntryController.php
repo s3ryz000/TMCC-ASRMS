@@ -9,6 +9,7 @@ use App\Models\Program;
 use App\Models\Subject;
 use App\Models\SystemLog;
 use App\Services\CurriculumImpact;
+use App\Services\CurriculumPrerequisites;
 use App\Support\CurriculumRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -200,6 +201,62 @@ class CurriculumEntryController extends Controller
         }
 
         return response()->json($this->impact->report($entry));
+    }
+
+    /**
+     * PUT /staff/curriculum/{entryId}/prerequisites {subject_ids: [...], logic: AND|OR}
+     *
+     * Replaces the entry's prerequisites (an empty list clears them). Allowed
+     * even when students have records: it applies to future enrollments only,
+     * and the screen shows the /impact count first (#28).
+     */
+    public function prerequisites(Request $request, int $entryId, CurriculumPrerequisites $prerequisites): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
+            return $err;
+        }
+
+        $entry = Curriculum::with(['program', 'subject'])->find($entryId);
+        if (! $entry) {
+            return response()->json(['message' => 'Curriculum entry not found.'], 404);
+        }
+
+        if (is_string($request->input('logic'))) {
+            $request->merge(['logic' => strtoupper(trim($request->input('logic')))]);
+        }
+        $validated = $request->validate([
+            'subject_ids'   => ['present', 'array', 'max:20'],
+            'subject_ids.*' => ['integer', 'distinct', Rule::exists('subjects', 'id')],
+            'logic'         => ['nullable', Rule::in(CurriculumPrerequisites::LOGIC)],
+        ], [
+            'subject_ids.*.exists'   => 'This subject does not exist.',
+            'subject_ids.*.distinct' => 'This subject is listed twice.',
+            'logic.in'               => 'The logic must be AND or OR.',
+        ]);
+        $subjectIds = array_map('intval', $validated['subject_ids']);
+        $logic = $validated['logic'] ?? 'AND';
+
+        if ($problems = $prerequisites->problems($entry, $subjectIds)) {
+            return response()->json([
+                'message' => reset($problems),
+                'errors'  => array_map(fn ($message) => [$message], $problems),
+            ], 422);
+        }
+
+        $prerequisites->save($entry, $subjectIds, $logic);
+
+        $codes = Subject::whereIn('id', $subjectIds)->pluck('code')->sort(SORT_NATURAL)->values();
+        $this->log($request, CurriculumPrerequisites::logMessage($entry->program->code, $entry->subject->code, $codes, $logic));
+
+        return response()->json([
+            'message' => $codes->isEmpty()
+                ? "{$entry->subject->code} has no prerequisites now."
+                : "{$entry->subject->code} now requires " . $codes->join($logic === 'OR' ? ' or ' : ' and ') . '.',
+            'entry'   => $this->present($entry->fresh(['program', 'subject'])),
+        ]);
     }
 
     /**
