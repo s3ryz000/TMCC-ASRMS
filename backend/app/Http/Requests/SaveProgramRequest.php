@@ -12,19 +12,27 @@ class SaveProgramRequest extends FormRequest
         return true;
     }
 
-    public function rules(): array
+    public const CODE_TAKEN = 'A program with this code already exists.';
+
+    /** Also used when a program is created with its curriculum (#70). */
+    public static function fieldRules(mixed $ignoreId = null): array
     {
         return [
-            'code'        => ['required', 'string', 'max:20', Rule::unique('programs', 'code')->ignore($this->route('id'))],
+            'code'        => ['required', 'string', 'max:20', Rule::unique('programs', 'code')->ignore($ignoreId)],
             'name'        => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:255'],
         ];
     }
 
+    public function rules(): array
+    {
+        return self::fieldRules($this->route('id'));
+    }
+
     public function messages(): array
     {
         return [
-            'code.unique' => 'A program with this code already exists.',
+            'code.unique' => self::CODE_TAKEN,
         ];
     }
 }

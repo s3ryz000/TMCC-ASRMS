@@ -228,6 +228,17 @@ export const staffApi = {
   // ── Curriculum builder (registrar staff, #24) ──
   // After any of these, call invalidateCurriculum(queryClient, programId).
 
+  /**
+   * Create a program with its curriculum in one transaction (#70).
+   * Payload: { program: { code, name, description? },
+   *   entries: [{ subject_id | new_subject: { code, title, units, description? }, year_level, semester }] }.
+   * 422 errors are keyed by entry index (entries.3.subject_id); nothing is saved on error.
+   */
+  createCurriculum: async (payload) => {
+    const { data } = await apiClient.post('/staff/curriculums', payload);
+    return data;
+  },
+
   /** Place a subject in a program. Payload: subject_id, year_level (1-4), semester (1 or 2). */
   addCurriculumEntry: async (programId, payload) => {
     const { data } = await apiClient.post(`/staff/programs/${programId}/curriculum`, payload);

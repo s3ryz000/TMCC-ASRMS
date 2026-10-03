@@ -15,7 +15,28 @@ use Illuminate\Validation\Validator;
  */
 class SaveSubjectRequest extends FormRequest
 {
+    /** Field rules, also used for new subjects in the curriculum builder (#70); uniqueness is checked separately. */
+    public const FIELD_RULES = [
+        'code'        => ['required', 'string', 'max:20'],
+        'title'       => ['required', 'string', 'max:150'],
+        'units'       => ['required', 'integer', 'min:0', 'max:12'],
+        'description' => ['nullable', 'string', 'max:255'],
+    ];
+
+    public const CODE_TAKEN = 'A subject with this code already exists.';
+
     private Subject|false|null $current = false;
+
+    public static function similarTitleMessage(Subject $existing): string
+    {
+        return "This looks like {$existing->code} {$existing->title}, which already exists. Reuse it instead.";
+    }
+
+    /** A title as it is stored: trimmed, inner whitespace collapsed. */
+    public static function cleanTitle(string $title): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($title));
+    }
 
     public function authorize(): bool
     {
@@ -41,7 +62,7 @@ class SaveSubjectRequest extends FormRequest
         }
 
         if (is_string($title = $this->input('title'))) {
-            $merge['title'] = preg_replace('/\s+/u', ' ', trim($title));
+            $merge['title'] = self::cleanTitle($title);
         }
 
         $this->merge($merge);
@@ -49,12 +70,9 @@ class SaveSubjectRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
-            'code'        => ['required', 'string', 'max:20', $this->uniqueCode(...)],
-            'title'       => ['required', 'string', 'max:150'],
-            'units'       => ['required', 'integer', 'min:0', 'max:12'],
-            'description' => ['nullable', 'string', 'max:255'],
-        ];
+        return array_merge(self::FIELD_RULES, [
+            'code' => [...self::FIELD_RULES['code'], $this->uniqueCode(...)],
+        ]);
     }
 
     /** Refuse a title that is a spelling variant of another subject's. */
@@ -66,24 +84,16 @@ class SaveSubjectRequest extends FormRequest
                     return;
                 }
 
-                $normalized = Subject::normalizeTitle($this->input('title'));
+                $title = $this->input('title');
                 $current = $this->currentSubject();
 
                 // Keeping (or re-spacing) its own title is always allowed.
-                if ($current && Subject::normalizeTitle($current->title) === $normalized) {
+                if ($current && Subject::normalizeTitle($current->title) === Subject::normalizeTitle($title)) {
                     return;
                 }
 
-                $existing = Subject::query()
-                    ->when($current, fn ($q) => $q->whereKeyNot($current->id))
-                    ->get(['id', 'code', 'title'])
-                    ->first(fn (Subject $subject) => Subject::normalizeTitle($subject->title) === $normalized);
-
-                if ($existing) {
-                    $validator->errors()->add(
-                        'title',
-                        "This looks like {$existing->code} {$existing->title}, which already exists. Reuse it instead."
-                    );
+                if ($existing = Subject::withSimilarTitle($title, $current?->id)) {
+                    $validator->errors()->add('title', self::similarTitleMessage($existing));
                 }
             },
         ];
@@ -95,13 +105,8 @@ class SaveSubjectRequest extends FormRequest
      */
     private function uniqueCode(string $attribute, mixed $value, Closure $fail): void
     {
-        $taken = Subject::query()
-            ->whereRaw("UPPER(REPLACE(REPLACE(code, ' ', ''), '-', '')) = ?", [Subject::formatCode((string) $value)])
-            ->when($this->currentSubject(), fn ($q, $current) => $q->whereKeyNot($current->id))
-            ->exists();
-
-        if ($taken) {
-            $fail('A subject with this code already exists.');
+        if (Subject::withCode((string) $value, $this->currentSubject()?->id)) {
+            $fail(self::CODE_TAKEN);
         }
     }
 

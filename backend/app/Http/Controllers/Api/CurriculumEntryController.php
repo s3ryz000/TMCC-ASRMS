@@ -9,8 +9,7 @@ use App\Models\Program;
 use App\Models\Subject;
 use App\Models\SystemLog;
 use App\Services\CurriculumImpact;
-use App\Services\Enrollment\EnrollmentTerm;
-use Closure;
+use App\Support\CurriculumRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +52,7 @@ class CurriculumEntryController extends Controller
             ...$this->termRules(),
         ]);
         $yearLevel = (int) $validated['year_level'];
-        $semester = EnrollmentTerm::normaliseSemester($validated['semester']);
+        $semester = CurriculumRules::semesterNumber($validated['semester']);
 
         if ($program->archived_at !== null) {
             return $this->refuse('program', "{$program->code} is archived and can't receive new subjects.");
@@ -61,14 +60,13 @@ class CurriculumEntryController extends Controller
 
         $subject = Subject::find($validated['subject_id']);
         if ($subject->archived_at !== null) {
-            return $this->refuse('subject_id', "{$subject->code} {$subject->title} is archived and can't be placed in a curriculum.");
+            return $this->refuse('subject_id', CurriculumRules::archivedSubject($subject));
         }
 
         // A subject appears once per program; the unique index backs this up.
         $existing = Curriculum::where('program_id', $program->id)->where('subject_id', $subject->id)->first();
         if ($existing) {
-            return $this->refuse('subject_id', "{$subject->code} is already in {$program->code}, "
-                . $this->termLabel($existing->year_level, $existing->semester) . '.');
+            return $this->refuse('subject_id', CurriculumRules::alreadyPlaced($subject->code, $program->code, $existing->year_level, $existing->semester));
         }
 
         $entry = Curriculum::create([
@@ -78,10 +76,10 @@ class CurriculumEntryController extends Controller
             'semester'   => (string) $semester,
         ]);
 
-        $this->log($request, "Curriculum: placed {$subject->code} in {$program->code} " . $this->termShort($yearLevel, $semester));
+        $this->log($request, "Curriculum: placed {$subject->code} in {$program->code} " . CurriculumRules::termShort($yearLevel, $semester));
 
         return response()->json([
-            'message' => "{$subject->code} placed in {$program->code}, " . $this->termLabel($yearLevel, $semester) . '.',
+            'message' => "{$subject->code} placed in {$program->code}, " . CurriculumRules::termLabel($yearLevel, $semester) . '.',
             'entry'   => $this->present($entry),
         ], 201);
     }
@@ -103,7 +101,7 @@ class CurriculumEntryController extends Controller
 
         $validated = $request->validate($this->termRules());
         $yearLevel = (int) $validated['year_level'];
-        $semester = EnrollmentTerm::normaliseSemester($validated['semester']);
+        $semester = CurriculumRules::semesterNumber($validated['semester']);
 
         $fromYear = (int) $entry->year_level;
         $fromSemester = (int) $entry->semester;
@@ -112,7 +110,7 @@ class CurriculumEntryController extends Controller
 
         if ($fromYear === $yearLevel && $fromSemester === $semester) {
             return response()->json([
-                'message' => "{$code} is already in " . $this->termLabel($yearLevel, $semester) . '.',
+                'message' => "{$code} is already in " . CurriculumRules::termLabel($yearLevel, $semester) . '.',
                 'entry'   => $this->present($entry),
             ]);
         }
@@ -124,10 +122,10 @@ class CurriculumEntryController extends Controller
         $entry->update(['year_level' => $yearLevel, 'semester' => (string) $semester]);
 
         $this->log($request, "Curriculum: moved {$code} in {$programCode} from "
-            . $this->termShort($fromYear, $fromSemester) . ' to ' . $this->termShort($yearLevel, $semester));
+            . CurriculumRules::termShort($fromYear, $fromSemester) . ' to ' . CurriculumRules::termShort($yearLevel, $semester));
 
         return response()->json([
-            'message' => "{$code} moved to " . $this->termLabel($yearLevel, $semester) . '.',
+            'message' => "{$code} moved to " . CurriculumRules::termLabel($yearLevel, $semester) . '.',
             'entry'   => $this->present($entry),
         ]);
     }
@@ -177,7 +175,7 @@ class CurriculumEntryController extends Controller
         });
 
         $this->log($request, "Curriculum: removed {$code} from {$programCode} "
-            . $this->termShort((int) $entry->year_level, (int) $entry->semester));
+            . CurriculumRules::termShort((int) $entry->year_level, (int) $entry->semester));
 
         return response()->json(['message' => "{$code} removed from {$programCode}."]);
     }
@@ -223,12 +221,8 @@ class CurriculumEntryController extends Controller
     private function termRules(): array
     {
         return [
-            'year_level' => ['required', 'integer', 'between:1,4'],
-            'semester'   => ['required', function (string $attribute, mixed $value, Closure $fail) {
-                if ((! is_int($value) && ! is_string($value)) || EnrollmentTerm::normaliseSemester($value) === null) {
-                    $fail('The semester must be 1st or 2nd.');
-                }
-            }],
+            'year_level' => CurriculumRules::YEAR_LEVEL,
+            'semester'   => CurriculumRules::semester(),
         ];
     }
 
@@ -245,18 +239,6 @@ class CurriculumEntryController extends Controller
     private function refuse(string $field, string $message): JsonResponse
     {
         return response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422);
-    }
-
-    /** "Year 1 1st semester" */
-    private function termLabel(int|string $yearLevel, int|string $semester): string
-    {
-        return 'Year ' . (int) $yearLevel . ' ' . ((int) $semester === 1 ? '1st' : '2nd') . ' semester';
-    }
-
-    /** "Y1 S2", for the system log. */
-    private function termShort(int|string $yearLevel, int|string $semester): string
-    {
-        return 'Y' . (int) $yearLevel . ' S' . (int) $semester;
     }
 
     private function log(Request $request, string $action): void

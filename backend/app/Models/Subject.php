@@ -48,6 +48,30 @@ class Subject extends Model
     }
 
     /**
+     * The subject holding this code, compared in the registrar's format
+     * (ignoring case, spaces and dashes) so "GEC 4" finds GEC4 and SQLite and
+     * MySQL agree.
+     */
+    public static function withCode(string $code, ?int $exceptId = null): ?self
+    {
+        return static::query()
+            ->whereRaw("UPPER(REPLACE(REPLACE(code, ' ', ''), '-', '')) = ?", [static::formatCode($code)])
+            ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))
+            ->first();
+    }
+
+    /** An existing subject whose title is a spelling variant of this one. */
+    public static function withSimilarTitle(string $title, ?int $exceptId = null): ?self
+    {
+        $normalized = static::normalizeTitle($title);
+
+        return static::query()
+            ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))
+            ->get(['id', 'code', 'title'])
+            ->first(fn (self $subject) => static::normalizeTitle($subject->title) === $normalized);
+    }
+
+    /**
      * A title reduced to what tells courses apart, so spelling variants of one
      * course compare equal: case, spacing, "&" for "and", "Lab" for
      * "Laboratory" and a leading "The" are ignored.
