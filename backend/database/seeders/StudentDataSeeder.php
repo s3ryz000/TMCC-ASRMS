@@ -10,6 +10,7 @@ use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
+use App\Support\AcademicStatus;
 use Illuminate\Database\Seeder;
 
 class StudentDataSeeder extends Seeder
@@ -104,14 +105,16 @@ class StudentDataSeeder extends Seeder
             if (! $sub) {
                 continue;
             }
-            Enrollment::firstOrCreate(
+            // Every grade belongs to an enrollment (#19), with statuses from
+            // the one vocabulary (#18).
+            $enrollment = Enrollment::firstOrCreate(
                 [
                     'student_id' => $student->student_id,
                     'subject_id' => $sub->id,
                     'academic_year' => $ay,
                     'semester' => $sem,
                 ],
-                ['status' => 'enrolled']
+                ['status' => AcademicStatus::PASSED]
             );
             Grade::firstOrCreate(
                 [
@@ -120,7 +123,7 @@ class StudentDataSeeder extends Seeder
                     'academic_year' => $ay,
                     'semester' => $sem,
                 ],
-                ['grade_value' => 1.75, 'remarks' => 'Passed']
+                ['grade_value' => 1.75, 'remarks' => 'Passed', 'status' => AcademicStatus::PASSED, 'enrollment_id' => $enrollment->id]
             );
         }
 
