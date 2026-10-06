@@ -44,9 +44,11 @@ export const AuthProvider = ({ children }) => {
   const logoutMutation = useLogoutMutation();
   const { data: user, isLoading: isUserLoading } = useCurrentUserQuery();
 
-  // Clear auth query cache when 401 is received (api client dispatches auth:logout)
+  // On a 401 (the api client dispatches auth:logout) drop every cached record,
+  // not just the user, so nothing of this session outlives it (#58).
   useEffect(() => {
     const handler = () => {
+      queryClient.clear();
       queryClient.setQueryData(queryKeys.auth.user(), null);
     };
     window.addEventListener('auth:logout', handler);
@@ -73,9 +75,11 @@ export const AuthProvider = ({ children }) => {
       await logoutMutation.mutateAsync();
     } catch {
       clearStoredAuth();
+      queryClient.clear();
+      queryClient.setQueryData(queryKeys.auth.user(), null);
     }
     navigate('/', { replace: true });
-  }, [logoutMutation, navigate]);
+  }, [logoutMutation, navigate, queryClient]);
 
   const value = {
     user,

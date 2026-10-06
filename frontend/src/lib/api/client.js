@@ -51,7 +51,12 @@ apiClient.interceptors.response.use(
       window.dispatchEvent(new Event('auth:logout'));
     }
 
-    console.error('[API Error]', message, error.response?.data ?? error);
+    // Status and message only, and only while developing: response bodies can
+    // hold student data (e.g. a student-number conflict card), which must not
+    // end up in the browser console (#58).
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[API Error]', message);
+    }
     return Promise.reject(error);
   }
 );

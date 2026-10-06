@@ -24,6 +24,7 @@ use App\Models\Subject;
 use App\Models\SystemLog;
 use App\Models\User;
 use App\Support\AcademicStatus;
+use App\Support\SafeLog;
 use App\Support\StudentNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -218,7 +219,7 @@ class StudentController extends Controller
             // Curriculum violations are a 422 with usable messages, not a 500.
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Failed to create student and account: ' . $e->getMessage());
+            Log::error('Failed to create student and account: ' . SafeLog::describe($e), SafeLog::context($e));
            return response()->json(['message' => 'Failed to create student and account.'], 500);
         }
     }
@@ -1032,7 +1033,7 @@ class StudentController extends Controller
             ]);
             return response()->json(['message' => 'Student archived successfully.']);
         } catch (\Exception $e) {
-            Log::error('Failed to archive student: ' . $e->getMessage());
+            Log::error('Failed to archive student: ' . SafeLog::describe($e), SafeLog::context($e));
             return response()->json(['message' => 'Failed to archive student.'], 500);
         }
     }
@@ -1334,7 +1335,7 @@ class StudentController extends Controller
                 'progress'      => $progress,
             ]);
         } catch (\Exception $e) {
-            \Log::error("bulkUpdateGrades Error: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            \Log::error('bulkUpdateGrades failed: ' . SafeLog::describe($e), SafeLog::context($e));
             return response()->json([
                 'message' => 'Exception after saving grades: ' . $e->getMessage()
             ], 500);

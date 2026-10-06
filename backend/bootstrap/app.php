@@ -29,6 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // An unhandled QueryException is logged without the query's bound
+        // values, which hold student data (#58).
+        $exceptions->report(function (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::error(\App\Support\SafeLog::describe($e), \App\Support\SafeLog::context($e));
+        })->stop();
+
         // Ensure API requests always receive JSON and no internal leakage
         $exceptions->shouldRenderJsonWhen(function (Request $request, \Throwable $e) {
             return $request->is('api/*') || $request->expectsJson();

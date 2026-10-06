@@ -30,6 +30,8 @@ export const useLogoutMutation = () => {
     mutationFn: () => authApi.logout(),
     onSuccess: () => {
       clearStoredAuth();
+      // Drop every cached record so the next user of this tab never sees it (#58).
+      queryClient.clear();
       queryClient.setQueryData(queryKeys.auth.user(), null);
     },
   });

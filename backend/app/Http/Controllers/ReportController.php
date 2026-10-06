@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Models\RecordRequest;
 use App\Models\Student;
 use App\Models\SystemLog;
+use App\Support\SafeLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -92,7 +93,7 @@ class ReportController extends Controller
             return response()->json($items);
     
         } catch (\Exception $e) {
-            Log::error('error while fetching logs: ' . $e->getMessage());
+            Log::error('error while fetching logs: ' . SafeLog::describe($e), SafeLog::context($e));
             return response()->json([
                 'message' => 'Failed to get transaction history',
                 'error' => $e->getMessage()
