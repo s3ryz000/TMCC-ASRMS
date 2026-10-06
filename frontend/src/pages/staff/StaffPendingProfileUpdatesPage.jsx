@@ -147,7 +147,7 @@ const StaffPendingProfileUpdatesPage = () => {
                 </p>
               </div>
 
-              {selectedUpdate.supporting_document_path && (
+              {selectedUpdate.has_supporting_document && (
                 <div className="mb-5">
                   <p className="text-sm text-gray-500 m-0 mb-1">Supporting Document</p>
                   <div className="flex items-center gap-3 bg-indigo-50/50 border border-indigo-100 p-3 rounded-lg">

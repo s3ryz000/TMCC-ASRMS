@@ -33,6 +33,19 @@ class PendingStudentUpdate extends Model
         'reviewed_at' => 'datetime',
     ];
 
+    /**
+     * The storage path is an internal detail (#58): clients learn only that a
+     * document is attached and download it by the update's id.
+     */
+    protected $hidden = ['supporting_document_path'];
+
+    protected $appends = ['has_supporting_document'];
+
+    public function getHasSupportingDocumentAttribute(): bool
+    {
+        return (string) $this->supporting_document_path !== '';
+    }
+
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class, 'student_id', 'student_id');
