@@ -25,3 +25,5 @@ Thumbs.db
 /docs/
 /docs
 /docs*
+# Backups (#62): never commit them, they contain personal data.
+/storage/app/backups/

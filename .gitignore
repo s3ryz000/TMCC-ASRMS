@@ -13,3 +13,6 @@ workflow.txt
 /node_modules
 node_modules
 
+
+# ASRMS backup archives (#62) contain personal data; never commit them.
+asrms-*.zip
