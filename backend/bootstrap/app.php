@@ -20,6 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);
+
+        // Guests are never redirected from the API: there is no login route on
+        // the backend (the SPA owns /login), and building that redirect threw
+        // "Route [login] not defined", which the API reported as a 500 to any
+        // request without Accept: application/json (#58). With no redirect,
+        // the AuthenticationException handler below answers 401 JSON.
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Ensure API requests always receive JSON and no internal leakage
