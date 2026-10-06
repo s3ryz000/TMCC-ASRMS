@@ -58,4 +58,10 @@ export const adminApi = {
     const { data } = await apiClient.get('/admin/logs/export-pdf', { responseType: 'blob' });
     return data;
   },
+
+  // ---- Backups (#65) ----
+  getBackupStatus: async () => {
+    const { data } = await apiClient.get('/admin/backups/status');
+    return data;
+  },
 };

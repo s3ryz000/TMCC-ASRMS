@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BackupStatusController;
 use App\Http\Controllers\Admin\SystemLogController;
 use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
@@ -171,6 +172,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/settings', [SystemSettingsController::class, 'show']);
     Route::put('/settings', [SystemSettingsController::class, 'update']);
+    Route::get('/backups/status', [BackupStatusController::class, 'show']);
 });
 
 // ---- Admin only: Reports export ----

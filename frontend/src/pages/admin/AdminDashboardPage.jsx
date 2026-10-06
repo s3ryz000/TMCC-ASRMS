@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiInbox, FiUserPlus, FiBarChart2, FiSettings, FiCheck, FiX } from 'react-icons/fi';
 import { formatTime } from '../../lib/tools';
 import { dashboardApi } from '../../lib/api/dashboardApi';
+import BackupStatusCard from '../../components/admin/BackupStatusCard';
 
 const AdminDashboardPage = () => {
   const [activity, setActivity] = useState([]);
@@ -58,6 +59,8 @@ const AdminDashboardPage = () => {
         <p className="mt-1 m-0 text-gray-600 text-sm">System overview and quick access to key functions.</p>
       </section>
 
+      <BackupStatusCard />
+
       <section className="mb-8">
         <h3 className="mb-4 text-lg font-semibold text-gray-800">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -93,7 +96,7 @@ const AdminDashboardPage = () => {
                 {activityIcon(item.type)}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="m-0 text-sm text-gray-800">{item.desc} - {item.user.name}</p>
+                <p className="m-0 text-sm text-gray-800">{item.desc} - {item.user?.name ?? 'System'}</p>
                 <p className="m-0 text-xs text-gray-500">{item.time}</p>
               </div>
             </li>

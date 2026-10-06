@@ -13,6 +13,7 @@ export const queryKeys = {
     settings: () => [...queryKeys.admin.all, 'systemSettings'],
     logs: () => [...queryKeys.admin.all, 'systemLogs'],
     logsList: (filters) => [...queryKeys.admin.all, 'systemLogs', filters],
+    backupStatus: () => [...queryKeys.admin.all, 'backupStatus'],
   },
   staff: {
     all: ['staff'],

@@ -5,6 +5,7 @@ namespace App\Services\Backup;
 use App\Models\SystemLog;
 use App\Models\SystemSetting;
 use App\Support\SafeLog;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -229,6 +230,56 @@ class BackupService
     public function lastSuccess(): ?array
     {
         return $this->decode(SystemSetting::getValue(self::SETTING_LAST_SUCCESS));
+    }
+
+    /**
+     * What the admin's Backups card shows (#65). Not "ok" when the last run
+     * failed or the last success is older than stale_after_hours (26 h: a
+     * missed 6 PM backup shows by the next evening).
+     */
+    public function status(): array
+    {
+        $lastRun = $this->lastRun();
+        $lastSuccess = $this->lastSuccess();
+        $hours = (int) config('asrms.backup.stale_after_hours', 26);
+        $successAt = isset($lastSuccess['at']) ? Carbon::parse($lastSuccess['at']) : null;
+        $stale = $successAt === null || $successAt->lt(now()->subHours($hours));
+        $failed = $lastRun !== null && ! ($lastRun['ok'] ?? false);
+
+        return [
+            'ok' => ! $stale && ! $failed,
+            'stale' => $stale,
+            'stale_after_hours' => $hours,
+            'last_success' => $lastSuccess === null ? null : [
+                'at' => $lastSuccess['at'] ?? null,
+                'file' => $lastSuccess['file'] ?? null,
+                'folder' => $lastSuccess['folder'] ?? null,
+                'bytes' => $lastSuccess['bytes'] ?? null,
+                'hours_ago' => $successAt ? round($successAt->diffInMinutes(now()) / 60, 1) : null,
+            ],
+            'last_run' => $lastRun === null ? null : [
+                'at' => $lastRun['at'] ?? null,
+                'ok' => (bool) ($lastRun['ok'] ?? false),
+                'label' => $lastRun['label'] ?? null,
+                'file' => $lastRun['file'] ?? null,
+                'message' => $lastRun['message'] ?? null,
+            ],
+            'copies' => $this->copies(),
+            'location' => $this->root(),
+            'free_bytes' => $this->freeSpace(),
+        ];
+    }
+
+    /** Free space on the backup drive, or null if it can't be read. */
+    public function freeSpace(): ?int
+    {
+        $dir = $this->root();
+        while ($dir !== '' && ! is_dir($dir) && dirname($dir) !== $dir) {
+            $dir = dirname($dir);
+        }
+        $free = $dir !== '' && is_dir($dir) ? @disk_free_space($dir) : false;
+
+        return $free === false ? null : (int) $free;
     }
 
     /** Number of backup sets per folder. */

@@ -59,7 +59,8 @@ class DashboardController extends Controller
                     'type' => 'default',
                     'desc' => $log->action,
                     'time' => $log->created_at,
-                    'user' => $log->user,
+                    // Scheduled jobs (backups, #62) log without a user.
+                    'user' => $log->user ?? ['id' => null, 'name' => 'System'],
                 ];
             });
 
