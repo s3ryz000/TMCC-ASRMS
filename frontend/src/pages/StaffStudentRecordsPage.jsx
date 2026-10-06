@@ -313,12 +313,7 @@ const StaffStudentRecordsPage = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            navigate(
-                              `/staff/students/${student?.student_id}/edit`,
-                              { state: { student } },
-                            )
-                          }
+                          onClick={() => navigate(`/staff/students/${student?.student_id}/edit`)}
                           className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-colors"
                           aria-label={`Edit ${student?.name}`}
                         >
@@ -394,9 +389,7 @@ const StaffStudentRecordsPage = () => {
         onFetchStudent={(id) => staffApi.getStudentById(id)}
         onEdit={(s) => {
           setViewingStudent(null);
-          navigate(`/staff/students/${s?.student_id ?? s.id}/edit`, {
-            state: { student: s },
-          });
+          navigate(`/staff/students/${s?.student_id ?? s.id}/edit`);
         }}
       />
     </>

@@ -584,7 +584,6 @@ const ViewRecordsPage = () => {
                     <div className="flex justify-end pt-1">
                       <Link
                         to={`${basePath}/students/${student.student_id}/edit`}
-                        state={{ student }}
                         className="inline-flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 no-underline shadow-sm"
                       >
                         <FiEdit2 className="w-4 h-4" />

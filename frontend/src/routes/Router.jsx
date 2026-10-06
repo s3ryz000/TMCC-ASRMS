@@ -21,7 +21,9 @@ import StaffPendingRequestsPage from '../pages/StaffPendingRequestsPage';
 import StaffStudentRecordsPage from '../pages/StaffStudentRecordsPage';
 import StaffDocumentReleasePage from '../pages/StaffDocumentReleasePage';
 import StaffNewStudentPage from '../pages/StaffNewStudentPage';
-import StaffEditStudentPage from '../pages/StaffEditStudentPage';
+import StaffEditStudentHubPage from '../pages/staff/StaffEditStudentHubPage';
+import StaffEditStudentInformationPage from '../pages/staff/StaffEditStudentInformationPage';
+import StaffEditStudentGradesPage from '../pages/staff/StaffEditStudentGradesPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
 import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
 import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
@@ -124,7 +126,10 @@ const router = createBrowserRouter([
           { path: 'view-records', element: <ViewRecordsPage /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },
           { path: 'students/id-check', element: <StaffIdCheckPage /> },
-          { path: 'students/:id/edit', element: <StaffEditStudentPage /> },
+          // Edit Student (#55): a hub, then one page per section.
+          { path: 'students/:id/edit', element: <StaffEditStudentHubPage /> },
+          { path: 'students/:id/edit/information', element: <StaffEditStudentInformationPage /> },
+          { path: 'students/:id/edit/grades', element: <StaffEditStudentGradesPage /> },
           { path: 'catalog', element: <Navigate to="/staff/catalog/subjects" replace /> },
           { path: 'catalog/subjects', element: <StaffCatalogLandingPage type="subjects" /> },
           { path: 'catalog/subjects/view', element: <StaffCatalogPage type="subjects" /> },
