@@ -355,6 +355,27 @@ export const staffApi = {
     return data.summary;
   },
 
+  /**
+   * The whole academic summary response for the record page (#57):
+   * { student, summary: { overall_gwa, latin_honors, terms, years }, curriculum: { roadmap, ... }, notifications }.
+   */
+  getAcademicRecord: async (studentId) => {
+    const { data } = await apiClient.get(`/staff/students/${studentId}/academic-summary`);
+    return data;
+  },
+
+  /** Documents uploaded to a student's record (staff/admin, view and download only). */
+  getStudentDocuments: async (studentId) => {
+    const { data } = await apiClient.get(`/staff/students/${studentId}/documents`);
+    return data;
+  },
+  downloadStudentDocument: async (studentId, documentId) => {
+    const response = await apiClient.get(`/staff/students/${studentId}/documents/${documentId}/download`, {
+      responseType: 'blob',
+    });
+    return response;
+  },
+
   /** Add enrollment for the next allowed term. Backend computes term. */
   addNextTerm: async (studentId, payload) => {
     const { data } = await apiClient.post(`/staff/students/${studentId}/enrollments/add-next-term`, payload);

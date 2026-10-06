@@ -20,11 +20,9 @@ export function editSectionOf(pathname) {
   return EDIT_SECTIONS.includes(match[1]) ? match[1] : null;
 }
 
-/**
- * Where a student's read-only record lives, and where non-registrars and Back
- * links go. Student Records for now; Manage Records' record page with #57.
- */
-export const studentListPath = () => '/staff/students';
+/** Manage Records (#57): the list, and a student's full read-only record page. */
+export const RECORDS_PATH = '/staff/records';
+export const recordPath = (id) => `${RECORDS_PATH}/${encodeURIComponent(id)}`;
 
 /**
  * Where Previous goes from an Edit Student section: always the hub, never the

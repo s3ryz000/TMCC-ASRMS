@@ -1,4 +1,4 @@
-import { editSectionOf, editStudentPaths, isDirty, previousOf } from './studentRoutes';
+import { editSectionOf, editStudentPaths, isDirty, previousOf, recordPath } from './studentRoutes';
 
 describe('Edit Student routes (#55)', () => {
   test('the hub and its two sections', () => {
@@ -20,6 +20,10 @@ describe('Edit Student routes (#55)', () => {
 
   test('Previous always returns to the hub, never to the other section', () => {
     expect(previousOf(12)).toBe('/staff/students/12/edit');
+  });
+
+  test('the read-only record page (#57)', () => {
+    expect(recordPath(12)).toBe('/staff/records/12');
   });
 
   test('the form is dirty only when a field differs from what was loaded', () => {

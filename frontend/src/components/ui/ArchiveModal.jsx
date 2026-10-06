@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FiArchive, FiX } from 'react-icons/fi';
 
-const ArchiveModal = ({ isOpen, onClose, student }) => {
+// onArchived (optional) runs after a successful archive, before onClose.
+const ArchiveModal = ({ isOpen, onClose, student, onArchived }) => {
   const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
@@ -26,6 +27,7 @@ const ArchiveModal = ({ isOpen, onClose, student }) => {
 
       await staffApi.archiveStudent(student.student_id, form);
 
+      onArchived?.();
       onClose();
 
       queryClient.invalidateQueries({

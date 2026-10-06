@@ -24,12 +24,12 @@ const StaffIdCheckPage = () => {
     enabled: role === 'staff',
   });
 
-  if (role !== 'staff') return <Navigate to="/staff/students" replace />;
+  if (role !== 'staff') return <Navigate to="/staff/records" replace />;
 
   return (
     <>
-      <Link to="/staff/students" className="inline-flex items-center gap-1 mb-2 text-sm text-gray-600 no-underline hover:text-tmcc">
-        <FiChevronLeft aria-hidden /> Student Records
+      <Link to="/staff/records" className="inline-flex items-center gap-1 mb-2 text-sm text-gray-600 no-underline hover:text-tmcc">
+        <FiChevronLeft aria-hidden /> Manage Records
       </Link>
       <section className="mb-6">
         <h2 className="m-0 text-2xl font-bold text-gray-800">ID check</h2>
@@ -72,7 +72,7 @@ const StaffIdCheckPage = () => {
                   <td className={tdClass}>{row.enrollment_date ?? '—'}</td>
                   <td className={`${tdClass} text-amber-800`}>{row.problem}</td>
                   <td className={`${tdClass} text-right`}>
-                    <Link to={`/staff/students/${row.student_id}/edit`} className="text-tmcc font-medium no-underline hover:underline">
+                    <Link to={`/staff/students/${row.student_id}/edit/information`} className="text-tmcc font-medium no-underline hover:underline">
                       Open student
                     </Link>
                   </td>

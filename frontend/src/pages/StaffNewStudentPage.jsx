@@ -11,6 +11,7 @@ import { localDateString } from "../lib/tools";
 import StudentNumberField from "../components/staff/StudentNumberField";
 import StudentNumberConflictCard from "../components/staff/StudentNumberConflictCard";
 import { composeStudentNumber, isCompletePart, partOf, yearPrefix } from "../features/students/studentNumber";
+import { RECORDS_PATH, recordPath } from "../features/students/studentRoutes";
 
 const defaultForm = {
   student_number: "",
@@ -230,11 +231,13 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         queryKey: [...queryKeys.staff.all, "students"],
       });
       setSubmitStatus("success");
-      setCreatedAccount(
-        res?.account
+      setCreatedAccount({
+        ...(res?.account
           ? { username: res.account.username, password: res.account.password }
-          : { username: payload.student_number, password: "password123" },
-      );
+          : { username: payload.student_number, password: "password123" }),
+        // For "Open the record" (#57); the record page loads the student itself.
+        studentId: res?.student?.student_id ?? null,
+      });
       setForm(defaultForm);
       setErrors({});
       setConflict(null);
@@ -297,10 +300,10 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   return (
     <>
       <Link
-        to={`${basePath}/students`}
+        to={RECORDS_PATH}
         className="inline-flex items-center gap-2 mb-6 text-tmcc text-sm font-medium no-underline hover:text-tmcc-dark hover:underline"
       >
-        <FiArrowLeft /> Back to Student Records
+        <FiArrowLeft /> Back to Manage Records
       </Link>
 
       <section className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
@@ -310,8 +313,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
           </h3>
           <p className="m-0 text-gray-600 text-sm">
             Register a new student account. All fields marked with * are
-            required. Data is saved to the student records database per ASRMS
-            thesis requirements.
+            required.
           </p>
         </div>
 
@@ -928,12 +930,13 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
             <button
               type="button"
               onClick={() => {
+                const studentId = createdAccount?.studentId;
                 closeSuccessModal();
-                navigate(`${basePath}/students`);
+                navigate(studentId ? recordPath(studentId) : RECORDS_PATH);
               }}
               className="py-2.5 px-5 rounded-lg text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 focus:ring-2 focus:ring-gray-500/30"
             >
-              Go to Student Records
+              {createdAccount?.studentId ? "Open the student's record" : "Go to Manage Records"}
             </button>
           </div>
         </div>

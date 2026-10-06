@@ -11,7 +11,7 @@ import ChangeStudentNumberDialog from "../../components/staff/ChangeStudentNumbe
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { useStudentQuery } from "../../hooks/useStudentQuery";
-import { isDirty, previousOf, studentListPath } from "../../features/students/studentRoutes";
+import { isDirty, previousOf, recordPath } from "../../features/students/studentRoutes";
 
 const defaultForm = {
   student_number: "",
@@ -102,7 +102,7 @@ const StaffEditStudentInformationPage = () => {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  if (role !== "staff") return <Navigate to={studentListPath(id)} replace />;
+  if (role !== "staff") return <Navigate to={recordPath(id)} replace />;
 
   const hubPath = previousOf(id);
 

@@ -13,7 +13,6 @@ import {
   FiCheckCircle,
   FiShield,
   FiClipboard,
-  FiEdit2,
   FiSearch,
   FiUserPlus,
   FiBook,
@@ -92,7 +91,7 @@ const StaffLayout = () => {
 
   const isRegistrarRoute =
     pathname.startsWith('/staff/students') ||
-    pathname.startsWith('/staff/view-records') ||
+    pathname.startsWith('/staff/records') ||
     pathname.startsWith('/staff/catalog');
   const [registrarOpen, setRegistrarOpen] = useState(isRegistrarRoute);
 
@@ -115,19 +114,13 @@ const StaffLayout = () => {
       isActive: (p) => p === '/staff/students/new',
     },
     {
-      id: 'students',
-      label: 'Student Records',
-      icon: FiEdit2,
-      path: '/staff/students',
-      isActive: (p) =>
-        !isNewStudentPage && (p === '/staff/students' || p.startsWith('/staff/students/')),
-    },
-    {
-      id: 'view-records',
-      label: 'View Records',
+      // Student Records and View Records, merged (#57).
+      id: 'records',
+      label: 'Manage Records',
       icon: FiSearch,
-      path: '/staff/view-records',
-      isActive: (p) => p.startsWith('/staff/view-records'),
+      path: '/staff/records',
+      isActive: (p) =>
+        p.startsWith('/staff/records') || (!isNewStudentPage && p.startsWith('/staff/students/')),
     },
   ];
 
@@ -353,7 +346,7 @@ const StaffLayout = () => {
                 <p className="m-0 text-xs font-medium text-gray-500 uppercase tracking-wider">Processed Today</p>
               </div>
             </div>
-            <Link to="/staff/students" className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-tmcc/30 hover:bg-green-50/50 transition-colors no-underline text-gray-800">
+            <Link to="/staff/records" className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-tmcc/30 hover:bg-green-50/50 transition-colors no-underline text-gray-800">
               <span className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 text-blue-700">
                 <FiUsers className="w-6 h-6" />
               </span>

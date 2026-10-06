@@ -9,7 +9,6 @@ import AdminLayout from '../layouts/AdminLayout';
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage';
 import AdminUserManagementPage from '../pages/admin/AdminUserManagementPage';
 import AdminPendingRequestsPage from '../pages/admin/AdminPendingRequestsPage';
-import AdminStudentRecordsPage from '../pages/admin/AdminStudentRecordsPage';
 import AdminNewStudentPage from '../pages/admin/AdminNewStudentPage';
 import AdminEditStudentPage from '../pages/admin/AdminEditStudentPage';
 import AdminDocumentReleasePage from '../pages/admin/AdminDocumentReleasePage';
@@ -18,7 +17,8 @@ import AdminSystemSettingsPage from '../pages/admin/AdminSystemSettingsPage';
 import StaffLayout from '../layouts/StaffLayout';
 import StaffDashboardPage from '../pages/StaffDashboardPage';
 import StaffPendingRequestsPage from '../pages/StaffPendingRequestsPage';
-import StaffStudentRecordsPage from '../pages/StaffStudentRecordsPage';
+import StaffManageRecordsPage from '../pages/staff/StaffManageRecordsPage';
+import StaffRecordPage from '../pages/staff/StaffRecordPage';
 import StaffDocumentReleasePage from '../pages/StaffDocumentReleasePage';
 import StaffNewStudentPage from '../pages/StaffNewStudentPage';
 import StaffEditStudentHubPage from '../pages/staff/StaffEditStudentHubPage';
@@ -31,7 +31,6 @@ import StaffNewSubjectPage from '../pages/staff/StaffNewSubjectPage';
 import StaffProgramCurriculumPage from '../pages/staff/StaffProgramCurriculumPage';
 import StaffCurriculumBuilderPage from '../pages/staff/StaffCurriculumBuilderPage';
 import StaffIdCheckPage from '../pages/staff/StaffIdCheckPage';
-import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
 import StudentSISPage from '../pages/StudentSISPage';
@@ -122,8 +121,11 @@ const router = createBrowserRouter([
           { index: true, element: <StaffDashboardPage /> },
           { path: 'requests', element: <StaffPendingRequestsPage /> },
           { path: 'profile-updates', element: <StaffPendingProfileUpdatesPage /> },
-          { path: 'students', element: <StaffStudentRecordsPage /> },
-          { path: 'view-records', element: <ViewRecordsPage /> },
+          // Manage Records (#57); the old Student Records and View Records URLs land there.
+          { path: 'records', element: <StaffManageRecordsPage /> },
+          { path: 'records/:id', element: <StaffRecordPage /> },
+          { path: 'students', element: <Navigate to="/staff/records" replace /> },
+          { path: 'view-records', element: <Navigate to="/staff/records" replace /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },
           { path: 'students/id-check', element: <StaffIdCheckPage /> },
           // Edit Student (#55): a hub, then one page per section.
@@ -155,8 +157,6 @@ const router = createBrowserRouter([
           { index: true, element: <AdminDashboardPage /> },
           { path: 'users', element: <AdminUserManagementPage /> },
           // { path: 'requests', element: <AdminPendingRequestsPage /> },
-          // { path: 'students', element: <AdminStudentRecordsPage /> },
-          // { path: 'view-records', element: <ViewRecordsPage /> },
           // { path: 'students/new', element: <AdminNewStudentPage /> },
           // { path: 'students/:id/edit', element: <AdminEditStudentPage /> },
           // { path: 'document-release', element: <AdminDocumentReleasePage /> },

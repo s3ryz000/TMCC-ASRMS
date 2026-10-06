@@ -2,22 +2,17 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  FiUserPlus,
-  FiEye,
-  FiEdit2,
   FiSearch,
   FiChevronUp,
   FiChevronDown,
   FiChevronLeft,
   FiChevronRight,
-  FiArchive,
 } from "react-icons/fi";
-import ViewStudentModal from "../components/ViewStudentModal";
-import { staffApi } from "../lib/api/staffApi";
-import { parseApiError } from "../lib/api/errors";
-import { queryKeys } from "../lib/react-query/queryKeys";
-import ArchiveModal from "../components/ui/ArchiveModal";
-import { useAuth } from "../contexts/AuthContext";
+import { staffApi } from "../../lib/api/staffApi";
+import { parseApiError } from "../../lib/api/errors";
+import { queryKeys } from "../../lib/react-query/queryKeys";
+import { useAuth } from "../../contexts/AuthContext";
+import { recordPath } from "../../features/students/studentRoutes";
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 
@@ -34,7 +29,12 @@ const mapStudentRow = (s) => ({
   status: "ENROLLED",
 });
 
-const StaffStudentRecordsPage = () => {
+/**
+ * Manage Records (#57): every student, searchable by name or number and
+ * filterable by program. A row opens the student's full record page; there are
+ * no actions in the list itself.
+ */
+const StaffManageRecordsPage = () => {
   const navigate = useNavigate();
   const { role } = useAuth();
   const [searchInput, setSearchInput] = useState("");
@@ -44,8 +44,6 @@ const StaffStudentRecordsPage = () => {
   const [studentSortDir, setStudentSortDir] = useState("asc");
   const [studentEntries, setStudentEntries] = useState(10);
   const [studentPage, setStudentPage] = useState(1);
-  const [viewingStudent, setViewingStudent] = useState(null);
-  const [archivingStudent, setArchivingStudent] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(
@@ -182,7 +180,7 @@ const StaffStudentRecordsPage = () => {
     <>
       <section className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h2 className="m-0 text-2xl font-bold text-gray-800">
-          Student Records
+          Manage Records
         </h2>
         {role === "staff" && (
           <Link
@@ -268,16 +266,13 @@ const StaffStudentRecordsPage = () => {
                 <SortableTh label="Name" sortKey="name" />
                 <SortableTh label="Course" sortKey="course" />
                 <SortableTh label="Status" sortKey="status" />
-                <th className="py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700">
-                  Actions 
-                </th>
               </tr>
             </thead>
             <tbody>
               {tableLoading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="py-8 px-4 text-center text-gray-500"
                   >
                     Loading students...
@@ -285,14 +280,25 @@ const StaffStudentRecordsPage = () => {
                 </tr>
               ) : students.length > 0 ? (
                 students.map((student) => (
+                  // The whole row opens the record page; the name is the
+                  // keyboard-reachable link to it.
                   <tr
                     key={student?.student_id}
-                    className="border-b border-gray-100 hover:bg-gray-50/80"
+                    onClick={() => navigate(recordPath(student.student_id))}
+                    className="border-b border-gray-100 hover:bg-gray-50/80 cursor-pointer"
                   >
-                    <td className="py-3 px-4 text-gray-800">
+                    <td className="py-3 px-4 text-gray-800 tracking-wider">
                       {student?.student_number ?? student?.student_id}
                     </td>
-                    <td className="py-3 px-4 text-gray-800">{student?.name}</td>
+                    <td className="py-3 px-4 text-gray-800">
+                      <Link
+                        to={recordPath(student.student_id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-gray-800 no-underline hover:text-tmcc hover:underline"
+                      >
+                        {student?.name}
+                      </Link>
+                    </td>
                     <td className="py-3 px-4 text-gray-700">
                       {student?.course}
                     </td>
@@ -301,40 +307,12 @@ const StaffStudentRecordsPage = () => {
                         {student?.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setViewingStudent(student)}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-tmcc text-white hover:bg-tmcc-dark focus:outline-none focus:ring-2 focus:ring-tmcc/30 transition-colors"
-                          aria-label={`View details for ${student?.name}`}
-                        >
-                          <FiEye /> View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/staff/students/${student?.student_id}/edit`)}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-colors"
-                          aria-label={`Edit ${student?.name}`}
-                        >
-                          <FiEdit2 /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setArchivingStudent(student)}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-colors"
-                          aria-label={`Edit ${student?.name}`}
-                        >
-                          <FiArchive /> Archive
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="py-8 px-4 text-center text-gray-500 italic"
                   >
                     No students found.
@@ -376,24 +354,8 @@ const StaffStudentRecordsPage = () => {
           </div>
         )}
       </section>
-      <ArchiveModal
-        isOpen={!!archivingStudent}
-        onClose={() => setArchivingStudent(null)}
-        student={archivingStudent}
-      />
-      <ViewStudentModal
-        isOpen={!!viewingStudent}
-        onClose={() => setViewingStudent(null)}
-        student={viewingStudent}
-        studentId={viewingStudent?.student_id}
-        onFetchStudent={(id) => staffApi.getStudentById(id)}
-        onEdit={(s) => {
-          setViewingStudent(null);
-          navigate(`/staff/students/${s?.student_id ?? s.id}/edit`);
-        }}
-      />
     </>
   );
 };
 
-export default StaffStudentRecordsPage;
+export default StaffManageRecordsPage;

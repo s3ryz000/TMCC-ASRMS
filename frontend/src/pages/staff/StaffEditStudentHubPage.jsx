@@ -4,7 +4,7 @@ import { FiArrowLeft, FiBookOpen, FiUser } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { parseApiError } from '../../lib/api/errors';
 import { useStudentQuery } from '../../hooks/useStudentQuery';
-import { editStudentPaths, studentListPath } from '../../features/students/studentRoutes';
+import { editStudentPaths, recordPath } from '../../features/students/studentRoutes';
 
 const cardClass =
   'flex flex-col gap-3 p-6 bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 no-underline text-gray-800 hover:border-tmcc/30 hover:shadow-[0_4px_18px_rgba(0,0,0,0.1)] transition-all';
@@ -18,15 +18,15 @@ const StaffEditStudentHubPage = () => {
   const { role } = useAuth();
   const student = useStudentQuery(role === 'staff' ? id : null);
 
-  if (role !== 'staff') return <Navigate to={studentListPath(id)} replace />;
+  if (role !== 'staff') return <Navigate to={recordPath(id)} replace />;
 
   const paths = editStudentPaths(id);
   const s = student.data;
 
   return (
     <>
-      <Link to={studentListPath(id)} className="inline-flex items-center gap-2 mb-6 text-tmcc text-sm font-medium no-underline hover:text-tmcc-dark hover:underline">
-        <FiArrowLeft aria-hidden /> Back to Student Records
+      <Link to={recordPath(id)} className="inline-flex items-center gap-2 mb-6 text-tmcc text-sm font-medium no-underline hover:text-tmcc-dark hover:underline">
+        <FiArrowLeft aria-hidden /> Back to the record
       </Link>
 
       <section className="mb-8">

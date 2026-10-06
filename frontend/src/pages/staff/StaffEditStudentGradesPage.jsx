@@ -9,7 +9,7 @@ import { queryKeys } from "../../lib/react-query/queryKeys";
 import AcademicProgressionStep4 from "../../components/AcademicProgressionStep4";
 import { useAuth } from "../../contexts/AuthContext";
 import { useStudentQuery } from "../../hooks/useStudentQuery";
-import { previousOf, studentListPath } from "../../features/students/studentRoutes";
+import { previousOf, recordPath } from "../../features/students/studentRoutes";
 
 const inputBase =
   "py-2.5 px-4 rounded-lg text-base border transition-colors focus:outline-none focus:ring-2 focus:ring-tmcc/20 focus:border-tmcc";
@@ -59,7 +59,7 @@ const StaffEditStudentGradesPage = () => {
       .catch(() => setPrograms([]));
   }, []);
 
-  if (role !== "staff") return <Navigate to={studentListPath(id)} replace />;
+  if (role !== "staff") return <Navigate to={recordPath(id)} replace />;
 
   const hubPath = previousOf(id);
   const refreshStudent = () => {
