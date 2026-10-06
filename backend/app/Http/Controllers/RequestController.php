@@ -669,8 +669,10 @@ class RequestController extends Controller
             </html>
         ';
 
+        // Everything is embedded (QR and logo as data URIs), so the slip never
+        // needs, or may make, a network request on the campus LAN (#22).
         $options = new Options();
-        $options->set('isRemoteEnabled', true);
+        $options->set('isRemoteEnabled', false);
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);

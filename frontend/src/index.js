@@ -14,10 +14,11 @@ root.render(
   </React.StrictMode>
 );
 
-// If you want your app to work offline and load faster, you can change
-// unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: https://cra.link/PWA
-serviceWorkerRegistration.register();
+// No service worker on the campus LAN (#22): a cached old build on a registrar
+// PC after an update is a real risk, and offline-first isn't needed when the
+// server is on the same network. unregister() also removes a worker an earlier
+// build installed. Learn more about service workers: https://cra.link/PWA
+serviceWorkerRegistration.unregister();
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

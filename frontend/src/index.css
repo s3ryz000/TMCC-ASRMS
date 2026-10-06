@@ -1296,12 +1296,6 @@ button.primary:hover {
   color: #6b7280;
 }
 
-.sd-login-recaptcha {
-  display: flex;
-  justify-content: center;
-  min-height: 78px;
-}
-
 .sd-login-submit {
   display: flex;
   align-items: center;
