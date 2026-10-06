@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // A login lasts at most ASRMS_SESSION_MAX_HOURS (#86), even while in use.
+    // The idle limit is App\Support\SessionLifetime.
+    'expiration' => (int) env('ASRMS_SESSION_MAX_HOURS', 12) * 60,
 
     /*
     |--------------------------------------------------------------------------

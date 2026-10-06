@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearStoredAuth } from '../authStorage';
+import { endsLiveSession } from '../sessionExpiry';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -47,8 +48,10 @@ apiClient.interceptors.response.use(
     error.apiMessage = message;
 
     if (error.response?.status === 401) {
+      // An expired session (#86) sends the user back to sign in, with a message.
+      const expired = endsLiveSession(401, sessionStorage.getItem('auth_token'), error.config?.url);
       clearStoredAuth();
-      window.dispatchEvent(new Event('auth:logout'));
+      window.dispatchEvent(new CustomEvent('auth:logout', { detail: { expired } }));
     }
 
     // Status and message only, and only while developing: response bodies can

@@ -45,15 +45,19 @@ export const AuthProvider = ({ children }) => {
   const { data: user, isLoading: isUserLoading } = useCurrentUserQuery();
 
   // On a 401 (the api client dispatches auth:logout) drop every cached record,
-  // not just the user, so nothing of this session outlives it (#58).
+  // not just the user, so nothing of this session outlives it (#58). If the
+  // session had expired (#86), go to the login page, which says so.
   useEffect(() => {
-    const handler = () => {
+    const handler = (event) => {
       queryClient.clear();
       queryClient.setQueryData(queryKeys.auth.user(), null);
+      if (event?.detail?.expired) {
+        navigate('/', { replace: true, state: { sessionExpired: true } });
+      }
     };
     window.addEventListener('auth:logout', handler);
     return () => window.removeEventListener('auth:logout', handler);
-  }, [queryClient]);
+  }, [queryClient, navigate]);
 
   const { token } = getStoredAuth();
   const isAuthenticated = !!token && !!user;

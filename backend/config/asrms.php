@@ -1,12 +1,19 @@
 <?php
 
 /*
- * TMCC ASRMS deployment settings (#62, #64, #65).
+ * TMCC ASRMS deployment settings (#62, #64, #65, #86).
  *
  * Backups hold every student's records: keep ASRMS_BACKUP_PATH on the
  * server's second drive, outside public/ and outside the repository.
  */
 return [
+
+    // How long a login lasts (#86). A session ends after idle_minutes without
+    // a request, and max_hours after signing in whatever the activity.
+    'session' => [
+        'idle_minutes' => (int) env('ASRMS_SESSION_IDLE_MINUTES', 60),
+        'max_hours' => (int) env('ASRMS_SESSION_MAX_HOURS', 12),
+    ],
 
     'backup' => [
         // Where backup sets are written: daily/, weekly/, monthly/, pre-update/, pre-restore/.

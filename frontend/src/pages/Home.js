@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLE_ROUTES } from '../contexts/AuthContext';
+import { SESSION_EXPIRED_MESSAGE } from '../lib/sessionExpiry';
 
 const Home = () => {
   const { login, isAuthenticated, role, loginMutation } = useAuth();
+  // Set by AuthContext when the server ended the session (#86).
+  const sessionExpired = Boolean(useLocation().state?.sessionExpired);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -210,6 +213,11 @@ const Home = () => {
               {error && (
                 <p className="sd-login-error" role="alert">
                   {error}
+                </p>
+              )}
+              {!error && sessionExpired && (
+                <p className="sd-login-error" role="status">
+                  {SESSION_EXPIRED_MESSAGE}
                 </p>
               )}
             </div>

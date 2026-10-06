@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\SessionLifetime;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -34,7 +35,8 @@ class AuthService
 
         $user->tokens()->delete();
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        // The token carries its absolute end (#86); idle expiry is SessionLifetime.
+        $token = $user->createToken('auth-token', ['*'], now()->addHours(SessionLifetime::maxHours()))->plainTextToken;
 
         return [
             'user' => $user,
