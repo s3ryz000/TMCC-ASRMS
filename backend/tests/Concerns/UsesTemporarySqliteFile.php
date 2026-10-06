@@ -33,6 +33,9 @@ trait UsesTemporarySqliteFile
             'asrms.backup.path' => $this->tmp . DIRECTORY_SEPARATOR . 'backups',
             'asrms.backup.files' => $this->tmp . DIRECTORY_SEPARATOR . 'files',
             'asrms.backup.log' => $this->tmp . DIRECTORY_SEPARATOR . 'backup.log',
+            // A restore turns maintenance mode on; keep that in memory, not in storage/framework.
+            'app.maintenance.driver' => 'cache',
+            'app.maintenance.store' => 'array',
         ]);
         File::ensureDirectoryExists($this->tmp . DIRECTORY_SEPARATOR . 'files');
     }

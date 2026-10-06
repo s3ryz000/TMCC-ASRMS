@@ -196,6 +196,9 @@ class BackupService
             $files = [];
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = (string) $zip->getNameIndex($i);
+                if (! self::isSafeEntry($name)) {
+                    throw new RuntimeException('The backup contains an unsafe file path.');
+                }
                 if (str_starts_with($name, 'files/') && ! str_ends_with($name, '/')) {
                     $content = $zip->getFromIndex($i);
                     $files[] = ['path' => substr($name, 6), 'bytes' => strlen($content), 'sha256' => hash('sha256', $content)];
@@ -241,23 +244,10 @@ class BackupService
     /** Write one line to backup.log, a system_logs row and the stored result. */
     public function record(BackupResult $result, CarbonInterface $at): void
     {
-        $line = sprintf('[%s] %s %s', $at->format('Y-m-d H:i:s'), $result->ok ? 'OK' : 'FAILED', $result->summary());
-        try {
-            File::ensureDirectoryExists(dirname((string) config('asrms.backup.log')));
-            File::append((string) config('asrms.backup.log'), $line . PHP_EOL);
-        } catch (Throwable) {
-            // The system log and the stored result below still record the run.
-        }
-
-        try {
-            SystemLog::create([
-                'action' => $result->ok ? "Backup completed: {$result->summary()}" : "Backup FAILED: {$result->summary()}",
-                'user_id' => null,
-                'role' => 'system',
-            ]);
-        } catch (Throwable) {
-            // A database that can't be written is also why a backup fails; backup.log has the line.
-        }
+        $this->note(
+            sprintf('[%s] %s %s', $at->format('Y-m-d H:i:s'), $result->ok ? 'OK' : 'FAILED', $result->summary()),
+            $result->ok ? "Backup completed: {$result->summary()}" : "Backup FAILED: {$result->summary()}",
+        );
 
         $stored = $result->toArray() + ['at' => $at->toIso8601String()];
         try {
@@ -268,6 +258,51 @@ class BackupService
         } catch (Throwable) {
             // As above.
         }
+    }
+
+    /**
+     * One line in backup.log and one system_logs row (no user: the scheduler
+     * or the console did it). Either may fail without stopping the other.
+     */
+    public function note(string $logLine, string $action): void
+    {
+        try {
+            File::ensureDirectoryExists(dirname((string) config('asrms.backup.log')));
+            File::append((string) config('asrms.backup.log'), $logLine . PHP_EOL);
+        } catch (Throwable) {
+            // The system log below still records it.
+        }
+
+        try {
+            SystemLog::create(['action' => $action, 'user_id' => null, 'role' => 'system']);
+        } catch (Throwable) {
+            // A database that can't be written is often the reason for the note; backup.log has the line.
+        }
+    }
+
+    /** The stored last run and last success, carried across a restore (#64). */
+    public function history(): array
+    {
+        return [self::SETTING_LAST_RUN => $this->lastRun(), self::SETTING_LAST_SUCCESS => $this->lastSuccess()];
+    }
+
+    public function rememberHistory(array $history): void
+    {
+        foreach ($history as $key => $value) {
+            if ($value !== null) {
+                SystemSetting::setValue($key, $value);
+            }
+        }
+    }
+
+    /** A zip entry name that stays inside the folder it is extracted to. */
+    public static function isSafeEntry(string $name): bool
+    {
+        return $name !== ''
+            && ! str_contains($name, '\\')
+            && ! str_contains($name, ':')
+            && ! str_starts_with($name, '/')
+            && ! in_array('..', explode('/', $name), true);
     }
 
     // ------------------------------------------------------------- internals
