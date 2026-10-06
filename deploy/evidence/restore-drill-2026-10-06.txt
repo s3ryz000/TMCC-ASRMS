@@ -1,0 +1,190 @@
+RESULT (issue #64, Phase 5 restore drill, 6 Oct 2026)
+- Backup -> delete the database file -> asrms:restore --force: PASSED.
+- Every table has the same row count before and after, except two expected
+  ones: system_logs +1 (the restore logs itself) and cache -3 (the restore
+  clears cached settings).
+- Student 260003: the 20 grade rows, the academic summary (GWA and honors),
+  the 57 transcript rows and the transcript HTML all have the same sha256
+  before and after.
+- Uploaded files: the same tree sha256 before and after.
+- Time to recover: 1.1 s from deleting the database to a finished restore,
+  and 2.2 s including the check. The office's real time is mostly reading
+  RESTORE.md and stopping and starting Apache, about 10 to 15 minutes.
+- Without --force the restore is refused and nothing changes. With --force
+  over a working database, it first takes a safety backup into pre-restore/.
+- Not covered here: MySQL (the TMCC server). Repeat this drill there after
+  installation (deploy/RESTORE.md, deploy/ADMIN-WEEKLY-CHECK.md).
+- The database copy and backup folder were temporary and have been deleted.
+  The one uploaded file is a labelled placeholder, because the local database
+  has no uploaded documents.
+
+==========================================================================
+
+TMCC ASRMS restore drill - 2026-10-06 15:10:33 +0800
+Code: 0c79afd (+ working tree: test sort fix only)
+Machine: development laptop; a scratch copy of the local database (scratch-p5.sqlite)
+Backup folder: temporary (%TEMP%\asrms-drill-p5\backups); uploaded files: a copy in %TEMP%\asrms-drill-p5\files
+Personal data: none in this file. Only counts and sha256 fingerprints are recorded.
+
+== 1. Before: row counts and student 260003 ==
+database: scratch-p5.sqlite
+  archive_records                    4
+  cache                              7
+  cache_locks                        0
+  curriculum                         144
+  curriculum_prerequisites           117
+  enrollment_audit_logs              114
+  enrollments                        55
+  failed_jobs                        0
+  grades                             55
+  job_batches                        0
+  jobs                               0
+  migrations                         52
+  model_has_permissions              0
+  model_has_roles                    6
+  password_reset_tokens              0
+  pending_student_updates            0
+  permissions                        3
+  personal_access_tokens             2
+  program_change_logs                0
+  program_mappings                   8
+  programs                           3
+  record_requests                    2
+  record_transactions                1
+  reports                            0
+  role_has_permissions               0
+  roles                              3
+  sessions                           7
+  staff                              1
+  student_documents                  0
+  student_number_changes             4
+  students                           4
+  subject_code_changes               109
+  subject_code_prefixes              25
+  subjects                           93
+  system_logs                        48
+  system_settings                    6
+  users                              6
+student 260003:
+  grade rows          20  (sha256 da77306d2a9fb445)
+  academic summary    sha256 52ffdd337ef3bf67
+  transcript rows     57  (sha256 425314163de9a643)
+  transcript HTML     sha256 2c4de4537f1d5159
+uploaded files: 1 (tree sha256 841fd71ce8522c9b)
+
+== 2. Backup: php artisan asrms:backup ==
+Backup completed: %TEMP%\asrms-drill-p5\backups\daily\asrms-20261006-1510.zip
+Size: 39,751 bytes in 0.3 s
+  students         4
+  enrollments      55
+  grades           55
+  users            6
+  record_requests  2
+exit code 0
+file: daily/asrms-20261006-1510.zip, 39751 bytes
+
+== 3. Disaster: delete the database file ==
+deleted database/scratch-p5.sqlite
+database/scratch-p5.sqlite no longer exists
+
+== 4. Restore: php artisan asrms:restore daily/asrms-20261006-1510.zip --force ==
+Backup checked: asrms-20261006-1510.zip, made 2026-10-06T15:10:35+08:00, commit 0c79afd.
+No current database file, so there is nothing to back up first.
+Maintenance mode on.
+Database restored.
+Uploaded files restored (1).
+Maintenance mode off.
++-----------------+--------+-----------+-------+
+| Table           | Before | In backup | After |
++-----------------+--------+-----------+-------+
+| students        | -      | 4         | 4     |
+| enrollments     | -      | 55        | 55    |
+| grades          | -      | 55        | 55    |
+| users           | -      | 6         | 6     |
+| record_requests | -      | 2         | 2     |
++-----------------+--------+-----------+-------+
+The files that were here before are kept in %TEMP%\asrms-drill-p5\files.replaced-20261006151037.
+Restore completed in 0.1 s.
+exit code 0
+
+== 5. After: row counts and student 260003 ==
+database: scratch-p5.sqlite
+  archive_records                    4
+  cache                              4
+  cache_locks                        0
+  curriculum                         144
+  curriculum_prerequisites           117
+  enrollment_audit_logs              114
+  enrollments                        55
+  failed_jobs                        0
+  grades                             55
+  job_batches                        0
+  jobs                               0
+  migrations                         52
+  model_has_permissions              0
+  model_has_roles                    6
+  password_reset_tokens              0
+  pending_student_updates            0
+  permissions                        3
+  personal_access_tokens             2
+  program_change_logs                0
+  program_mappings                   8
+  programs                           3
+  record_requests                    2
+  record_transactions                1
+  reports                            0
+  role_has_permissions               0
+  roles                              3
+  sessions                           7
+  staff                              1
+  student_documents                  0
+  student_number_changes             4
+  students                           4
+  subject_code_changes               109
+  subject_code_prefixes              25
+  subjects                           93
+  system_logs                        49
+  system_settings                    6
+  users                              6
+student 260003:
+  grade rows          20  (sha256 da77306d2a9fb445)
+  academic summary    sha256 52ffdd337ef3bf67
+  transcript rows     57  (sha256 425314163de9a643)
+  transcript HTML     sha256 2c4de4537f1d5159
+uploaded files: 1 (tree sha256 841fd71ce8522c9b)
+
+== 6. Time to recover ==
+database deleted -> restore finished: 1.1 s
+database deleted -> data checked:     2.2 s
+
+== 7. Restore over a working database (no --force first, then --force) ==
+%TEMP%\asrms-drill-p5\backups\daily\asrms-20261006-1510.zip is a valid backup made 2026-10-06T15:10:35+08:00.
++-----------------+--------+-----------+
+| Table           | Before | In backup |
++-----------------+--------+-----------+
+| students        | 4      | 4         |
+| enrollments     | 55     | 55        |
+| grades          | 55     | 55        |
+| users           | 6      | 6         |
+| record_requests | 2      | 2         |
++-----------------+--------+-----------+
+Restore refused: this replaces ALL current data. Run again with --force to restore. Nothing was changed.
+exit code 1 (refused without --force)
+Backup checked: asrms-20261006-1510.zip, made 2026-10-06T15:10:35+08:00, commit 0c79afd.
+Safety backup: pre-restore/asrms-20261006-1511.zip
+Maintenance mode on.
+Database restored.
+Uploaded files restored (1).
+Maintenance mode off.
++-----------------+--------+-----------+-------+
+| Table           | Before | In backup | After |
++-----------------+--------+-----------+-------+
+| students        | 4      | 4         | 4     |
+| enrollments     | 55     | 55        | 55    |
+| grades          | 55     | 55        | 55    |
+| users           | 6      | 6         | 6     |
+| record_requests | 2      | 2         | 2     |
++-----------------+--------+-----------+-------+
+Restore completed in 0.6 s.
+exit code 0
+pre-restore copies: asrms-20261006-1511.zip 

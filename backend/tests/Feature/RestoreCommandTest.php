@@ -72,7 +72,7 @@ class RestoreCommandTest extends TestCase
 
         return [
             'counts' => app(BackupService::class)->counts(),
-            'grades' => Grade::whereHas('enrollment', fn ($q) => $q->where('student_id', $a))->orderBy('grade_id')->pluck('grade_value')->all(),
+            'grades' => Grade::whereHas('enrollment', fn ($q) => $q->where('student_id', $a))->orderBy('id')->pluck('grade_value')->all(),
             'progress' => $progress,
             'transcript' => $transcript,
         ];
