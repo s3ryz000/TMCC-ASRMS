@@ -108,6 +108,24 @@ export const staffApi = {
     return data;
   },
 
+  // ── Student numbers (registrar, #56) ──
+
+  /** Is a 6-digit number free? { number, available, next_available, conflict?: { student_number, name, program } } */
+  checkStudentNumber: async (number) => {
+    const { data } = await apiClient.get('/staff/student-numbers/check', { params: { number } });
+    return data;
+  },
+  /** Change a student's number and login. Payload: { student_number, reason }. Returns { username, ... }. */
+  changeStudentNumber: async (studentId, payload) => {
+    const { data } = await apiClient.patch(`/staff/students/${studentId}/student-number`, payload);
+    return data;
+  },
+  /** The ID check: students whose number doesn't match their enrollment year. */
+  getStudentNumberMismatches: async () => {
+    const { data } = await apiClient.get('/staff/student-numbers/mismatches');
+    return data;
+  },
+
   getStudentById: async (id) => {
     const { data } = await apiClient.get(`/staff/students/${id}`);
     return data;

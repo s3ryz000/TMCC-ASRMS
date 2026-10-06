@@ -25,5 +25,7 @@ export const queryKeys = {
     curriculumImpact: (entryId) => [...queryKeys.staff.all, 'curriculum-impact', String(entryId)],
     subjects: () => [...queryKeys.staff.all, 'subjects'],
     subjectPrefixes: () => [...queryKeys.staff.all, 'subject-prefixes'],
+    studentNumberCheck: (number) => [...queryKeys.staff.all, 'student-number-check', number],
+    studentNumberMismatches: () => [...queryKeys.staff.all, 'student-number-mismatches'],
   },
 };

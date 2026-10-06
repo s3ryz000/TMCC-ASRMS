@@ -17,6 +17,7 @@ import { staffApi } from "../lib/api/staffApi";
 import { parseApiError } from "../lib/api/errors";
 import { queryKeys } from "../lib/react-query/queryKeys";
 import ArchiveModal from "../components/ui/ArchiveModal";
+import { useAuth } from "../contexts/AuthContext";
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 
@@ -35,6 +36,7 @@ const mapStudentRow = (s) => ({
 
 const StaffStudentRecordsPage = () => {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [studentFilterCourse, setStudentFilterCourse] = useState("");
@@ -182,6 +184,14 @@ const StaffStudentRecordsPage = () => {
         <h2 className="m-0 text-2xl font-bold text-gray-800">
           Student Records
         </h2>
+        {role === "staff" && (
+          <Link
+            to="/staff/students/id-check"
+            className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-medium no-underline bg-white text-tmcc border border-tmcc hover:bg-tmcc/5"
+          >
+            ID check
+          </Link>
+        )}
       </section>
       {loadError && (
         <div

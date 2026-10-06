@@ -8,6 +8,9 @@ import { staffApi } from "../lib/api/staffApi";
 import { parseApiError } from "../lib/api/errors";
 import { queryKeys } from "../lib/react-query/queryKeys";
 import { localDateString } from "../lib/tools";
+import StudentNumberField from "../components/staff/StudentNumberField";
+import StudentNumberConflictCard from "../components/staff/StudentNumberConflictCard";
+import { composeStudentNumber, isCompletePart, partOf, yearPrefix } from "../features/students/studentNumber";
 
 const defaultForm = {
   student_number: "",
@@ -41,6 +44,15 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   const [createdAccount, setCreatedAccount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(1);
+  // A refused save's holder of the number, for the comparison card (#56).
+  const [conflict, setConflict] = useState(null);
+
+  // form.student_number holds the registrar's 4 digits; the year prefix comes
+  // from the enrollment date and both are joined when saving (#56).
+  const handleNumberPart = (part) => {
+    setForm((prev) => ({ ...prev, student_number: part }));
+    if (errors.student_number) setErrors((prev) => ({ ...prev, student_number: null }));
+  };
 
   const { data: programsData, isLoading: loadingPrograms } = useQuery({
     queryKey: ["programs"],
@@ -109,8 +121,13 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   const validatePhase = (phase) => {
     const err = {};
     if (phase === 1) {
-      if (!form.student_number?.trim())
-        err.student_number = "Student number is required.";
+      if (!form.enrollment_date) {
+        err.enrollment_date = "Enrollment date is required.";
+      } else if (form.enrollment_date > localDateString()) {
+        err.enrollment_date = "Enrollment date cannot be later than today.";
+      }
+      if (!isCompletePart(form.student_number))
+        err.student_number = "Enter the 4 digits after the year.";
       if (!form.first_name?.trim()) err.first_name = "First name is required.";
       if (!form.last_name?.trim()) err.last_name = "Last name is required.";
       if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
@@ -123,14 +140,6 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     }
     if (phase === 3) {
       if (!form.program_id) err.program_id = "Program is required.";
-      if (!form.enrollment_date) {
-        err.enrollment_date = "Enrollment date is required.";
-      } else {
-        const today = localDateString();
-        if (form.enrollment_date > today) {
-          err.enrollment_date = "Enrollment date cannot be later than today.";
-        }
-      }
       if (form.graduation_date && form.enrollment_date && form.graduation_date < form.enrollment_date) {
         err.graduation_date = "Graduation date cannot be earlier than enrollment date.";
       }
@@ -148,8 +157,8 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
 
   const validate = () => {
     const err = {};
-    if (!form.student_number?.trim())
-      err.student_number = "Student number is required.";
+    if (!isCompletePart(form.student_number))
+      err.student_number = "Enter the 4 digits after the year.";
     if (!form.first_name?.trim()) err.first_name = "First name is required.";
     if (!form.last_name?.trim()) err.last_name = "Last name is required.";
     if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
@@ -197,7 +206,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     setLoading(true);
     try {
       const payload = {
-        student_number: form.student_number.trim(),
+        student_number: composeStudentNumber(yearPrefix(form.enrollment_date), form.student_number),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         date_of_birth: form.date_of_birth,
@@ -224,17 +233,21 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
       setCreatedAccount(
         res?.account
           ? { username: res.account.username, password: res.account.password }
-          : { username: form.student_number.trim(), password: "password123" },
+          : { username: payload.student_number, password: "password123" },
       );
       setForm(defaultForm);
       setErrors({});
+      setConflict(null);
       setCurrentPhase(1);
       staffToast.success(
         "Student created",
-        `Account ${form.student_number.trim()} has been registered.`,
+        `Account ${res?.account?.username ?? payload.student_number} has been registered.`,
       );
     } catch (err) {
       const parsed = parseApiError(err);
+      // A taken number comes with its holder for the comparison card (#56).
+      const taken = err.response?.data?.conflict;
+      setConflict(taken ? { ...taken, next_available: err.response.data.next_available } : null);
       if (parsed.errors) {
         const errMap = {};
         Object.keys(parsed.errors).forEach((k) => {
@@ -242,9 +255,9 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
         });
         setErrors(errMap);
         // Jump to the first step that has an error
-        const phase1Fields = ["student_number", "first_name", "last_name", "date_of_birth"];
+        const phase1Fields = ["enrollment_date", "student_number", "first_name", "last_name", "date_of_birth"];
         const phase2Fields = ["email", "contact_number", "address"];
-        const phase3Fields = ["program_id", "enrollment_date", "graduation_date", "subject_ids"];
+        const phase3Fields = ["program_id", "graduation_date", "subject_ids"];
         const phase4Fields = ["record_type", "cabinet_no", "shelf_no", "folder_code", "document_status"];
         const errorKeys = Object.keys(errMap);
         if (errorKeys.some((k) => phase1Fields.includes(k))) setCurrentPhase(1);
@@ -264,6 +277,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   const clearForm = () => {
     setForm(defaultForm);
     setErrors({});
+    setConflict(null);
     setSubmitStatus(null);
     setCreatedAccount(null);
     setCurrentPhase(1);
@@ -357,31 +371,54 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                   </span>
                   Personal Information
                 </h4>
+                {conflict && (
+                  <StudentNumberConflictCard
+                    conflict={conflict}
+                    entered={{
+                      name: `${form.first_name} ${form.last_name}`.trim(),
+                      program: (programsData?.programs ?? []).find((p) => String(p.id) === String(form.program_id))?.code,
+                      enrollment_date: form.enrollment_date,
+                      date_of_birth: form.date_of_birth,
+                    }}
+                    nextAvailable={conflict.next_available}
+                    onUseNext={() => {
+                      handleNumberPart(partOf(conflict.next_available));
+                    }}
+                    onDismiss={() => setConflict(null)}
+                  />
+                )}
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                  {/* The enrollment date comes first: its year is the student number's prefix (#56). */}
                   <div className="flex flex-col gap-1.5">
                     <label
-                      htmlFor="student_number"
+                      htmlFor="enrollment_date"
                       className="text-sm font-medium text-gray-600"
                     >
-                      Student Number *
+                      Enrollment Date *
                     </label>
                     <input
-                      id="student_number"
-                      name="student_number"
-                      type="text"
-                      value={form.student_number}
+                      id="enrollment_date"
+                      name="enrollment_date"
+                      type="date"
+                      value={form.enrollment_date}
                       onChange={handleChange}
-                      placeholder="e.g. STU-2025-001"
-                      maxLength={20}
-                      className={`${inputBase} ${errors.student_number ? inputError : inputNormal}`}
-                      aria-invalid={!!errors.student_number}
+                      max={localDateString()}
+                      className={`${inputBase} ${errors.enrollment_date ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.enrollment_date}
                     />
-                    {errors.student_number && (
+                    {errors.enrollment_date && (
                       <span className="text-xs text-red-600">
-                        {errors.student_number}
+                        {errors.enrollment_date}
                       </span>
                     )}
                   </div>
+                  <StudentNumberField
+                    id="student_number"
+                    prefix={yearPrefix(form.enrollment_date)}
+                    part={form.student_number}
+                    onPartChange={handleNumberPart}
+                    error={errors.student_number}
+                  />
                   <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="date_of_birth"
@@ -664,29 +701,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                 )}
 
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="enrollment_date"
-                      className="text-sm font-medium text-gray-600"
-                    >
-                      Enrollment Date *
-                    </label>
-                    <input
-                      id="enrollment_date"
-                      name="enrollment_date"
-                      type="date"
-                      value={form.enrollment_date}
-                      onChange={handleChange}
-                      max={localDateString()}
-                      className={`${inputBase} ${errors.enrollment_date ? inputError : inputNormal}`}
-                      aria-invalid={!!errors.enrollment_date}
-                    />
-                    {errors.enrollment_date && (
-                      <span className="text-xs text-red-600">
-                        {errors.enrollment_date}
-                      </span>
-                    )}
-                  </div>
+                  {/* The enrollment date is entered in step 1: it sets the student number's year (#56). */}
                   <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="graduation_date"

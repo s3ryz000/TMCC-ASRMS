@@ -28,6 +28,7 @@ import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
 import StaffNewSubjectPage from '../pages/staff/StaffNewSubjectPage';
 import StaffProgramCurriculumPage from '../pages/staff/StaffProgramCurriculumPage';
 import StaffCurriculumBuilderPage from '../pages/staff/StaffCurriculumBuilderPage';
+import StaffIdCheckPage from '../pages/staff/StaffIdCheckPage';
 import ViewRecordsPage from '../pages/ViewRecordsPage';
 import StudentLayout from '../layouts/StudentLayout';
 import StudentRequestRecordPage from '../pages/StudentRequestRecordPage';
@@ -122,6 +123,7 @@ const router = createBrowserRouter([
           { path: 'students', element: <StaffStudentRecordsPage /> },
           { path: 'view-records', element: <ViewRecordsPage /> },
           { path: 'students/new', element: <StaffNewStudentPage /> },
+          { path: 'students/id-check', element: <StaffIdCheckPage /> },
           { path: 'students/:id/edit', element: <StaffEditStudentPage /> },
           { path: 'catalog', element: <Navigate to="/staff/catalog/subjects" replace /> },
           { path: 'catalog/subjects', element: <StaffCatalogLandingPage type="subjects" /> },

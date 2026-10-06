@@ -13,6 +13,8 @@ import { staffToast } from "../lib/notifications";
 import { localDateString, toDateInputValue } from "../lib/tools";
 import { queryKeys } from "../lib/react-query/queryKeys";
 import AcademicProgressionStep4 from "../components/AcademicProgressionStep4";
+import ChangeStudentNumberDialog from "../components/staff/ChangeStudentNumberDialog";
+import { useAuth } from "../contexts/AuthContext";
 
 const defaultForm = {
   student_number: "",
@@ -65,6 +67,11 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [currentPhase, setCurrentPhase] = useState(1);
+  const { role } = useAuth();
+  // Change Student Number (#56): the dialog and the saved enrollment date the
+  // server checks the new number's year against.
+  const [changingNumber, setChangingNumber] = useState(false);
+  const [savedEnrollmentDate, setSavedEnrollmentDate] = useState("");
   const [studentDetail, setStudentDetail] = useState({
     enrollments: [],
     grades: [],
@@ -157,6 +164,7 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
         graduation_date: formatDateForInput(s.graduation_date),
 
       });
+      setSavedEnrollmentDate(formatDateForInput(s.enrollment_date));
       setStudentDetail({
         enrollments: s.enrollments || [],
         grades: s.grades || [],
@@ -767,24 +775,32 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
                   Personal Information
                 </h4>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
+                  {/* The number is the login username: read-only here, changed
+                      only through Change Student Number, with a reason (#56). */}
                   <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="student_number"
                       className="text-sm font-medium text-gray-600"
                     >
-                      Student Number *
+                      Student Number
                     </label>
                     <input
                       id="student_number"
                       name="student_number"
                       type="text"
                       value={form.student_number}
-                      onChange={handleChange}
-                      placeholder="e.g. STU-2025-001"
-                      maxLength={20}
-                      className={`${inputBase} ${errors.student_number ? inputError : inputNormal}`}
-                      aria-invalid={!!errors.student_number}
+                      readOnly
+                      className={`${inputBase} ${inputNormal} bg-gray-100 text-gray-700 tracking-wider`}
                     />
+                    {role === "staff" && (
+                      <button
+                        type="button"
+                        onClick={() => setChangingNumber(true)}
+                        className="self-start p-0 bg-transparent border-0 text-xs font-medium text-tmcc underline-offset-2 hover:underline"
+                      >
+                        Change Student Number
+                      </button>
+                    )}
                     {errors.student_number && (
                       <span className="text-xs text-red-600">
                         {errors.student_number}
@@ -1203,6 +1219,21 @@ const StaffEditStudentPage = ({ basePath = "/staff" }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {changingNumber && role === "staff" && (
+        <ChangeStudentNumberDialog
+          studentId={id ?? studentFromState?.student_id ?? studentFromState?.id}
+          currentNumber={form.student_number}
+          enrollmentDate={savedEnrollmentDate}
+          onChanged={(res) => {
+            setForm((prev) => ({ ...prev, student_number: res.student_number }));
+            queryClient.invalidateQueries({ queryKey: [...queryKeys.staff.all, "students"] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.staff.studentNumberMismatches() });
+            staffToast.success("Student number changed", `New login username: ${res.username ?? res.student_number}`);
+          }}
+          onClose={() => setChangingNumber(false)}
+        />
       )}
     </>
   );
