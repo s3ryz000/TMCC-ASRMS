@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\AcademicStatus;
+use App\Support\SchoolLogo;
 use App\Models\Student;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -47,16 +48,12 @@ class OfficialTranscriptExportService
         $e = fn($v) => htmlspecialchars((string) ($v ?? ''), ENT_QUOTES, 'UTF-8');
 
         // ── Logo (base64-embed so dompdf can render it without remote access) ───
-        $logoPath = public_path('assets/logo.png');
-        if (file_exists($logoPath)) {
-            $logoData = base64_encode(file_get_contents($logoPath));
-            $logoHtml = '<img src="data:image/png;base64,' . $logoData
-                . '" style="width:68px;height:68px;border-radius:34px;">';
-        } else {
-            $logoHtml = '<div style="width:68px;height:68px;border:2pt solid #000;border-radius:34px;'
-                . 'line-height:68px;text-align:center;font-size:5.5pt;color:#aaa;'
-                . 'font-family:DejaVu Sans,sans-serif;">LOGO</div>';
-        }
+        // Shared with the approval slip (#98). The old lookup pointed at a
+        // file that never existed and printed a "LOGO" box instead.
+        $logoUri = SchoolLogo::dataUri();
+        $logoHtml = $logoUri !== ''
+            ? '<img src="' . $logoUri . '" alt="TMCC logo" style="width:68px;height:68px;">'
+            : '<div style="width:68px;height:68px;"></div>';
 
         // ── Pre-compute all variables (no function calls inside heredoc) ────────
 

@@ -7,6 +7,7 @@ use App\Models\RecordRequest;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\OfficialTranscriptExportService;
+use App\Support\SchoolLogo;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,32 @@ class TranscriptExportTest extends TestCase
             'TOR-TEST',
             'now'
         );
+    }
+
+    // ── #98: the college logo, embedded so Dompdf needs no internet ───────────
+
+    public function test_transcript_shows_the_embedded_college_logo(): void
+    {
+        $html = $this->transcriptHtml();
+        $logo = base64_encode(file_get_contents(resource_path('images/tmcc-logo.png')));
+
+        $this->assertStringContainsString('data:image/png;base64,' . $logo, $html);
+        $this->assertStringNotContainsString('>LOGO<', $html);
+        $this->assertDoesNotMatchRegularExpression('#src="(https?:)?//#', $html, 'No image may be fetched from a network.');
+    }
+
+    public function test_the_logo_ships_with_the_backend(): void
+    {
+        $this->assertSame(resource_path('images/tmcc-logo.png'), SchoolLogo::candidates()[0]);
+        $this->assertStringStartsWith('data:image/png;base64,', SchoolLogo::dataUri([resource_path('images/tmcc-logo.png')]));
+        $this->assertSame('', SchoolLogo::dataUri([base_path('missing-logo.png')]));
+    }
+
+    public function test_the_transcript_with_its_logo_still_renders_as_a_pdf(): void
+    {
+        Sanctum::actingAs($this->staff, ['*']);
+
+        $this->assertPdf($this->get("/api/staff/students/{$this->student->student_id}/transcript"));
     }
 
     /** The grade cell of $code's row: code, title, then grade. */

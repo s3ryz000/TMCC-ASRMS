@@ -77,6 +77,8 @@ class RecomputedValuesTest extends TestCase
     {
         $html = (new ReflectionMethod(OfficialTranscriptExportService::class, 'buildHtml'))
             ->invoke(app(OfficialTranscriptExportService::class), $this->student->fresh(['program', 'grades.subject']), 'TOR', 'now');
+        // The embedded logo (#98) is too long for the row pattern to scan past.
+        $html = preg_replace('#data:image/[a-z]+;base64,[A-Za-z0-9+/=]+#', 'data:image', $html);
         preg_match('#<tr[^>]*>(?:(?!</tr>).)*\b' . $code . '\b.*?</tr>#s', $html, $m);
 
         return trim(preg_replace('/\s+/', ' ', strip_tags(str_replace('</td>', ' | ', $m[0] ?? ''))));

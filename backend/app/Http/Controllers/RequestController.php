@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\QrCodeGenerator;
 use App\Services\StaffService;
+use App\Support\SchoolLogo;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -694,33 +695,9 @@ class RequestController extends Controller
         return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     }
 
+    /** Shared with the transcript (#98). */
     private function resolveSchoolLogoDataUri(): string
     {
-        $candidates = [
-            public_path('logo.png'),
-            public_path('logo.jpg'),
-            base_path('../frontend/public/logo.png'),
-            base_path('../frontend/public/logo.jpg'),
-        ];
-
-        foreach ($candidates as $path) {
-            if (! is_string($path) || ! file_exists($path) || ! is_readable($path)) {
-                continue;
-            }
-            $binary = @file_get_contents($path);
-            if ($binary === false || $binary === '') {
-                continue;
-            }
-
-            $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-                'jpg', 'jpeg' => 'image/jpeg',
-                'png' => 'image/png',
-                default => 'application/octet-stream',
-            };
-
-            return 'data:' . $mime . ';base64,' . base64_encode($binary);
-        }
-
-        return '';
+        return SchoolLogo::dataUri();
     }
 }
