@@ -1,4 +1,4 @@
-import { awardsFrom, formatGwa, subjectStatusBadge } from './studentRecord';
+import { awardsFrom, formatGwa, roadmapMatchesStatus, subjectStatusBadge } from './studentRecord';
 
 describe('student record helpers (#57)', () => {
   test('awards are exactly the ones the backend marks eligible', () => {
@@ -32,5 +32,29 @@ describe('student record helpers (#57)', () => {
     expect(formatGwa(null)).toBe('—');
     expect(subjectStatusBadge('Completed')).toContain('green');
     expect(subjectStatusBadge('Failed - Retake Required')).toContain('red');
+  });
+});
+
+describe('archived subjects in the student roadmap (#92)', () => {
+  const eligible = { status: 'Eligible to Take' };
+  const archived = { status: 'Archived', archived: true };
+  const passedArchived = { status: 'Completed', archived: true };
+
+  test('"Eligible" never lists an archived subject', () => {
+    expect(roadmapMatchesStatus(eligible, 'Eligible')).toBe(true);
+    expect(roadmapMatchesStatus(archived, 'Eligible')).toBe(false);
+    expect(roadmapMatchesStatus({ status: 'Eligible to Take', archived: true }, 'Eligible')).toBe(false);
+  });
+
+  test('"Archived" lists archived subjects, taken or not', () => {
+    expect(roadmapMatchesStatus(archived, 'Archived')).toBe(true);
+    expect(roadmapMatchesStatus(passedArchived, 'Archived')).toBe(true);
+    expect(roadmapMatchesStatus(eligible, 'Archived')).toBe(false);
+    expect(roadmapMatchesStatus(passedArchived, 'Completed')).toBe(true);
+    expect(roadmapMatchesStatus(archived, '')).toBe(true);
+  });
+
+  test('the Archived status has its own badge', () => {
+    expect(subjectStatusBadge('Archived')).toContain('amber');
   });
 });

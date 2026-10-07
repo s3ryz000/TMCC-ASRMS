@@ -200,6 +200,82 @@ const StudentRequestRecordPage = () => {
     return list;
   }, [summaryPayload, requestsList]);
 
+  // Shared by the phone cards and the table (#92).
+  const renderStatus = (doc) => (
+    !doc.requestStatus ? (
+      <span className="text-gray-400 italic">Not Requested</span>
+    ) : doc.requestStatus === 'pending' ? (
+      <span className="inline-flex items-center gap-1 text-yellow-600 font-medium">
+        <FiClock /> Pending
+      </span>
+    ) : doc.requestStatus === 'approved' ? (
+      <>
+        <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+          <FiCheckCircle /> Approved
+        </span>
+        {doc.appointmentAt && (
+          <span className="flex items-center gap-1 mt-1 text-xs text-gray-700 whitespace-normal">
+            <FiCalendar aria-hidden /> Claim on {formatDateTime(doc.appointmentAt)}
+          </span>
+        )}
+      </>
+    ) : doc.requestStatus === 'released' ? (
+      <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+        <FiCheckCircle /> Released
+      </span>
+    ) : doc.requestStatus === 'rejected' ? (
+      <>
+        <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+          <FiXCircle /> Rejected
+        </span>
+        {doc.rejectionReason && (
+          <span className="block mt-1 text-xs text-gray-700 whitespace-normal max-w-xs">
+            Reason: {doc.rejectionReason}
+          </span>
+        )}
+      </>
+    ) : (
+      <span className="text-gray-600 capitalize">{doc.requestStatus}</span>
+    )
+  );
+
+  const renderAction = (doc) => (
+    requestAction(doc.requestStatus) === 'request' ? (
+      <button
+        onClick={() => setRequesting(doc)}
+        className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-tmcc text-white hover:bg-tmcc-dark disabled:opacity-50"
+      >
+        <FiPlusCircle className="w-4 h-4" />
+        Request Document
+      </button>
+    ) : requestAction(doc.requestStatus) === 'download' ? (
+      <button
+        onClick={() => {
+          if (doc.recordType === 'transcript') handleDownloadTranscript(doc.requestId);
+          else if (doc.recordType === 'certificate_of_grades' || doc.recordType === 'copy_of_grades') studentToast.info('Info', 'This document format is not fully implemented yet.');
+          else generateAwardPdf(doc.name, doc.ay, doc.sem);
+        }}
+        className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700"
+      >
+        <FiDownload className="w-4 h-4" />
+        Download PDF
+      </button>
+    ) : requestAction(doc.requestStatus) === 'slip' ? (
+      <button
+        onClick={() => handleDownloadSlip(doc.requestId)}
+        disabled={downloadingSlip === doc.requestId}
+        className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        <FiDownload className="w-4 h-4" />
+        {downloadingSlip === doc.requestId ? 'Downloading...' : 'Download approval slip'}
+      </button>
+    ) : (
+      <span className="text-gray-400 text-sm">Processing...</span>
+    )
+  );
+
+  const loading = summaryLoading || requestsLoading;
+
   return (
     <section className="sd-content space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -212,7 +288,31 @@ const StudentRequestRecordPage = () => {
       </p>
 
       <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Phones (#92): one card per document, no sideways scrolling. */}
+        <ul className="md:hidden m-0 p-0 list-none divide-y divide-gray-100">
+          {loading ? (
+            <li className="p-6 text-center text-gray-500">Loading available documents...</li>
+          ) : documentsList.length === 0 ? (
+            <li className="p-6 text-center text-gray-500">No documents available.</li>
+          ) : (
+            documentsList.map((doc) => (
+              <li key={doc.docKey} className="p-4 space-y-2">
+                <div>
+                  <p className="m-0 text-xs text-gray-500">{doc.type}</p>
+                  <p className="m-0 font-semibold text-gray-900 break-words">{doc.name}</p>
+                  {(doc.ay !== 'All' || doc.sem !== 'All') && (
+                    <p className="m-0 text-xs text-gray-600">{[doc.ay, doc.sem].filter((v) => v && v !== 'All').join(' · ')}</p>
+                  )}
+                </div>
+                <div className="text-sm">{renderStatus(doc)}</div>
+                <div>{renderAction(doc)}</div>
+              </li>
+            ))
+          )}
+        </ul>
+
+        {/* Table (tablets and up) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm border-collapse bg-white">
             <thead>
               <tr className="bg-gray-100 border-b border-gray-200">
@@ -225,7 +325,7 @@ const StudentRequestRecordPage = () => {
               </tr>
             </thead>
             <tbody>
-              {(summaryLoading || requestsLoading) ? (
+              {loading ? (
                 <tr><td colSpan="6" className="py-8 text-center text-gray-500">Loading available documents...</td></tr>
               ) : documentsList.length === 0 ? (
                 <tr><td colSpan="6" className="py-8 text-center text-gray-500">No documents available.</td></tr>
@@ -236,77 +336,8 @@ const StudentRequestRecordPage = () => {
                     <td className="py-3 px-4 font-medium text-gray-900">{doc.name}</td>
                     <td className="py-3 px-4 text-gray-600 whitespace-nowrap">{doc.ay}</td>
                     <td className="py-3 px-4 text-gray-600 whitespace-nowrap">{doc.sem}</td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {!doc.requestStatus ? (
-                        <span className="text-gray-400 italic">Not Requested</span>
-                      ) : doc.requestStatus === 'pending' ? (
-                        <span className="inline-flex items-center gap-1 text-yellow-600 font-medium">
-                          <FiClock /> Pending
-                        </span>
-                      ) : doc.requestStatus === 'approved' ? (
-                        <>
-                          <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
-                            <FiCheckCircle /> Approved
-                          </span>
-                          {doc.appointmentAt && (
-                            <span className="flex items-center gap-1 mt-1 text-xs text-gray-700 whitespace-normal">
-                              <FiCalendar aria-hidden /> Claim on {formatDateTime(doc.appointmentAt)}
-                            </span>
-                          )}
-                        </>
-                      ) : doc.requestStatus === 'released' ? (
-                        <span className="inline-flex items-center gap-1 text-green-600 font-medium">
-                          <FiCheckCircle /> Released
-                        </span>
-                      ) : doc.requestStatus === 'rejected' ? (
-                        <>
-                          <span className="inline-flex items-center gap-1 text-red-600 font-medium">
-                            <FiXCircle /> Rejected
-                          </span>
-                          {doc.rejectionReason && (
-                            <span className="block mt-1 text-xs text-gray-700 whitespace-normal max-w-xs">
-                              Reason: {doc.rejectionReason}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-gray-600 capitalize">{doc.requestStatus}</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {requestAction(doc.requestStatus) === 'request' ? (
-                        <button
-                          onClick={() => setRequesting(doc)}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-tmcc text-white hover:bg-tmcc-dark disabled:opacity-50"
-                        >
-                          <FiPlusCircle className="w-4 h-4" />
-                          Request Document
-                        </button>
-                      ) : requestAction(doc.requestStatus) === 'download' ? (
-                        <button
-                          onClick={() => {
-                            if (doc.recordType === 'transcript') handleDownloadTranscript(doc.requestId);
-                            else if (doc.recordType === 'certificate_of_grades' || doc.recordType === 'copy_of_grades') studentToast.info('Info', 'This document format is not fully implemented yet.');
-                            else generateAwardPdf(doc.name, doc.ay, doc.sem);
-                          }}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700"
-                        >
-                          <FiDownload className="w-4 h-4" />
-                          Download PDF
-                        </button>
-                      ) : requestAction(doc.requestStatus) === 'slip' ? (
-                        <button
-                          onClick={() => handleDownloadSlip(doc.requestId)}
-                          disabled={downloadingSlip === doc.requestId}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          <FiDownload className="w-4 h-4" />
-                          {downloadingSlip === doc.requestId ? 'Downloading...' : 'Download approval slip'}
-                        </button>
-                      ) : (
-                        <span className="text-gray-400 text-sm">Processing...</span>
-                      )}
-                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">{renderStatus(doc)}</td>
+                    <td className="py-3 px-4 whitespace-nowrap">{renderAction(doc)}</td>
                   </tr>
                 ))
               )}

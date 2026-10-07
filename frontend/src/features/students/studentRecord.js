@@ -57,6 +57,34 @@ export function subjectStatusBadge(status) {
   if (status === 'Currently Enrolled' || status === 'Enrolled') return 'bg-blue-100 text-blue-800';
   if (String(status ?? '').startsWith('Failed')) return 'bg-red-100 text-red-800';
   if (status === 'Incomplete') return 'bg-orange-100 text-orange-800';
+  if (status === 'Archived') return 'bg-amber-100 text-amber-800';
   if (String(status ?? '').includes('Blocked')) return 'bg-gray-100 text-gray-800';
   return 'bg-gray-50 text-gray-600';
+}
+
+/**
+ * The student's roadmap status filter. An archived subject (#92) is never
+ * "Eligible to Take"; it has its own filter.
+ *
+ * @param {{ status: string, archived?: boolean }} item a roadmap row
+ * @param {''|'Completed'|'Enrolled'|'Failed'|'Blocked'|'Eligible'|'Archived'} filter
+ */
+export function roadmapMatchesStatus(item, filter) {
+  const status = item.status ?? '';
+  switch (filter) {
+    case 'Completed':
+      return status === 'Completed';
+    case 'Enrolled':
+      return status === 'Currently Enrolled';
+    case 'Failed':
+      return status === 'Failed - Retake Required';
+    case 'Blocked':
+      return status.includes('Blocked');
+    case 'Eligible':
+      return !item.archived && (status === 'Eligible to Take' || status === 'Not Yet Taken');
+    case 'Archived':
+      return Boolean(item.archived);
+    default:
+      return true;
+  }
 }

@@ -267,7 +267,22 @@ class ArchivedSubjectEnrollmentTest extends TestCase
         $this->assertStringContainsString('Subject A', json_encode($gradesAfter));
         $this->assertStringContainsString('"archived_at":"', json_encode($gradesAfter));
         $this->assertSame($withoutArchivedAt($gradesBefore), $withoutArchivedAt($gradesAfter));
-        $this->assertSame($summaryBefore, $summaryAfter);
+
+        // The roadmap marks the subject archived (#92); every other value of
+        // the summary — grade, status, units, GWA — is the same.
+        $roadmapFlag = fn (array $summary) => collect($summary['curriculum']['roadmap'])->pluck('archived', 'subject_code')->all();
+        $this->assertFalse($roadmapFlag($summaryBefore)['A']);
+        $this->assertTrue($roadmapFlag($summaryAfter)['A']);
+        $withoutFlag = function (array $summary) {
+            $summary['curriculum']['roadmap'] = array_map(function ($row) {
+                unset($row['archived']);
+
+                return $row;
+            }, $summary['curriculum']['roadmap']);
+
+            return $summary;
+        };
+        $this->assertSame($withoutFlag($summaryBefore), $withoutFlag($summaryAfter));
         $this->assertSame($htmlBefore, $htmlAfter);
         $this->assertStringContainsString('Subject A', $htmlAfter);
     }

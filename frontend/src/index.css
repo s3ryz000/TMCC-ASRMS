@@ -1173,6 +1173,22 @@ button.primary:hover {
 
 .sd-title-red { color: rgb(0, 166, 82); }
 
+/* Phones (#92): nothing is clipped or scrolls sideways at 375 px. Wider
+   screens keep the layout above. */
+@media (max-width: 480px) {
+  .student-dashboard { padding: 0.5rem 0.25rem; }
+  .sd-header { padding: 0.6rem 0.75rem; }
+  .sd-brand { min-width: 0; flex: 1 1 12rem; }
+  .sd-college-name { white-space: normal; font-size: 1.05rem; line-height: 1.25; }
+  .sd-header-right { width: 100%; justify-content: space-between; }
+  .sd-datetime { align-items: flex-start; }
+  .sd-profile-name { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .sd-main-nav { padding: 0.5rem 0.75rem; }
+  .sd-main-nav-item { padding: 0.5rem 0.6rem; }
+  .sd-content { padding: 1rem 0.75rem; }
+  .sd-section-title { font-size: 1.1rem; }
+}
+
 /* Login page – matches Student Dashboard layout */
 .sd-login-hero-inner {
   flex-direction: column;

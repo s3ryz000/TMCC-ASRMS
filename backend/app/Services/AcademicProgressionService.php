@@ -1184,6 +1184,10 @@ class AcademicProgressionService
                     $enrollmentAy = $latestEnrollment->academic_year;
                     $enrollmentSem = $latestEnrollment->semester;
                 }
+            } elseif ($subject->archived_at !== null) {
+                // Not taken and no longer offered (#68), so never "Eligible to
+                // Take" (#92).
+                $status = 'Archived';
             } else {
                 $isBlocked = false;
                 if (!empty($item->unresolved_prerequisites)) {
@@ -1223,6 +1227,8 @@ class AcademicProgressionService
                 'subject_description' => $subject->title,
                 'units' => $subject->units,
                 'prerequisites' => implode(', ', array_unique($prereqCodes)),
+                // Archived subjects stay in the roadmap, marked (#92).
+                'archived' => $subject->archived_at !== null,
                 'grade' => $gradeValue,
                 'status' => $status,
                 'remarks' => $remarks,
