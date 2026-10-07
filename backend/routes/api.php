@@ -178,6 +178,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
 // ---- Admin only: Reports export ----
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/reports/export', [ReportController::class, 'export']);
+    Route::get('/reports/requests', [ReportController::class, 'requestsReport']);
+    Route::get('/reports/activity', [ReportController::class, 'activityReport']);
 });
 
 // ---- Student: Profile, COR, subjects, grades, curriculum ----

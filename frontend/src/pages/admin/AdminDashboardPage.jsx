@@ -4,15 +4,81 @@ import { FiInbox, FiUserPlus, FiBarChart2, FiSettings, FiCheck, FiX } from 'reac
 import { formatTime } from '../../lib/tools';
 import { dashboardApi } from '../../lib/api/dashboardApi';
 import BackupStatusCard from '../../components/admin/BackupStatusCard';
+import { STATUS_LABELS } from '../../lib/reportExport';
+
+const ROLE_ROWS = [
+  ['admin', 'Administrators'],
+  ['staff', 'Registrar staff'],
+  ['student', 'Students'],
+];
+
+const thClass = 'py-2 px-3 text-left font-semibold text-gray-600 border-b border-gray-200';
+const tdClass = 'py-2 px-3 border-b border-gray-100';
+
+/** System-wide totals counted when the dashboard loads (#96). */
+const SystemTotals = ({ totals }) => (
+  <section className="mb-8" aria-labelledby="system-totals-title">
+    <h3 id="system-totals-title" className="mb-4 text-lg font-semibold text-gray-800">System Totals</h3>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-[0_4px_14px_rgba(0,0,0,0.06)] lg:col-span-2">
+        <h4 className="m-0 mb-3 text-sm font-medium text-gray-500">User accounts</h4>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse" aria-label="User accounts by role">
+            <thead>
+              <tr>
+                <th className={thClass}>Role</th>
+                <th className={`${thClass} text-right`}>Active</th>
+                <th className={`${thClass} text-right`}>Inactive</th>
+                <th className={`${thClass} text-right`}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ROLE_ROWS.map(([role, label]) => {
+                const row = totals.users?.[role] || { active: 0, inactive: 0, total: 0 };
+                return (
+                  <tr key={role}>
+                    <td className={tdClass}>{label}</td>
+                    <td className={`${tdClass} text-right`}>{row.active}</td>
+                    <td className={`${tdClass} text-right`}>{row.inactive}</td>
+                    <td className={`${tdClass} text-right font-semibold`}>{row.total}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="flex flex-col gap-4">
+        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-[0_4px_14px_rgba(0,0,0,0.06)]">
+          <h4 className="m-0 mb-1 text-sm font-medium text-gray-500">Student records</h4>
+          <p className="m-0 text-2xl font-bold text-gray-800">{totals.students}</p>
+        </div>
+        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-[0_4px_14px_rgba(0,0,0,0.06)]">
+          <h4 className="m-0 mb-2 text-sm font-medium text-gray-500">Record requests</h4>
+          <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            {Object.entries(STATUS_LABELS).map(([status, label]) => (
+              <React.Fragment key={status}>
+                <dt className="text-gray-600">{label}</dt>
+                <dd className="m-0 text-right font-semibold text-gray-800">{totals.requests?.[status] ?? 0}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+);
 
 const AdminDashboardPage = () => {
   const [activity, setActivity] = useState([]);
   const [kpis, setKpis] = useState(null);
-  
+  const [totals, setTotals] = useState(null);
+
   useEffect(() => {
     dashboardApi.getDashboard()
       .then((res) => {
         setKpis(res?.kpis || null);
+        setTotals(res?.totals || null);
         const acts = res?.recent_activity || [];
         const formatted = acts.map((a) => ({
           id: a.id,
@@ -60,6 +126,8 @@ const AdminDashboardPage = () => {
       </section>
 
       <BackupStatusCard />
+
+      {totals && <SystemTotals totals={totals} />}
 
       <section className="mb-8">
         <h3 className="mb-4 text-lg font-semibold text-gray-800">Quick Actions</h3>

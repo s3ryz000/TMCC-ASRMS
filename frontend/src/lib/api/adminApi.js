@@ -42,9 +42,19 @@ export const adminApi = {
     return data;
   },
 
-  // ---- Reports export ----
+  // ---- Reports (#96): params { date_from, date_to } as YYYY-MM-DD ----
   exportReports: async (params = {}) => {
     const { data } = await apiClient.get('/admin/reports/export', { params });
+    return data;
+  },
+
+  getRequestsReport: async (params = {}) => {
+    const { data } = await apiClient.get('/admin/reports/requests', { params });
+    return data;
+  },
+
+  getActivityReport: async (params = {}) => {
+    const { data } = await apiClient.get('/admin/reports/activity', { params });
     return data;
   },
 

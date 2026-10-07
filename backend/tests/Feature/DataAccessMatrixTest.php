@@ -119,6 +119,8 @@ class DataAccessMatrixTest extends TestCase
         ['GET', '/api/admin/logs'],
         ['GET', '/api/admin/logs/export-pdf'],
         ['GET', '/api/admin/reports/export'],
+        ['GET', '/api/admin/reports/requests'],
+        ['GET', '/api/admin/reports/activity'],
         ['GET', '/api/admin/settings'],
         ['POST', '/api/admin/users'],
         ['PUT', '/api/admin/users/999999'],
@@ -218,8 +220,8 @@ class DataAccessMatrixTest extends TestCase
         // Document release stays with admins by design.
         $this->assertSame([], $this->violations(self::SHARED_WRITES, fn ($s) => ! in_array($s, [401, 403], true)));
         $this->assertSame([], $this->violations(self::ADMIN_ENDPOINTS, fn ($s) => ! in_array($s, [401, 403], true)));
-        // The export works on SQLite since #84 (it was a 500 here).
-        $this->assertSame([], $this->violations([['GET', '/api/admin/reports/export']], fn ($s) => $s === 200));
+        // The reports answer on SQLite since #84 (the export was a 500 here).
+        $this->assertSame([], $this->violations([['GET', '/api/admin/reports/export'], ['GET', '/api/admin/reports/requests'], ['GET', '/api/admin/reports/activity']], fn ($s) => $s === 200));
     }
 
     // -------------------------------------------------------------- student

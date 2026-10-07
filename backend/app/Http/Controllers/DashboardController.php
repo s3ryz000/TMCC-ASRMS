@@ -7,6 +7,7 @@ use App\Models\RecordRequest;
 use App\Models\Student;
 use App\Models\SystemLog;
 use App\Models\User;
+use App\Services\ReportFigures;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,7 +31,16 @@ class DashboardController extends Controller
         $role = $this->userRole($user);
 
         if ($role === 'admin' || $role === 'staff') {
-            return $this->staffOrAdminDashboard($request);
+            $response = $this->staffOrAdminDashboard($request);
+
+            // System-wide totals are for the administrator only (#96).
+            if ($role === 'admin') {
+                $response->setData($response->getData(true) + [
+                    'totals' => app(ReportFigures::class)->dashboardTotals(),
+                ]);
+            }
+
+            return $response;
         }
 
         if ($role === 'student') {

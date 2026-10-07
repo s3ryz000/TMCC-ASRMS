@@ -1,198 +1,100 @@
-import React, { useState, useEffect } from "react";
-import {  FiUsers,FiClock, FiDownload } from "react-icons/fi";
+import React, { useCallback, useEffect, useState } from "react";
+import { FiActivity, FiCheckCircle, FiClock, FiDownload, FiFileText, FiInbox } from "react-icons/fi";
 import { adminToast } from "../../lib/notifications";
+import { adminApi } from "../../lib/api/adminApi";
 import { staffApi } from "../../lib/api/staffApi";
 import { parseApiError } from "../../lib/api/errors";
+import { localDateString } from "../../lib/tools";
+import {
+  STATUS_LABELS,
+  buildCsvRows,
+  buildPrintHtml,
+  downloadCsv,
+  formatDays,
+  formatRate,
+  rangeLabel,
+  recordTypeLabel,
+  roleLabel,
+} from "../../lib/reportExport";
 
-function escapeCsvCell(val) {
-  const s = val == null ? "" : String(val);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+const firstOfThisMonth = () => {
+  const d = new Date();
+  return localDateString(new Date(d.getFullYear(), d.getMonth(), 1));
+};
 
-function downloadCsv(filename, rows, headers) {
-  const lines = [
-    headers.map(escapeCsvCell).join(","),
-    ...rows.map((row) => row.map(escapeCsvCell).join(",")),
-  ];
-  const blob = new Blob([lines.join("\r\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+const thClass = "py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700";
+const tdClass = "py-2.5 px-4 border-b border-gray-100";
+const cardClass = "bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden mb-6";
 
-function mapHistoryRow(r) {
-  return {
-    id: r.id,
-    user_name: r.user_name || "System",
-    action: r.action || "—",
-    role: r.role || "—",
-    date: r.date || "—",
-    time: r.time || "",
-  };
-}
+const Kpi = ({ icon: Icon, label, value, color }) => (
+  <div className={`p-5 rounded-xl bg-gray-50 border-l-4 ${color.border}`}>
+    <Icon className={`w-6 h-6 mb-2 ${color.text}`} aria-hidden />
+    <h4 className="m-0 mb-1 text-sm text-gray-500 font-medium">{label}</h4>
+    <p className="m-0 text-2xl font-bold text-gray-800">{value}</p>
+  </div>
+);
 
-function openPrintableExport(exportData, summary) {
-  const w = window.open("", "_blank");
-  if (!w) {
-    adminToast.error("Popup blocked", "Allow popups to print or save as PDF.");
-    return;
-  }
+const CountTable = ({ caption, headers, rows }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm border-collapse" aria-label={caption}>
+      <thead>
+        <tr>
+          <th className={thClass}>{headers[0]}</th>
+          <th className={`${thClass} text-right`}>{headers[1]}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length === 0 ? (
+          <tr>
+            <td colSpan={2} className={`${tdClass} text-center text-gray-500 italic`}>
+              None in this period.
+            </td>
+          </tr>
+        ) : (
+          rows.map(([label, count]) => (
+            <tr key={label}>
+              <td className={tdClass}>{label}</td>
+              <td className={`${tdClass} text-right font-medium`}>{count}</td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  </div>
+);
 
-  const esc = (s) =>
-    String(s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-  const content = exportData
-    .map(
-      (row, i) => `
-      <p>
-        ${i + 1}. <strong>${esc(row.user_name || "System")}</strong> 
-        performed <strong>${esc(row.action)}</strong> 
-        as <strong>${esc(row.role)}</strong> 
-        on ${esc(row.date)} at ${esc(row.time)}.
-      </p>
-    `,
-    )
-    .join("");
-
-  w.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8"/>
-      <title>System Log Report</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 40px;
-          color: #111;
-          line-height: 1.6;
-        }
-
-        .header {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          margin-bottom: 20px;
-          border-bottom: 2px solid #000;
-          padding-bottom: 10px;
-        }
-
-        .logo {
-          width: 60px;
-          height: 60px;
-          object-fit: contain;
-        }
-
-        .title {
-          font-size: 18px;
-          font-weight: bold;
-        }
-
-        .subtitle {
-          font-size: 13px;
-          color: #555;
-        }
-
-        .date {
-          margin-top: 10px;
-          font-size: 12px;
-          color: #555;
-        }
-
-        .content {
-          margin-top: 20px;
-          font-size: 14px;
-          text-align: justify;
-        }
-
-        .intro {
-          margin-top: 15px;
-          font-size: 14px;
-        }
-
-        p {
-          margin-bottom: 12px;
-        }
-      </style>
-    </head>
-    <body>
-
-      <!-- HEADER -->
-      <div class="header">
-        <img src="/logo.png" class="logo" />
-        <div>
-          <div class="title">System Log Report</div>
-          <div class="subtitle">Student Records Management System</div>
-        </div>
-      </div>
-
-      <!-- DATE -->
-      <div class="date">
-        Generated on ${new Date().toLocaleString()}
-      </div>
-
-      <div class="intro">
-        <p>
-          Today, a total of 
-          <strong>${esc(summary?.processed_today ?? "0")}</strong> 
-          transactions were processed in the system. 
-          The system currently holds 
-          <strong>${esc(summary?.students_count ?? "0")}</strong> 
-          registered students.
-        </p>
-      </div>
-
-      <div class="content">
-        ${
-          exportData.length === 0
-            ? "<p>No system logs recorded for today.</p>"
-            : `<p>The following system activities were recorded:</p>${content}`
-        }
-      </div>
-
-    </body>
-    </html>
-  `);
-
-  w.document.close();
-  w.onload = () => {
-    w.focus();
-    w.print();
-  };
-}
+/**
+ * Admin reports (#96): record requests and system activity for a date range,
+ * with CSV and PDF export of the same range.
+ */
 const AdminReportsPage = () => {
-  const [summary, setSummary] = useState(null);
-  const [recentRequests, setRecentRequests] = useState([]);
+  const [dateFrom, setDateFrom] = useState(firstOfThisMonth);
+  const [dateTo, setDateTo] = useState(() => localDateString());
+  const [range, setRange] = useState(() => ({ date_from: firstOfThisMonth(), date_to: localDateString() }));
+  const [rangeError, setRangeError] = useState(null);
+
+  const [requests, setRequests] = useState(null);
+  const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-  });
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    Promise.all([staffApi.getReportsSummary()])
-      .then(([summaryRes]) => {
+    Promise.all([adminApi.getRequestsReport(range), adminApi.getActivityReport(range)])
+      .then(([req, act]) => {
         if (cancelled) return;
-        setSummary(summaryRes || {});
+        setRequests(req);
+        setActivity(act);
       })
       .catch((err) => {
-        if (!cancelled) {
-          const parsed = parseApiError(err);
-          setLoadError(parsed.message || "Failed to load reports.");
-        }
+        if (!cancelled) setLoadError(parseApiError(err).message || "Failed to load reports.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -200,102 +102,74 @@ const AdminReportsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [range]);
 
-  const fetchHistory = async (page = 1) => {
-    try {
-      setLoading(true);
+  const fetchHistory = useCallback(
+    async (page = 1) => {
+      setHistoryLoading(true);
+      try {
+        const res = await staffApi.getTransactionHistory({ ...range, per_page: 10, page });
+        setHistory(Array.isArray(res?.data) ? res.data : []);
+        setPagination({ current_page: res.current_page, last_page: res.last_page, total: res.total });
+      } catch (err) {
+        setLoadError(parseApiError(err).message || "Failed to load the log history.");
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [range],
+  );
 
-      const res = await staffApi.getTransactionHistory({
-        per_page: 10,
-        page: page,
-      });
-
-      const list = Array.isArray(res?.data) ? res.data : [];
-
-      setRecentRequests(list.map(mapHistoryRow));
-
-      setPagination({
-        current_page: res.current_page,
-        last_page: res.last_page,
-      });
-    } catch (err) {
-      const parsed = parseApiError(err);
-      setLoadError(parsed.message || "Failed to load reports.");
-    } finally {
-      setLoading(false);
-    }
-  };
   useEffect(() => {
     fetchHistory(1);
-  }, []);
+  }, [fetchHistory]);
+
+  const applyRange = (e) => {
+    e.preventDefault();
+    if (dateFrom && dateTo && dateTo < dateFrom) {
+      setRangeError("The end date must be on or after the start date.");
+      return;
+    }
+    setRangeError(null);
+    setRange({ date_from: dateFrom || undefined, date_to: dateTo || undefined });
+  };
 
   const runExport = async (kind) => {
+    if (!requests || !activity) return;
     setExportLoading(true);
     try {
-      const exportData = recentRequests;
-      const summaryExport = summary;
+      // The request list for the same range as the figures on screen.
+      const exported = await adminApi.exportReports(range);
+      const input = { range, requests, activity, exportRows: exported?.export_data || [] };
+      const suffix = `${range.date_from || "start"}_to_${range.date_to || "today"}`;
 
       if (kind === "csv") {
-        const headers = [
-          "Student Number",
-          "Student Name",
-          "Record Type",
-          "Purpose",
-          "Status",
-          "Date Requested",
-          "Date Processed",
-          "Date Released",
-        ];
-
-        const rows = exportData.map((row) => [
-          row.student_number,
-          row.student_name,
-          row.record_type,
-          row.purpose,
-          row.status,
-          row.requested_at,
-          row.processed_at,
-          row.released_at,
-        ]);
-
-        const summaryRows = summaryExport
-          ? [
-              ["REPORT SUMMARY"],
-              ["Processed Today", summaryExport.processed_today ?? "—"],
-              ["Total Students", summaryExport.students_count ?? "—"],
-              [],
-            ]
-          : [];
-
-        const finalRows = [...summaryRows, headers, ...rows];
-
-        const stamp = new Date()
-          .toISOString()
-          .slice(0, 19)
-          .replace(/[:T]/g, "-");
-
-        downloadCsv(`reports_export_${stamp}.csv`, finalRows, []);
-      } else {
-        openPrintableExport(exportData, summaryExport);
-        adminToast.success(
-          "Print dialog opened",
-          "Use your browser to save as PDF.",
-        );
+        downloadCsv(`asrms_report_${suffix}.csv`, buildCsvRows(input));
+        adminToast.success("CSV downloaded", `Report for ${rangeLabel(range)}.`);
+        return;
       }
+
+      const w = window.open("", "_blank");
+      if (!w) {
+        adminToast.error("Popup blocked", "Allow popups to print or save as PDF.");
+        return;
+      }
+      w.document.write(buildPrintHtml(input));
+      w.document.close();
+      w.onload = () => {
+        w.focus();
+        w.print();
+      };
+      adminToast.success("Print dialog opened", "Choose \"Save as PDF\" to keep a copy.");
     } catch (err) {
-      const parsed = parseApiError(err);
-      adminToast.error(
-        "Export failed",
-        parsed.message || "Could not export reports.",
-      );
+      adminToast.error("Export failed", parseApiError(err).message || "Could not export the report.");
     } finally {
       setExportLoading(false);
     }
   };
 
-  const handleExportCSV = () => runExport("csv");
-  const handleExportPDF = () => runExport("pdf");
+  const ready = !loading && requests && activity;
+  const exportDisabled = exportLoading || !ready;
 
   return (
     <>
@@ -303,143 +177,210 @@ const AdminReportsPage = () => {
         <div>
           <h2 className="m-0 text-2xl font-bold text-gray-800">Reports</h2>
           <p className="mt-1 m-0 text-gray-600 text-sm">
-            Full reports with export. Admin-only access.
+            Record requests and system activity for a period. Figures are counted from the database when the page loads.
           </p>
         </div>
         <div className="flex gap-2">
-        
           <button
             type="button"
-            onClick={handleExportPDF}
-            disabled={exportLoading}
-            className="inline-flex items-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium bg-staff-red text-white hover:opacity-90 disabled:opacity-70"
+            onClick={() => runExport("csv")}
+            disabled={exportDisabled}
+            className="inline-flex items-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+          >
+            <FiDownload /> Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => runExport("pdf")}
+            disabled={exportDisabled}
+            className="inline-flex items-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium bg-staff-red text-white hover:opacity-90 disabled:opacity-60"
           >
             <FiDownload /> Export PDF
           </button>
         </div>
       </section>
 
-      {loadError && (
-        <div
-          className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm"
-          role="alert"
+      <form onSubmit={applyRange} className={`${cardClass} p-5 flex flex-wrap items-end gap-4`} aria-label="Report period">
+        <div>
+          <label htmlFor="report-date-from" className="block text-sm font-medium text-gray-700 mb-1">From</label>
+          <input
+            id="report-date-from"
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="py-2 px-3 rounded-lg border border-gray-300 text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="report-date-to" className="block text-sm font-medium text-gray-700 mb-1">To</label>
+          <input
+            id="report-date-to"
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="py-2 px-3 rounded-lg border border-gray-300 text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          className="py-2 px-4 rounded-lg text-sm font-medium bg-tmcc text-white hover:bg-tmcc-dark"
         >
+          Show report
+        </button>
+        <p className="m-0 text-sm text-gray-500 basis-full">
+          Showing <strong>{rangeLabel(range)}</strong>. Both dates are included. Leave a date empty for no limit.
+        </p>
+        {rangeError && (
+          <p className="m-0 text-sm text-red-600 basis-full" role="alert">{rangeError}</p>
+        )}
+      </form>
+
+      {loadError && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm" role="alert">
           {loadError}
         </div>
       )}
 
-      <section className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden mb-6">
+      <section className={cardClass} aria-labelledby="report-requests-title">
         <div className="p-6 border-b border-gray-100">
-          <h3 className="mt-0 mb-2 text-lg font-semibold text-gray-800">
-            Summary
-          </h3>
-          <p className="m-0 text-sm text-gray-500">
-            Key performance indicators from live data.
-          </p>
+          <h3 id="report-requests-title" className="mt-0 mb-1 text-lg font-semibold text-gray-800">Record requests</h3>
+          <p className="m-0 text-sm text-gray-500">Requests made in the period, by their current status.</p>
         </div>
-        {loading && !summary ? (
-          <div className="p-8 text-center text-gray-500">
-            Loading summary...
-          </div>
+        {!ready ? (
+          <div className="p-8 text-center text-gray-500">Loading...</div>
         ) : (
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-xl bg-gray-50 border-l-4 border-blue-500">
-              <FiClock className="w-7 h-7 mb-2 text-blue-500" aria-hidden />
-              <h4 className="m-0 mb-2 text-sm text-gray-500 font-medium">
-                Processed Today
-              </h4>
-              <p className="m-0 text-2xl font-bold text-gray-800">
-                {summary?.processed_today ?? "—"}
-              </p>
-              <small className="block mt-1 text-gray-400 text-xs">
-                Created Student Today
-              </small>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Kpi icon={FiInbox} label="Total requests" value={requests.total} color={{ border: "border-blue-500", text: "text-blue-500" }} />
+              <Kpi
+                icon={FiCheckCircle}
+                label="Approval rate"
+                value={formatRate(requests.approval_rate)}
+                color={{ border: "border-green-500", text: "text-green-500" }}
+              />
+              <Kpi
+                icon={FiClock}
+                label="Average processing time"
+                value={formatDays(requests.avg_processing_time_days)}
+                color={{ border: "border-indigo-500", text: "text-indigo-500" }}
+              />
             </div>
-            <div className="p-5 rounded-xl bg-gray-50 border-l-4 border-indigo-500">
-              <FiUsers className="w-7 h-7 mb-2 text-indigo-500" aria-hidden />
-              <h4 className="m-0 mb-2 text-sm text-gray-500 font-medium">
-                Students
-              </h4>
-              <p className="m-0 text-2xl font-bold text-gray-800">
-                {summary?.students_count ?? "—"}
-              </p>
-              <small className="block mt-1 text-gray-400 text-xs">
-                Total in system
-              </small>
+            <p className="m-0 text-xs text-gray-500">
+              Approval rate: approved and released requests ÷ all decided requests (approved, released and rejected). Pending requests are not counted.
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <CountTable
+                caption="Requests by status"
+                headers={["Status", "Requests"]}
+                rows={Object.keys(STATUS_LABELS).map((s) => [STATUS_LABELS[s], requests.by_status?.[s] ?? 0])}
+              />
+              <CountTable
+                caption="Requests by record type"
+                headers={["Record type", "Requests"]}
+                rows={(requests.by_record_type || []).map((r) => [recordTypeLabel(r.record_type), r.total])}
+              />
             </div>
           </div>
         )}
       </section>
 
-      <section className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
+      <section className={cardClass} aria-labelledby="report-activity-title">
         <div className="p-6 border-b border-gray-100">
-          <h3 className="mt-0 mb-2 text-lg font-semibold text-gray-800">
-            Log History
-          </h3>
+          <h3 id="report-activity-title" className="mt-0 mb-1 text-lg font-semibold text-gray-800">System activity</h3>
+          <p className="m-0 text-sm text-gray-500">Entries written to the system log in the period.</p>
+        </div>
+        {!ready ? (
+          <div className="p-8 text-center text-gray-500">Loading...</div>
+        ) : (
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Kpi icon={FiActivity} label="Log entries" value={activity.total} color={{ border: "border-amber-500", text: "text-amber-500" }} />
+              <Kpi
+                icon={FiFileText}
+                label="Days with activity"
+                value={(activity.by_day || []).length}
+                color={{ border: "border-slate-500", text: "text-slate-500" }}
+              />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <CountTable
+                caption="Entries by role"
+                headers={["Role", "Entries"]}
+                rows={(activity.by_role || []).map((r) => [roleLabel(r.role), r.total])}
+              />
+              <CountTable
+                caption="Top actions"
+                headers={["Top actions", "Times"]}
+                rows={(activity.top_actions || []).map((r) => [r.action, r.total])}
+              />
+              <CountTable
+                caption="Entries by day"
+                headers={["Date", "Entries"]}
+                rows={(activity.by_day || []).map((r) => [r.date, r.total])}
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className={cardClass} aria-labelledby="report-history-title">
+        <div className="p-6 border-b border-gray-100">
+          <h3 id="report-history-title" className="mt-0 mb-1 text-lg font-semibold text-gray-800">Log history</h3>
+          <p className="m-0 text-sm text-gray-500">
+            {pagination.total ?? 0} entries in the period, newest first.
+          </p>
         </div>
         <div className="overflow-x-auto">
-          <table
-            className="w-full text-sm border-collapse"
-            aria-label="Transaction history"
-          >
+          <table className="w-full text-sm border-collapse" aria-label="Log history">
             <thead>
               <tr>
-                <th>User</th>
-                <th>Action</th>
-                <th>Role</th>
-                <th>Date</th>
-                <th>Time</th>
+                <th className={thClass}>User</th>
+                <th className={thClass}>Action</th>
+                <th className={thClass}>Role</th>
+                <th className={thClass}>Date</th>
+                <th className={thClass}>Time</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {historyLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-gray-500">
-                    Loading...
-                  </td>
+                  <td colSpan={5} className="py-6 text-center text-gray-500">Loading...</td>
                 </tr>
-              ) : recentRequests.length === 0 ? (
+              ) : history.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="py-6 text-center text-gray-500 italic"
-                  >
-                    No transactions yet.
-                  </td>
+                  <td colSpan={5} className="py-6 text-center text-gray-500 italic">No log entries in this period.</td>
                 </tr>
               ) : (
-                recentRequests.map((row) => (
+                history.map((row) => (
                   <tr key={row.id}>
-                    <td className="py-3 px-4">{row.user_name}</td>
-                    <td className="py-3 px-4">{row.action}</td>
-                    <td className="py-3 px-4">{row.role}</td>
-                    <td className="py-3 px-4">{row.date}</td>
-                    <td className="py-3 px-4">{row.time}</td>
+                    <td className={tdClass}>{row.user_name || "System"}</td>
+                    <td className={tdClass}>{row.action || "—"}</td>
+                    <td className={tdClass}>{row.role || "—"}</td>
+                    <td className={tdClass}>{row.date || "—"}</td>
+                    <td className={tdClass}>{row.time || ""}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-sm text-gray-500 flex items-center justify-between">
-          <div className="flex gap-2 justify-center py-4">
-            {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map(
-              (p) => (
-                <button
-                  key={p}
-                  onClick={() => fetchHistory(p)}
-                  className={`px-3 py-1 rounded ${
-                    p === pagination.current_page
-                      ? "bg-tmcc text-white"
-                      : "bg-gray-200"
-                  }`}
-                >
-                  {p}
-                </button>
-              ),
-            )}
+        {pagination.last_page > 1 && (
+          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-2">
+            {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => fetchHistory(p)}
+                aria-current={p === pagination.current_page ? "page" : undefined}
+                className={`px-3 py-1 rounded text-sm ${p === pagination.current_page ? "bg-tmcc text-white" : "bg-gray-200"}`}
+              >
+                {p}
+              </button>
+            ))}
           </div>
-        </div>
+        )}
       </section>
     </>
   );

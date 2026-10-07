@@ -6,7 +6,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Models\RecordRequest;
 use App\Models\Student;
 use App\Models\SystemLog;
-use App\Support\ProcessingTime;
+use App\Services\ReportFigures;
 use App\Support\SafeLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Log;
 class ReportController extends Controller
 {
     use AuthorizesRole;
+
+    public function __construct(private readonly ReportFigures $figures)
+    {
+    }
 
     /**
      * Summary KPIs for dashboard (staff + admin).
@@ -45,7 +49,8 @@ class ReportController extends Controller
             'students_count' => $studentsCount,
             'documents_released_today' => $releasedToday,
             'documents_released_total' => $documentsReleasedTotal,
-            'approval_rate' => $this->approvalRate(),
+            // All time; approved ÷ decided, 0–100 (#96).
+            'approval_rate' => ReportFigures::approvalRate($this->figures->requestsByStatus()),
         ]);
     }
 
@@ -114,14 +119,16 @@ class ReportController extends Controller
             return $err;
         }
 
+        $range = $this->dateRange($request);
+
         $query = RecordRequest::with('student:student_id,student_number,first_name,last_name,email')
             ->orderByDesc('requested_at');
 
-        if ($dateFrom = $request->input('date_from')) {
-            $query->whereDate('requested_at', '>=', $dateFrom);
+        if ($range['date_from']) {
+            $query->whereDate('requested_at', '>=', $range['date_from']);
         }
-        if ($dateTo = $request->input('date_to')) {
-            $query->whereDate('requested_at', '<=', $dateTo);
+        if ($range['date_to']) {
+            $query->whereDate('requested_at', '<=', $range['date_to']);
         }
         if ($status = $request->input('status')) {
             $query->where('status', $status);
@@ -142,44 +149,75 @@ class ReportController extends Controller
             ];
         });
 
+        // The summary covers the same date range as the rows (#96).
+        $report = $this->figures->requests($range['date_from'], $range['date_to']);
+
         return response()->json([
             'export_data' => $data,
             'summary' => [
-                'total_requests' => RecordRequest::count(),
-                'avg_processing_time_days' => $this->avgProcessingTimeDays(),
-                'approval_rate' => $this->approvalRate(),
+                'range' => $report['range'],
+                'total_requests' => $report['total'],
+                'by_status' => $report['by_status'],
+                'by_record_type' => $report['by_record_type'],
+                'avg_processing_time_days' => $report['avg_processing_time_days'],
+                'approval_rate' => $report['approval_rate'],
             ],
         ]);
     }
 
-    private function approvalRate(): ?float
+    /**
+     * Requests report for a date range (admin only, #96): counts per status
+     * and record type, approval rate and average processing time.
+     */
+    public function requestsReport(Request $request): JsonResponse
     {
-        $total = RecordRequest::whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_REJECTED])->count();
-        if ($total === 0) {
-            return null;
+        if ($err = $this->requireAuth()) {
+            return $err;
         }
-        $approved = RecordRequest::where('status', RecordRequest::STATUS_APPROVED)->count()
-            + RecordRequest::where('status', RecordRequest::STATUS_RELEASED)->count();
-        SystemLog::create([
-            'action' => 'Approval rate calculated',
-            'user_id' => auth()->user()->id,
-            'role' => auth()->user()->roles->first()?->name ?? auth()->user()->role ?? null,
-        ]);
-        return round($approved / $total * 100, 2);
+        if ($err = $this->requireRoles($request->user(), ['admin'])) {
+            return $err;
+        }
+
+        $range = $this->dateRange($request);
+
+        return response()->json($this->figures->requests($range['date_from'], $range['date_to']));
     }
 
     /**
-     * Same result on SQLite and MySQL (#84): only the two timestamps are
-     * selected and the days are counted in PHP.
+     * Activity report for a date range from the system logs (admin only,
+     * #96): entries per day and per role, and the most frequent actions.
      */
-    private function avgProcessingTimeDays(): ?float
+    public function activityReport(Request $request): JsonResponse
     {
-        $pairs = RecordRequest::whereNotNull('processed_at')
-            ->whereNotNull('requested_at')
-            ->select(['id', 'requested_at', 'processed_at'])
-            ->lazyById(500)
-            ->map(fn (RecordRequest $r) => [$r->requested_at, $r->processed_at]);
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['admin'])) {
+            return $err;
+        }
 
-        return ProcessingTime::averageDays($pairs);
+        $range = $this->dateRange($request);
+
+        return response()->json($this->figures->activity($range['date_from'], $range['date_to']));
+    }
+
+    /**
+     * Optional inclusive date range, as Y-m-d.
+     *
+     * @return array{date_from: ?string, date_to: ?string}
+     */
+    private function dateRange(Request $request): array
+    {
+        $validated = $request->validate([
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+        ], [
+            'date_to.after_or_equal' => 'The end date must be on or after the start date.',
+        ]);
+
+        return [
+            'date_from' => $validated['date_from'] ?? null,
+            'date_to' => $validated['date_to'] ?? null,
+        ];
     }
 }

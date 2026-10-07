@@ -100,9 +100,11 @@ class ReportExportTest extends TestCase
         ]));
         $this->assertNull(ProcessingTime::averageDays([]));
 
-        $source = file_get_contents(app_path('Http/Controllers/ReportController.php'));
-        foreach (['TIMESTAMPDIFF', 'julianday', 'DATEDIFF', 'selectRaw', 'DB::raw'] as $driverSpecific) {
-            $this->assertStringNotContainsString($driverSpecific, $source);
+        foreach (['Http/Controllers/ReportController.php', 'Services/ReportFigures.php'] as $file) {
+            $source = file_get_contents(app_path($file));
+            foreach (['TIMESTAMPDIFF', 'julianday', 'DATEDIFF', 'selectRaw', 'DB::raw'] as $driverSpecific) {
+                $this->assertStringNotContainsString($driverSpecific, $source, $file);
+            }
         }
     }
 
