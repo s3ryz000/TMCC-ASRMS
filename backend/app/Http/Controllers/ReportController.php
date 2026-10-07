@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Models\RecordRequest;
 use App\Models\Student;
 use App\Models\SystemLog;
+use App\Support\ProcessingTime;
 use App\Support\SafeLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,7 +97,7 @@ class ReportController extends Controller
             Log::error('error while fetching logs: ' . SafeLog::describe($e), SafeLog::context($e));
             return response()->json([
                 'message' => 'Failed to get transaction history',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Something went wrong.',
             ], 500);
         }
     }
@@ -167,13 +168,18 @@ class ReportController extends Controller
         return round($approved / $total * 100, 2);
     }
 
+    /**
+     * Same result on SQLite and MySQL (#84): only the two timestamps are
+     * selected and the days are counted in PHP.
+     */
     private function avgProcessingTimeDays(): ?float
     {
-        $avgDays = RecordRequest::whereNotNull('processed_at')
+        $pairs = RecordRequest::whereNotNull('processed_at')
             ->whereNotNull('requested_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(DAY, requested_at, processed_at)) as avg_days')
-            ->value('avg_days');
+            ->select(['id', 'requested_at', 'processed_at'])
+            ->lazyById(500)
+            ->map(fn (RecordRequest $r) => [$r->requested_at, $r->processed_at]);
 
-        return $avgDays !== null ? round((float) $avgDays, 2) : null;
+        return ProcessingTime::averageDays($pairs);
     }
 }

@@ -217,10 +217,9 @@ class DataAccessMatrixTest extends TestCase
         $this->assertSame([], $this->violations(array_merge(self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::STUDENT_READS, self::STUDENT_WRITES), fn ($s) => $s === 403));
         // Document release stays with admins by design.
         $this->assertSame([], $this->violations(self::SHARED_WRITES, fn ($s) => ! in_array($s, [401, 403], true)));
-        // Access only: /admin/reports/export currently fails on SQLite
-        // (TIMESTAMPDIFF), filed as a bug; its error body is covered by
-        // ResponseContentsTest.
         $this->assertSame([], $this->violations(self::ADMIN_ENDPOINTS, fn ($s) => ! in_array($s, [401, 403], true)));
+        // The export works on SQLite since #84 (it was a 500 here).
+        $this->assertSame([], $this->violations([['GET', '/api/admin/reports/export']], fn ($s) => $s === 200));
     }
 
     // -------------------------------------------------------------- student
