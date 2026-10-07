@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateStudentSisRequest;
 use App\Models\SystemLog;
 use App\Models\SystemSetting;
 use App\Models\PendingStudentUpdate;
+use App\Services\Enrollment\EnrollmentTerm;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -98,17 +99,50 @@ class StudentProfileController extends Controller
             return response()->json(['message' => 'Student record not found.'], 404);
         }
 
-        $academicYear = $request->input('academic_year') ?: (SystemSetting::getValue('academic_year') ?: date('Y') . '-' . (date('Y') + 1));
-        $semester = $request->input('semester') ?: (SystemSetting::getValue('semester') ?: '2nd Semester');
+        $validated = $request->validate([
+            'academic_year' => ['nullable', 'string', 'max:20'],
+            'semester' => ['nullable', 'string', 'max:20'],
+        ]);
 
-        $enrollments = $student->enrollments()
+        // The term's registered subjects (#83). The semester used to default to
+        // the text "2nd Semester" while enrollments store 1 or 2, so nothing
+        // matched. Semesters are compared normalised ("2", "2nd Semester" → 2),
+        // and without a term in the request the student's latest term is used.
+        $active = $student->enrollments()
             ->with('subject')
-            ->where('academic_year', $academicYear)
-            ->where('semester', $semester)
-            ->where('status', AcademicStatus::ENROLLED)
+            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
             ->get()
+            ->map(function ($e) {
+                $e->setAttribute('term_semester', EnrollmentTerm::normaliseSemester($e->semester));
+
+                return $e;
+            });
+
+        if (filled($validated['semester'] ?? null)) {
+            $semester = EnrollmentTerm::normaliseSemester($validated['semester']);
+            if ($semester === null) {
+                return response()->json([
+                    'message' => 'The semester must be 1st or 2nd.',
+                    'errors' => ['semester' => ['The semester must be 1st or 2nd.']],
+                ], 422);
+            }
+            $academicYear = $validated['academic_year'] ?? $active->where('term_semester', $semester)->max('academic_year');
+        } elseif (filled($validated['academic_year'] ?? null)) {
+            $academicYear = $validated['academic_year'];
+            $semester = $active->where('academic_year', $academicYear)->max('term_semester');
+        } else {
+            $latest = $active->filter(fn ($e) => $e->academic_year && $e->term_semester)
+                ->sortBy([['academic_year', 'desc'], ['term_semester', 'desc']])
+                ->first();
+            $academicYear = $latest?->academic_year;
+            $semester = $latest?->term_semester;
+        }
+
+        $enrollments = $active
+            ->filter(fn ($e) => $e->academic_year === $academicYear && $e->term_semester === $semester)
             ->sortBy(fn ($e) => $e->subject?->code ?? '')
-            ->values();
+            ->values()
+            ->each(fn ($e) => $e->offsetUnset('term_semester'));
 
         return response()->json([
             'academic_year' => $academicYear,

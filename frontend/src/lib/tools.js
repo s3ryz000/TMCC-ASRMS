@@ -37,6 +37,12 @@ export const localDateString = (date = new Date()) => {
   return `${y}-${m}-${d}`;
 };
 
+/**
+ * A "YYYY-MM-DD" day before today (here). The keys sort as text, so they
+ * compare directly; used to disable past days in the appointment calendar (#83).
+ */
+export const isPastDay = (dateKey, today = localDateString()) => Boolean(dateKey) && dateKey < today;
+
 /** An API date ("2006-06-21") as the value of an <input type="date">; '' when empty. */
 export const toDateInputValue = (value) => {
   if (!value) return '';

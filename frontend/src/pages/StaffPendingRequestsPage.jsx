@@ -3,7 +3,7 @@ import { FiCheck, FiX, FiSearch, FiChevronUp, FiChevronDown, FiInbox, FiCheckCir
 import { staffToast } from '../lib/notifications';
 import { staffApi } from '../lib/api/staffApi';
 import { parseApiError } from '../lib/api/errors';
-import { formatDateTime, localDateString } from '../lib/tools';
+import { formatDateTime, isPastDay, localDateString } from '../lib/tools';
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 const TABS = [
@@ -698,7 +698,8 @@ const StaffPendingRequestsPage = () => {
                 <div className="flex items-center justify-between mb-4">
                   <button
                     type="button"
-                    className="px-2 py-1 border rounded text-sm hover:bg-gray-50"
+                    className="px-2 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={monthKeyFromDate(approveMonth) <= monthKeyFromDate(new Date()) /* earlier months have passed */}
                     onClick={() => setApproveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
                   >
                     Prev
@@ -724,17 +725,19 @@ const StaffPendingRequestsPage = () => {
                     const key = toDateInput(day);
                     const inMonth = day.getMonth() === approveMonth.getMonth();
                     const closed = day.getDay() === 0;
+                    // The server refuses past days too (#83).
+                    const past = isPastDay(key);
                     const selected = key === appointmentDate;
                     const booked = fullyBookedDates.has(key);
                     return (
                       <button
                         type="button"
                         key={key}
-                        disabled={!inMonth || closed}
-                        title={closed && inMonth ? 'Closed on Sundays' : undefined}
+                        disabled={!inMonth || closed || past}
+                        title={inMonth ? (past ? 'This day has passed' : closed ? 'Closed on Sundays' : undefined) : undefined}
                         onClick={() => setAppointmentDate(key)}
                         className={`py-2 rounded border text-center ${
-                          !inMonth ? 'opacity-35 cursor-not-allowed' : closed
+                          !inMonth ? 'opacity-35 cursor-not-allowed' : closed || past
                             ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : selected
                             ? 'bg-tmcc text-white border-tmcc'
                             : booked ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
@@ -770,7 +773,12 @@ const StaffPendingRequestsPage = () => {
                       type="date"
                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={appointmentDate}
+                      min={localDateString()}
                       onChange={(e) => {
+                        if (isPastDay(e.target.value)) {
+                          staffToast.warning('Day has passed', 'Pick today or a later date.');
+                          return;
+                        }
                         // A date input can't grey out weekdays, so refuse Sundays here.
                         if (isSunday(e.target.value)) {
                           staffToast.warning('Not an office day', "The registrar's office is closed on Sundays. Pick another date.");
