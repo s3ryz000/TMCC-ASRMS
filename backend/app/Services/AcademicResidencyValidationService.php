@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Student;
 use App\Services\Enrollment\AcademicRecordQuery;
+use App\Services\Enrollment\EnrollmentTerm;
 use Carbon\Carbon;
 
 /**
@@ -198,13 +199,7 @@ class AcademicResidencyValidationService
      */
     private function countUsedRegularTerms(Student $student): int
     {
-        return Enrollment::where('student_id', $student->student_id)
-            ->whereNull('deleted_at')
-            ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
-            ->whereIn('year_level', [1, 2, 3, 4])
-            ->select('year_level', 'semester')
-            ->distinct()
-            ->count();
+        return $this->countDistinctTerms($student, [1, 2, 3, 4]);
     }
 
     /**
@@ -213,12 +208,29 @@ class AcademicResidencyValidationService
      */
     private function countUsedFifthYearTerms(Student $student): int
     {
+        return $this->countDistinctTerms($student, [5]);
+    }
+
+    /**
+     * Distinct (year_level, semester) pairs among the student's active
+     * enrollments, counted in PHP (#91). The previous
+     * ->select(...)->distinct()->count() let Laravel drop the selected
+     * columns and run "select distinct count(*)", which counted every
+     * enrollment row (one per subject): a first-year student with 3 terms
+     * and 20 subjects was on "term 21" and shown Maximum Residency Period
+     * Reached. Semesters are normalised so "1" and "1st Semester" are one.
+     *
+     * @param int[] $yearLevels
+     */
+    private function countDistinctTerms(Student $student, array $yearLevels): int
+    {
         return Enrollment::where('student_id', $student->student_id)
             ->whereNull('deleted_at')
             ->whereNotIn('status', AcademicStatus::NOT_ACTIVE)
-            ->where('year_level', 5)
-            ->select('semester')
-            ->distinct()
+            ->whereIn('year_level', $yearLevels)
+            ->get(['year_level', 'semester'])
+            ->map(fn (Enrollment $e) => (int) $e->year_level . '-' . (EnrollmentTerm::normaliseSemester($e->semester) ?? $e->semester))
+            ->unique()
             ->count();
     }
 

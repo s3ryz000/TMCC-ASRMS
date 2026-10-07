@@ -15,6 +15,14 @@ import {
   FiAlertTriangle,
 } from 'react-icons/fi';
 import { studentApi } from '../lib/api/studentApi';
+import { dashboardApi } from '../lib/api/dashboardApi';
+
+const REQUEST_CARDS = [
+  { key: 'pending_requests', label: 'Pending', className: 'text-amber-600' },
+  { key: 'approved', label: 'Approved', className: 'text-green-600' },
+  { key: 'rejected', label: 'Rejected', className: 'text-red-600' },
+  { key: 'released', label: 'Released', className: 'text-blue-600' },
+];
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -28,6 +36,13 @@ const StudentDashboard = () => {
     queryKey: ['studentAcademicSummary'],
     queryFn: studentApi.getAcademicSummary,
   });
+
+  // Request counts for this student only (#91), from the role-based dashboard.
+  const { data: dashboard } = useQuery({
+    queryKey: ['studentDashboard'],
+    queryFn: dashboardApi.getDashboard,
+  });
+  const requestKpis = dashboard?.kpis;
 
   const academicYear = profile?.academic_year || '';
   const semester = profile?.semester || '';
@@ -122,6 +137,30 @@ const StudentDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* ========== DOCUMENT REQUESTS SUMMARY (#91) ========== */}
+        <section className="mb-8" aria-labelledby="request-summary-title">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 id="request-summary-title" className="m-0 text-base font-semibold text-gray-800 flex items-center gap-2">
+              <FiFileText aria-hidden /> My Document Requests
+            </h3>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/request')}
+              className="text-sm font-medium text-tmcc hover:underline bg-transparent border-0 p-0 cursor-pointer"
+            >
+              View requests
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {REQUEST_CARDS.map(({ key, label, className }) => (
+              <div key={key} className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                <p className="m-0 text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
+                <p className={`m-0 mt-1 text-2xl font-bold ${className}`}>{requestKpis ? requestKpis[key] ?? 0 : '—'}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* ========== ENROLLMENT SECTION ========== */}
         <div className="sd-enrollment-section mt-8">
