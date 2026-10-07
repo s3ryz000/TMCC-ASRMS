@@ -71,19 +71,32 @@ class CurriculumPrerequisites
      *
      * @param int[] $subjectIds
      */
-    public function save(Curriculum $entry, array $subjectIds, string $logic): void
+    /**
+     * @param bool|null $requiresAllOtherSubjects The program-completion marker
+     *        (#82); null leaves it as it is.
+     */
+    public function save(Curriculum $entry, array $subjectIds, string $logic, ?bool $requiresAllOtherSubjects = null): void
     {
-        DB::transaction(function () use ($entry, $subjectIds, $logic) {
+        DB::transaction(function () use ($entry, $subjectIds, $logic, $requiresAllOtherSubjects) {
             $entry->prerequisites()->sync(array_values(array_unique(array_map('intval', $subjectIds))));
-            $entry->forceFill(['prerequisite_logic' => $logic, 'unresolved_prerequisites' => null])->save();
+            $fields = ['prerequisite_logic' => $logic, 'unresolved_prerequisites' => null];
+            if ($requiresAllOtherSubjects !== null) {
+                $fields['requires_all_other_subjects'] = $requiresAllOtherSubjects;
+            }
+            $entry->forceFill($fields)->save();
         });
     }
 
-    /** "Curriculum: BSTM THC4 prerequisites set to GEC5 AND THC1" */
-    public static function logMessage(string $programCode, string $code, Collection $prerequisiteCodes, string $logic): string
+    /**
+     * "Curriculum: BSTM THC4 prerequisites set to GEC5 AND THC1", with
+     * "; after all other subjects" when the entry is a program-completion
+     * subject (#82).
+     */
+    public static function logMessage(string $programCode, string $code, Collection $prerequisiteCodes, string $logic, bool $requiresAllOtherSubjects = false): string
     {
         return "Curriculum: {$programCode} {$code} prerequisites "
-            . ($prerequisiteCodes->isEmpty() ? 'cleared' : 'set to ' . $prerequisiteCodes->join(" {$logic} "));
+            . ($prerequisiteCodes->isEmpty() ? 'cleared' : 'set to ' . $prerequisiteCodes->join(" {$logic} "))
+            . ($requiresAllOtherSubjects ? '; after all other subjects' : '');
     }
 
     public static function notEarlier(string $prereqCode, int|string $prereqYear, int|string $prereqSemester, string $code, int|string $year, int|string $semester): string

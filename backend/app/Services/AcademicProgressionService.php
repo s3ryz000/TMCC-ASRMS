@@ -13,6 +13,7 @@ use App\Services\Enrollment\AcademicRecordQuery;
 use App\Services\Enrollment\EnrollmentPolicy;
 use App\Services\Enrollment\EnrollmentTerm;
 use App\Services\Enrollment\EnrollmentValidator;
+use App\Services\Enrollment\Rules\ProgramCompletionRule;
 
 class AcademicProgressionService
 {
@@ -435,6 +436,7 @@ class AcademicProgressionService
         $incSubjectIds = $this->records->incSubjectIds($student);
 
         $available = [];
+        $programCurriculum = null; // loaded on first need (#82)
 
         foreach ($curriculumEntries as $entry) {
             $subjectId = $entry->subject_id;
@@ -576,8 +578,24 @@ class AcademicProgressionService
                 $isRetake = true;
             }
 
+            // Program-completion subject such as PRACTICUM (#82): offered only
+            // once every other subject of the program is Passed/Credited. The
+            // same check and message as ProgramCompletionRule at enrollment.
+            $completionReason = null;
+            if ($eligible && $entry->requires_all_other_subjects) {
+                $programCurriculum ??= Curriculum::with('subject')->where('program_id', $student->program_id)->get();
+                $remaining = ProgramCompletionRule::remaining($programCurriculum, (int) $subjectId, $passedSubjectIds);
+                if ($remaining !== []) {
+                    $eligible = false;
+                    $prereqStatus = 'program_completion';
+                    $completionReason = ProgramCompletionRule::message($subject->code, $student->program?->code, $remaining);
+                }
+            }
+
             $blockedReason = null;
-            if (!$eligible) {
+            if ($completionReason !== null) {
+                $blockedReason = $completionReason;
+            } elseif (!$eligible) {
                 if ($prereqStatus === 'inc') {
                     $missingDisplay = implode(', ', $missingPrereqs);
                     $blockedReason = "{$missingDisplay} has INC status. Complete the prerequisite first.";
@@ -614,6 +632,7 @@ class AcademicProgressionService
                 'prerequisite_logic' => $entry->prerequisite_logic ?? 'AND',
                 'prerequisite_display' => $prereqDisplay,
                 'missing_prerequisites' => $missingPrereqs,
+                'requires_all_other_subjects' => (bool) $entry->requires_all_other_subjects,
                 'eligible' => $eligible && !$isActivelyEnrolled,
                 'is_retake' => $isRetake,
                 'is_already_enrolled' => $isActivelyEnrolled,
@@ -1130,6 +1149,10 @@ class AcademicProgressionService
             if (!empty($item->unresolved_prerequisites)) {
                 $prereqCodes = array_merge($prereqCodes, $item->unresolved_prerequisites);
             }
+            // Program-completion subject such as PRACTICUM (#82).
+            if ($item->requires_all_other_subjects) {
+                $prereqCodes[] = 'After all other subjects';
+            }
 
             if ($subjectGrades->isNotEmpty() || $subjectEnrollments->isNotEmpty()) {
                 $latestGrade = $subjectGrades->sortByDesc('created_at')->first();
@@ -1179,6 +1202,11 @@ class AcademicProgressionService
                     if (!empty($missingIds)) {
                         $isBlocked = true;
                     }
+                }
+
+                if (! $isBlocked && $item->requires_all_other_subjects
+                    && ProgramCompletionRule::remaining($curriculum, (int) $subjectId, $passedSubjectIds->all()) !== []) {
+                    $isBlocked = true;
                 }
 
                 if ($isBlocked) {

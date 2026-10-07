@@ -26,6 +26,8 @@ class EnrollmentContext
      * @param int[] $curriculumSubjectIds Subjects valid for this term.
      * @param Collection<int, Curriculum> $curriculumEntries
      * @param Collection<int, Subject> $subjects
+     * @param Collection<int, Curriculum>|null $programCurriculum Every entry of the
+     *        program, loaded only when a program-completion subject (#82) is in the batch.
      */
     public function __construct(
         public readonly Student $student,
@@ -35,9 +37,20 @@ class EnrollmentContext
         public readonly array $curriculumSubjectIds,
         Collection $curriculumEntries,
         Collection $subjects,
+        private readonly ?Collection $programCurriculum = null,
     ) {
         $this->curriculumBySubject = $curriculumEntries->keyBy('subject_id')->all();
         $this->subjects = $subjects->keyBy('id')->all();
+    }
+
+    /**
+     * Every curriculum entry of the student's program, with its subject.
+     *
+     * @return Collection<int, Curriculum>
+     */
+    public function programCurriculum(): Collection
+    {
+        return $this->programCurriculum ?? collect();
     }
 
     /**

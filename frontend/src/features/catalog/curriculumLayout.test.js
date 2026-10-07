@@ -8,6 +8,7 @@ import {
   prerequisiteLabel,
   splitCurriculumErrors,
   termIndex,
+  prerequisiteText,
 } from './curriculumLayout';
 
 describe('joinSubjectCode (registrar format, #70)', () => {
@@ -127,5 +128,15 @@ describe('impactRefusal (#28)', () => {
     expect(impactRefusal(report(0, ['TPC2', 'TPC3']), 'move')).toBeNull();
     expect(impactRefusal(report(0, ['TPC2', 'TPC3']), 'remove')).toBe("TPC1 can't be removed from BSTM: TPC2 and TPC3 list it as a prerequisite.");
     expect(impactRefusal(report(0), 'remove')).toBeNull();
+  });
+});
+
+describe('program-completion subjects (#82)', () => {
+  test('PRACTICUM reads "After all other subjects"', () => {
+    expect(prerequisiteText({ prerequisites: [], requires_all_other_subjects: true }).linked).toBe('After all other subjects');
+    expect(
+      prerequisiteText({ prerequisites: [{ code: 'THC1' }], requires_all_other_subjects: true }).linked,
+    ).toBe('THC1; After all other subjects');
+    expect(prerequisiteText({ prerequisites: [{ code: 'THC1' }] }).linked).toBe('THC1');
   });
 });

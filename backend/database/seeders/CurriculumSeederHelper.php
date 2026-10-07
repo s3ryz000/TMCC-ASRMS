@@ -30,7 +30,8 @@ use Illuminate\Support\Facades\DB;
  * Prerequisites are resolved within the program's own curriculum context only —
  * never via a global subject-code pluck — using the program-local codes.
  *
- * The string "Finished all Academic Requirements" is skipped with a warning.
+ * The string "Finished all Academic Requirements" is not a subject; it marks
+ * the row requires_all_other_subjects (#82).
  */
 trait CurriculumSeederHelper
 {
@@ -159,12 +160,13 @@ trait CurriculumSeederHelper
             foreach ($prerequisites as $prereqRaw) {
                 $prereqCode = $this->normalizeCode($prereqRaw);
 
-                // Special case: skip human-readable completion notes
+                // "Finished all Academic Requirements" is not a subject: it
+                // marks a program-completion subject (#82), enrolled only once
+                // every other subject of the program is Passed/Credited.
                 if (stripos($prereqCode, 'Finished all Academic Requirements') !== false) {
-                    $this->command->warn(
-                        "[WARN][{$programCode}] Skipping special prerequisite " .
-                        "'Finished all Academic Requirements' for {$code}. " .
-                        "Represent this as a program-completion rule, not a subject prerequisite."
+                    $curriculum->update(['requires_all_other_subjects' => true]);
+                    $this->command->info(
+                        "[OK][{$programCode}] {$code} requires all other subjects of the program to be passed."
                     );
                     continue;
                 }

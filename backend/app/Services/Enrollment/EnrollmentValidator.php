@@ -9,6 +9,7 @@ use App\Services\Enrollment\Rules\CurriculumMembershipRule;
 use App\Services\Enrollment\Rules\NoActiveDuplicateRule;
 use App\Services\Enrollment\Rules\NotAlreadyPassedRule;
 use App\Services\Enrollment\Rules\PrerequisitesSatisfiedRule;
+use App\Services\Enrollment\Rules\ProgramCompletionRule;
 use App\Services\Enrollment\Rules\SubjectNotArchivedRule;
 
 /**
@@ -34,6 +35,7 @@ class EnrollmentValidator
             new NotAlreadyPassedRule(),
             new NoActiveDuplicateRule(),
             new PrerequisitesSatisfiedRule(),
+            new ProgramCompletionRule(),
         ];
     }
 
@@ -129,6 +131,11 @@ class EnrollmentValidator
             curriculumSubjectIds: $validQuery->pluck('subject_id')->map('intval')->all(),
             curriculumEntries: $entries,
             subjects: Subject::whereIn('id', $subjectIds)->get(),
+            // The whole program is needed only to check a program-completion
+            // subject such as PRACTICUM (#82).
+            programCurriculum: $entries->contains('requires_all_other_subjects', true)
+                ? Curriculum::with('subject')->where('program_id', $student->program_id)->get()
+                : null,
         );
     }
 }

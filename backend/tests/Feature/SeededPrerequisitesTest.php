@@ -16,8 +16,9 @@ use Tests\TestCase;
  * the same program (all of them for AND, at least one for OR).
  *
  * PRACTICUM's "Finished all Academic Requirements" is a program-completion
- * rule, not a subject, and is skipped by CurriculumSeederHelper on purpose
- * (follow-up #82); it never appears in unresolved_prerequisites.
+ * rule, not a subject: CurriculumSeederHelper marks the row
+ * requires_all_other_subjects (#82), and it never appears in
+ * unresolved_prerequisites.
  */
 class SeededPrerequisitesTest extends TestCase
 {
@@ -33,6 +34,15 @@ class SeededPrerequisitesTest extends TestCase
     private function term(Curriculum $row): int
     {
         return (int) $row->year_level * 10 + (int) $row->semester;
+    }
+
+    public function test_seeding_marks_only_practicum_in_bstm_and_bshm_as_after_all_other_subjects(): void
+    {
+        $marked = Curriculum::with(['program', 'subject'])->where('requires_all_other_subjects', true)->get()
+            ->map(fn (Curriculum $row) => "{$row->program->code} {$row->subject->code}")
+            ->sort()->values()->all();
+
+        $this->assertSame(['BSHM PRACTICUM', 'BSTM PRACTICUM'], $marked);
     }
 
     public function test_no_seeded_curriculum_row_has_unresolved_prerequisites(): void

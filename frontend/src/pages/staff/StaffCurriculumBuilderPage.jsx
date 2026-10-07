@@ -402,6 +402,7 @@ const EditCurriculum = ({ programId }) => {
           subjectId: row.subject_id,
           prerequisiteValues: (row.prerequisites ?? []).map((p) => p.id),
           prerequisiteLogic: row.prerequisite_logic ?? 'AND',
+          requiresAllOtherSubjects: Boolean(row.requires_all_other_subjects),
           yearLevel: Number(row.year_level),
           semester: Number(row.semester),
           code: row.subject?.code ?? '',
@@ -462,8 +463,12 @@ const EditCurriculum = ({ programId }) => {
   };
 
   // Applies to future enrollments; a 422 (earlier terms only, no loops) stays in the dialog.
-  const handleSetPrerequisites = async (row, { values, logic }) => {
-    const result = await staffApi.setCurriculumPrerequisites(row.entryId, { subject_ids: values, logic });
+  const handleSetPrerequisites = async (row, { values, logic, requiresAllOtherSubjects }) => {
+    const result = await staffApi.setCurriculumPrerequisites(row.entryId, {
+      subject_ids: values,
+      logic,
+      requires_all_other_subjects: requiresAllOtherSubjects,
+    });
     staffToast.success('Prerequisites saved', result?.message);
     refresh();
   };
@@ -553,6 +558,7 @@ const EditCurriculum = ({ programId }) => {
           candidates={prerequisiteCandidates(rows, prerequisiteRow).map((r) => ({ value: r.subjectId, code: r.code, title: r.title, yearLevel: r.yearLevel, semester: r.semester }))}
           selected={prerequisiteRow.prerequisiteValues}
           logic={prerequisiteRow.prerequisiteLogic}
+          requiresAllOtherSubjects={prerequisiteRow.requiresAllOtherSubjects}
           loadImpact={() => staffApi.getCurriculumImpact(prerequisiteRow.entryId)}
           onSave={(choice) => handleSetPrerequisites(prerequisiteRow, choice)}
           onClose={() => setPrerequisiteRow(null)}

@@ -10,14 +10,22 @@ class Curriculum extends Model
 {
     protected $table = 'curriculum';
 
-    protected $fillable = ['program_id', 'subject_id', 'year_level', 'semester', 'unresolved_prerequisites', 'prerequisite_logic'];
+    protected $fillable = [
+        'program_id', 'subject_id', 'year_level', 'semester', 'unresolved_prerequisites', 'prerequisite_logic',
+        'requires_all_other_subjects',
+    ];
 
     /**
      * Cast unresolved_prerequisites from/to a PHP array automatically.
      * Null means no unresolved prerequisites exist for this curriculum row.
+     *
+     * requires_all_other_subjects (#82): a program-completion subject such as
+     * PRACTICUM, enrolled only once every other subject of the program is
+     * Passed or Credited.
      */
     protected $casts = [
         'unresolved_prerequisites' => 'array',
+        'requires_all_other_subjects' => 'boolean',
     ];
 
     public function program(): BelongsTo

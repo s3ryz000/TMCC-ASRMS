@@ -11,12 +11,17 @@ import { termLabel } from '../../../features/catalog/curriculumLayout';
  * candidates: [{ value, code, title, yearLevel, semester }] (prerequisiteCandidates)
  * selected: values currently required; logic: 'AND' | 'OR'
  * loadImpact: () => Promise<impact report>, edit mode only
- * onSave({ values, logic }) returns a promise; its errors are shown here.
+ * requiresAllOtherSubjects: the program-completion marker (#82), edit mode
+ *   only; when it is undefined the checkbox is not shown.
+ * onSave({ values, logic, requiresAllOtherSubjects }) returns a promise; its
+ *   errors are shown here.
  */
-const PrerequisitesDialog = ({ row, candidates, selected, logic, loadImpact, onSave, onClose }) => {
+const PrerequisitesDialog = ({ row, candidates, selected, logic, requiresAllOtherSubjects, loadImpact, onSave, onClose }) => {
   const candidateValues = new Set(candidates.map((c) => c.value));
   const [chosen, setChosen] = useState(() => selected.filter((v) => candidateValues.has(v)));
   const [mode, setMode] = useState(logic === 'OR' ? 'OR' : 'AND');
+  const showAfterAll = requiresAllOtherSubjects !== undefined;
+  const [afterAll, setAfterAll] = useState(Boolean(requiresAllOtherSubjects));
   const [impact, setImpact] = useState(loadImpact ? { status: 'loading' } : { status: 'none' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -41,7 +46,7 @@ const PrerequisitesDialog = ({ row, candidates, selected, logic, loadImpact, onS
     setSaving(true);
     setError(null);
     try {
-      await onSave({ values: chosen, logic: mode });
+      await onSave({ values: chosen, logic: mode, ...(showAfterAll && { requiresAllOtherSubjects: afterAll }) });
       onClose();
     } catch (err) {
       const parsed = parseApiError(err);
@@ -103,6 +108,18 @@ const PrerequisitesDialog = ({ row, candidates, selected, logic, loadImpact, onS
             </label>
           </div>
         </fieldset>
+
+        {showAfterAll && (
+          <label className="mt-4 flex items-start gap-2 p-3 rounded-lg border border-gray-200 text-sm cursor-pointer">
+            <input type="checkbox" checked={afterAll} onChange={(e) => setAfterAll(e.target.checked)} className="mt-0.5" />
+            <span>
+              <span className="font-medium text-gray-800">After all other subjects</span>
+              <span className="block text-xs text-gray-500">
+                {row.code} can be enrolled only when every other subject of this program is Passed or Credited (e.g. PRACTICUM).
+              </span>
+            </span>
+          </label>
+        )}
 
         {error && <p className="m-0 mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800" role="alert">{error}</p>}
 

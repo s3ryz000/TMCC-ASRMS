@@ -25,7 +25,11 @@ export const sumUnits = (values) => round2(values.reduce((total, units) => total
 /**
  * The Pre-requisites cell: linked codes joined by ", " (AND) or " or " (OR),
  * plus any prerequisites the seeder could not link to a subject, as written.
+ * A program-completion subject such as PRACTICUM (#82) also reads "After all
+ * other subjects".
  */
+export const AFTER_ALL_OTHER_SUBJECTS = 'After all other subjects';
+
 export function prerequisiteText(row) {
   const codes = (row.prerequisites ?? []).map((p) => p.code).filter(Boolean).sort(compareCodes);
   const joiner = String(row.prerequisite_logic ?? '').toUpperCase() === 'OR' ? ' or ' : ', ';
@@ -33,7 +37,11 @@ export function prerequisiteText(row) {
   const raw = row.unresolved_prerequisites;
   const unresolved = (Array.isArray(raw) ? raw : raw ? [raw] : []).map(String).filter((s) => s.trim() !== '');
 
-  return { linked: codes.join(joiner), unresolved: unresolved.join(', ') };
+  const linked = [codes.join(joiner), row.requires_all_other_subjects ? AFTER_ALL_OTHER_SUBJECTS : '']
+    .filter(Boolean)
+    .join('; ');
+
+  return { linked, unresolved: unresolved.join(', ') };
 }
 
 // ── Curriculum builder (#70) ────────────────────────────────────────────────

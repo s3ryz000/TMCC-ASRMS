@@ -231,6 +231,8 @@ class CurriculumEntryController extends Controller
             'subject_ids'   => ['present', 'array', 'max:20'],
             'subject_ids.*' => ['integer', 'distinct', Rule::exists('subjects', 'id')],
             'logic'         => ['nullable', Rule::in(CurriculumPrerequisites::LOGIC)],
+            // Program-completion subject (#82); left as it is when omitted.
+            'requires_all_other_subjects' => ['sometimes', 'boolean'],
         ], [
             'subject_ids.*.exists'   => 'This subject does not exist.',
             'subject_ids.*.distinct' => 'This subject is listed twice.',
@@ -246,15 +248,25 @@ class CurriculumEntryController extends Controller
             ], 422);
         }
 
-        $prerequisites->save($entry, $subjectIds, $logic);
+        $requiresAll = array_key_exists('requires_all_other_subjects', $validated)
+            ? (bool) $validated['requires_all_other_subjects']
+            : null;
+        $prerequisites->save($entry, $subjectIds, $logic, $requiresAll);
+        $afterAll = (bool) $entry->fresh()->requires_all_other_subjects;
 
         $codes = Subject::whereIn('id', $subjectIds)->pluck('code')->sort(SORT_NATURAL)->values();
-        $this->log($request, CurriculumPrerequisites::logMessage($entry->program->code, $entry->subject->code, $codes, $logic));
+        $this->log($request, CurriculumPrerequisites::logMessage($entry->program->code, $entry->subject->code, $codes, $logic, $afterAll));
+
+        $code = $entry->subject->code;
+        $message = match (true) {
+            $codes->isEmpty() && $afterAll => "{$code} can be taken after all other subjects of the program are passed.",
+            $codes->isEmpty() => "{$code} has no prerequisites now.",
+            default => "{$code} now requires " . $codes->join($logic === 'OR' ? ' or ' : ' and ')
+                . ($afterAll ? ', and all other subjects of the program passed' : '') . '.',
+        };
 
         return response()->json([
-            'message' => $codes->isEmpty()
-                ? "{$entry->subject->code} has no prerequisites now."
-                : "{$entry->subject->code} now requires " . $codes->join($logic === 'OR' ? ' or ' : ' and ') . '.',
+            'message' => $message,
             'entry'   => $this->present($entry->fresh(['program', 'subject'])),
         ]);
     }
