@@ -7,6 +7,7 @@ import { parseApiError } from '../lib/api/errors';
 import { studentToast } from '../lib/notifications';
 import { formatDateTime } from '../lib/tools';
 import { requestAction } from '../features/students/documentRequests';
+import RequestDocumentModal from '../components/student/RequestDocumentModal';
 
 const StudentRequestRecordPage = () => {
   const queryClient = useQueryClient();
@@ -23,32 +24,28 @@ const StudentRequestRecordPage = () => {
     queryFn: () => studentApi.getRecordRequests({ per_page: 100 }),
   });
 
-  const [submittingId, setSubmittingId] = useState(null);
+  // The document whose request form is open (#93); null when closed.
+  const [requesting, setRequesting] = useState(null);
 
   const createRequestMutation = useMutation({
     mutationFn: studentApi.createRecordRequest,
     onSuccess: () => {
-      queryClient.invalidateQueries(['student', 'recordRequests']);
+      queryClient.invalidateQueries({ queryKey: ['student', 'recordRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['studentDashboard'] });
       studentToast.success('Request Submitted', 'Your document request has been submitted to the Registrar.');
     },
-    onError: (error) => {
-      studentToast.error('Request Failed', parseApiError(error)?.message || 'Failed to submit request.');
-    },
-    onSettled: () => {
-      setSubmittingId(null);
-    }
   });
 
-  const handleRequest = (docKey, recordType, ay, sem, awardName) => {
-    setSubmittingId(docKey);
-    createRequestMutation.mutate({
-      record_type: recordType,
-      academic_year: ay === 'All' || ay === 'Overall' ? null : ay,
-      semester: sem === 'All' || sem === 'Graduation' ? null : sem,
-      award_name: awardName,
-      copies: 1,
+  // Errors are shown in the form, next to the field they concern.
+  const submitRequest = (doc, { purpose, copies }) =>
+    createRequestMutation.mutateAsync({
+      record_type: doc.recordType,
+      academic_year: doc.ay === 'All' || doc.ay === 'Overall' ? null : doc.ay,
+      semester: doc.sem === 'All' || doc.sem === 'Graduation' ? null : doc.sem,
+      award_name: doc.awardName,
+      purpose,
+      copies,
     });
-  };
 
   const handleDownloadTranscript = async (requestId) => {
     try {
@@ -279,12 +276,11 @@ const StudentRequestRecordPage = () => {
                     <td className="py-3 px-4 whitespace-nowrap">
                       {requestAction(doc.requestStatus) === 'request' ? (
                         <button
-                          onClick={() => handleRequest(doc.docKey, doc.recordType, doc.ay, doc.sem, doc.awardName)}
-                          disabled={submittingId === doc.docKey}
+                          onClick={() => setRequesting(doc)}
                           className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-tmcc text-white hover:bg-tmcc-dark disabled:opacity-50"
                         >
                           <FiPlusCircle className="w-4 h-4" />
-                          {submittingId === doc.docKey ? 'Requesting...' : 'Request Document'}
+                          Request Document
                         </button>
                       ) : requestAction(doc.requestStatus) === 'download' ? (
                         <button
@@ -318,6 +314,14 @@ const StudentRequestRecordPage = () => {
           </table>
         </div>
       </div>
+
+      {requesting && (
+        <RequestDocumentModal
+          document={requesting}
+          onSubmit={(values) => submitRequest(requesting, values)}
+          onClose={() => setRequesting(null)}
+        />
+      )}
     </section>
   );
 };

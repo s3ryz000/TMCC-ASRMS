@@ -110,7 +110,7 @@ class AcademicRecordChainTest extends TestCase
         $this->assertTrue($summary['terms'][0]['deans_list']['eligible']);
 
         // ── 6. Transcript: request → approve → download → release ───────────
-        $requestId = $this->postJson('/api/student/record-requests', ['record_type' => 'transcript'])
+        $requestId = $this->postJson('/api/student/record-requests', ['record_type' => 'transcript', 'purpose' => 'Employment'])
             ->assertCreated()
             ->json('record_request.id');
 

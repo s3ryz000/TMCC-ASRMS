@@ -70,7 +70,7 @@ class RecordRequestFlowTest extends TestCase
 
     private function pendingRequest(string $type = 'transcript'): RecordRequest
     {
-        return RecordRequest::findOrFail($this->submit(['record_type' => $type])->assertCreated()->json('record_request.id'));
+        return RecordRequest::findOrFail($this->submit(['record_type' => $type, 'purpose' => 'Employment'])->assertCreated()->json('record_request.id'));
     }
 
     private function approve(RecordRequest $request, ?string $slot = null, ?User $as = null)
@@ -109,7 +109,7 @@ class RecordRequestFlowTest extends TestCase
     {
         $this->recordGrade($this->student, 'A', '2026-2027', 1, 2.50, 'Passed');
 
-        $this->submit(['record_type' => 'deans_list_certificate', 'academic_year' => '2026-2027', 'semester' => '1'])
+        $this->submit(['record_type' => 'deans_list_certificate', 'academic_year' => '2026-2027', 'semester' => '1', 'purpose' => 'Scholarship'])
             ->assertForbidden()
             ->assertJsonPath('message', 'You are not eligible to request this award certificate.');
     }
@@ -119,7 +119,7 @@ class RecordRequestFlowTest extends TestCase
         $this->recordGrade($this->student, 'A', '2026-2027', 1, 1.25, 'Passed');
         $this->recordGrade($this->student, 'B', '2026-2027', 1, 1.50, 'Passed');
 
-        $this->submit(['record_type' => 'latin_honor_certificate'])
+        $this->submit(['record_type' => 'latin_honor_certificate', 'purpose' => 'Graduation'])
             ->assertCreated()
             ->assertJsonPath('record_request.award_name', 'Magna Cum Laude');
     }

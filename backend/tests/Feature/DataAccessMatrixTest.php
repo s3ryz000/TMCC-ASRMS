@@ -275,7 +275,7 @@ class DataAccessMatrixTest extends TestCase
 
         // A request "for B" is filed under A.
         $id = $this->postJson('/api/student/record-requests', [
-            'record_type' => 'certificate_of_grades', 'student_id' => $b->student_id,
+            'record_type' => 'certificate_of_grades', 'purpose' => 'Scholarship', 'student_id' => $b->student_id,
         ])->assertCreated()->json('record_request.id');
         $this->assertSame($a->student_id, RecordRequest::findOrFail($id)->student_id);
 
