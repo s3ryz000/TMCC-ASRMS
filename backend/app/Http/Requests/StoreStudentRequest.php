@@ -67,11 +67,7 @@ class StoreStudentRequest extends FormRequest
             'program_id' => ['required', 'exists:programs,id'],
             'subject_ids' => ['nullable', 'array'],
             'subject_ids.*' => ['integer', 'exists:subjects,id'],
-            'record_type'     => ['required', 'string', 'max:100'],
-            'cabinet_no'      => ['required', 'string', 'max:50'],
-            'shelf_no'        => ['required', 'string', 'max:50'],
-            'folder_code'     => ['required', 'string', 'max:50'],
-            'document_status' => ['required', 'string', 'max:50'],
+            ...ArchiveLocationRequest::fieldRules(),
         ];
     }
 

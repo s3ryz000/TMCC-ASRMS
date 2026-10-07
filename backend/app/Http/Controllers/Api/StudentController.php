@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
+use App\Http\Requests\ArchiveLocationRequest;
 use App\Http\Requests\StoreStudentRequest;
 use App\Http\Requests\UpdateStudentRequest;
 use App\Models\ArchiveRecord;
@@ -1002,7 +1003,7 @@ class StudentController extends Controller
     /*
      *  Archive a student
     */
-    public function archiveStudent(Request $request, int $id): JsonResponse
+    public function archiveStudent(ArchiveLocationRequest $request, int $id): JsonResponse
     {
         try {
             if ($err = $this->requireAuth()) {
@@ -1015,14 +1016,12 @@ class StudentController extends Controller
             if (! $student) {
                 return response()->json(['message' => 'Student not found.'], 404);
             }
-            $archiveRecord = ArchiveRecord::create([
-                'student_id' => $student->student_id,
-                'record_type' => $request->input('record_type'),
-                'cabinet_no' => $request->input('cabinet_no'),
-                'shelf_no' => $request->input('shelf_no'),
-                'folder_code' => $request->input('folder_code'),
-                'document_status' => $request->input('document_status'),
-            ]);
+            // Missing or over-long fields are refused with 422 by the
+            // request before this point (#85), not left to the NOT NULL
+            // constraints as a 500.
+            $archiveRecord = ArchiveRecord::create(
+                ['student_id' => $student->student_id] + $request->validated()
+            );
             if (!$archiveRecord) {
                 return response()->json(['message' => 'Failed to create archive record.'], 500);
             }
