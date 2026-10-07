@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';
 import { adminToast } from '../../lib/notifications';
 import { parseApiError } from '../../lib/api/errors';
+import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { adminApi } from '../../lib/api/adminApi';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -51,8 +52,8 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
       err.department = 'Department is required for staff/admin.';
     }
     if (form.password) {
-      if (form.password.length < 8) {
-        err.password = 'Password must be at least 8 characters.';
+      if (passwordProblem(form.password)) {
+        err.password = passwordProblem(form.password);
       } else if (form.password !== form.passwordConfirmation) {
         err.password_confirmation = 'Passwords do not match.';
       }
@@ -213,9 +214,11 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                   className={errors.password ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
-                  placeholder="At least 8 characters"
+                  placeholder="At least 10 characters"
+                  aria-describedby="edit-user-password-hint"
                   aria-invalid={!!errors.password}
                 />
+                <p id="edit-user-password-hint" className="mt-1 text-xs text-gray-500">{PASSWORD_HINT}</p>
                 {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
               </div>
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import { authApi } from '../../lib/api/authApi';
 import { parseApiError } from '../../lib/api/errors';
+import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { staffToast } from '../../lib/notifications';
 
 /**
@@ -17,7 +18,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     const err = {};
     if (!currentPassword.trim()) err.currentPassword = 'Current password is required.';
     if (!newPassword.trim()) err.newPassword = 'New password is required.';
-    else if (newPassword.length < 8) err.newPassword = 'New password must be at least 8 characters.';
+    else if (passwordProblem(newPassword)) err.newPassword = passwordProblem(newPassword);
     if (newPassword !== confirmPassword) err.confirmPassword = 'Passwords do not match.';
     if (currentPassword && newPassword && currentPassword === newPassword) err.newPassword = 'New password must differ from current.';
     setErrors(err);
@@ -90,8 +91,10 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
               onChange={(e) => setNewPassword(e.target.value)}
               className={errors.newPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
               autoComplete="new-password"
+              aria-describedby="new-password-hint"
               aria-invalid={!!errors.newPassword}
             />
+            <p id="new-password-hint" className="mt-1 text-xs text-gray-500">{PASSWORD_HINT}</p>
             {errors.newPassword && <p className="mt-1 text-xs text-red-600">{errors.newPassword}</p>}
           </div>
           <div>

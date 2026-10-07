@@ -131,7 +131,7 @@ class StudentController extends Controller
 
         $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         $email = $validated['email'];
-        $exactPassword = User::generatePassword();
+        $exactPassword = User::generatePassword($studentNumber, $email);
         try {
         $student = DB::transaction(function () use ($validated, $studentNumber, $name, $email, $exactPassword, $subjectIds, $user) {
             $account = User::create([

@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class ChangePasswordRequest extends FormRequest
 {
@@ -16,7 +16,10 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string', 'current_password'],
-            'password' => ['required', 'string', 'confirmed', Password::defaults()],
+            'password' => [
+                'required', 'string', 'confirmed',
+                new StrongPassword($this->user()?->username, $this->user()?->email),
+            ],
         ];
     }
 }

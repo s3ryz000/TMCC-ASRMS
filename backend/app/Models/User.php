@@ -3,12 +3,12 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Rules\StrongPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -72,14 +72,30 @@ class User extends Authenticatable
         return $this->hasMany(ArchiveRecord::class, 'user_id', 'id');
     }
 
-    // auto generate student password, ensure not alreay exists in the users table
-    protected static function generatePassword()
+    /**
+     * A one-time password for a new student account, shown once to the
+     * registrar. It always passes the password rule (#87): letters and at
+     * least one number, and none of 0/O, 1/l/I that are misread when copied.
+     */
+    public static function generatePassword(?string $username = null, ?string $email = null): string
     {
+        $letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+        $digits = '23456789';
+        $all = $letters . $digits;
+        $length = StrongPassword::MIN_LENGTH;
 
-        $password = Str::random(10);
-        while (User::where('password', $password)->exists()) {
-            $password = Str::random(10);
-        }
+        do {
+            $chars = [$letters[random_int(0, strlen($letters) - 1)], $digits[random_int(0, strlen($digits) - 1)]];
+            while (count($chars) < $length) {
+                $chars[] = $all[random_int(0, strlen($all) - 1)];
+            }
+            for ($i = $length - 1; $i > 0; $i--) {
+                $j = random_int(0, $i);
+                [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+            }
+            $password = implode('', $chars);
+        } while (StrongPassword::problem($password, $username, $email) !== null);
+
         return $password;
-    }   
+    }
 }

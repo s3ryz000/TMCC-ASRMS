@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import { adminToast } from '../../lib/notifications';
 import { parseApiError } from '../../lib/api/errors';
+import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { adminApi } from '../../lib/api/adminApi';
 
 const ROLES = [
@@ -28,7 +29,7 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
     if (!form.email?.trim()) err.email = 'Email is required.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) err.email = 'Invalid email format.';
     if (!form.password?.trim()) err.password = 'Password is required.';
-    else if (form.password.length < 8) err.password = 'Password must be at least 8 characters.';
+    else if (passwordProblem(form.password)) err.password = passwordProblem(form.password);
     if (['staff', 'admin'].includes(form.role) && !form.department?.trim()) {
       err.department = 'Department is required for staff/admin.';
     }
@@ -128,8 +129,10 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               className={errors.password ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
               placeholder="••••••••"
+              aria-describedby="create-user-password-hint"
               aria-invalid={!!errors.password}
             />
+            <p id="create-user-password-hint" className="mt-1 text-xs text-gray-500">{PASSWORD_HINT}</p>
             {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
           </div>
           <div>

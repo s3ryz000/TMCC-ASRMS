@@ -98,12 +98,12 @@ class AuthFlowTest extends TestCase
 
         $this->asBearer($token)->postJson('/api/auth/change-password', [
             'current_password'      => 'correct-horse',
-            'password'              => 'battery-staple',
-            'password_confirmation' => 'battery-staple',
+            'password'              => 'battery-staple-42',
+            'password_confirmation' => 'battery-staple-42',
         ])->assertOk();
 
         $this->login(password: 'correct-horse')->assertStatus(422);
-        $this->login(password: 'battery-staple')->assertOk();
+        $this->login(password: 'battery-staple-42')->assertOk();
     }
 
     public function test_change_password_requires_the_current_password(): void
@@ -112,8 +112,8 @@ class AuthFlowTest extends TestCase
 
         $this->asBearer($token)->postJson('/api/auth/change-password', [
             'current_password'      => 'not-my-password',
-            'password'              => 'battery-staple',
-            'password_confirmation' => 'battery-staple',
+            'password'              => 'battery-staple-42',
+            'password_confirmation' => 'battery-staple-42',
         ])->assertStatus(422)->assertJsonValidationErrors('current_password');
     }
 
@@ -123,7 +123,7 @@ class AuthFlowTest extends TestCase
 
         $this->asBearer($token)->postJson('/api/auth/change-password', [
             'current_password'      => 'correct-horse',
-            'password'              => 'battery-staple',
+            'password'              => 'battery-staple-42',
             'password_confirmation' => 'something-else',
         ])->assertStatus(422)->assertJsonValidationErrors('password');
     }

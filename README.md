@@ -68,6 +68,7 @@ Close both windows to stop. To start them by hand instead: `php artisan serve` i
 | Student | create one in Registrar → New Student; the username and password are shown after saving | |
 
 Notes:
+- A new or changed password needs at least 10 characters with letters and numbers, and cannot be the username, the e-mail name or a common password such as `password123`. Existing passwords, including the test accounts above, keep working until they are changed.
 - Logging in signs that account out everywhere else. Use separate browsers or browser profiles for staff, admin and student at the same time.
 - Your database (`backend\database\database.sqlite`) is your own local copy. Test data you create does not affect anyone else.
 

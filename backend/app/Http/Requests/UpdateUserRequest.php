@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
+use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,7 +29,14 @@ class UpdateUserRequest extends FormRequest
             // an isolated LAN with no mail server, so a self-service "forgot
             // password" e-mail is not possible; the administrator resetting the
             // credential in person is the recovery path (§3.9.1).
-            'password' => ['sometimes', 'nullable', 'string', 'min:8', 'confirmed'],
+            // Same rule as every other place a password is set (#87).
+            'password' => [
+                'sometimes', 'nullable', 'string', 'confirmed',
+                new StrongPassword(
+                    User::whereKey($userId)->value('username'),
+                    is_string($this->input('email')) ? $this->input('email') : null,
+                ),
+            ],
         ];
     }
 }
