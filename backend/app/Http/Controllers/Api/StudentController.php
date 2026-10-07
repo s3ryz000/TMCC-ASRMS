@@ -33,6 +33,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -1035,6 +1036,53 @@ class StudentController extends Controller
             Log::error('Failed to archive student: ' . SafeLog::describe($e), SafeLog::context($e));
             return response()->json(['message' => 'Failed to archive student.'], 500);
         }
+    }
+
+    /**
+     * PUT /api/staff/students/{id}/archive-location (registrar only, #97)
+     *
+     * Changes where the student's paper records are kept: the archive row the
+     * record page shows, or a new one if the student has none. The audit log
+     * keeps each changed field as old → new.
+     */
+    public function updateArchiveLocation(ArchiveLocationRequest $request, int $id): JsonResponse
+    {
+        $student = Student::with('archiveRecords')->find($id);
+        if (! $student) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        $new = $request->validated();
+        $record = $student->archiveRecords ?? new ArchiveRecord(['student_id' => $student->student_id]);
+        $names = ArchiveLocationRequest::fieldNames();
+
+        $changes = [];
+        foreach ($new as $field => $value) {
+            $old = $record->exists ? (string) $record->{$field} : '';
+            if ($old !== $value) {
+                $changes[] = "{$names[$field]} " . ($old === '' ? '(none)' : $old) . " → {$value}";
+            }
+        }
+
+        if ($changes === []) {
+            return response()->json([
+                'message' => 'Nothing changed.',
+                'archive_record' => $record,
+            ]);
+        }
+
+        $record->fill($new)->save();
+
+        SystemLog::create([
+            'action' => Str::limit("Archive location changed for student {$student->student_number}: " . implode('; ', $changes), 255),
+            'user_id' => $request->user()->id,
+            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'Archive location updated.',
+            'archive_record' => $record->fresh(),
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

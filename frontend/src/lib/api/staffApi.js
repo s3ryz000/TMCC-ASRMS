@@ -342,6 +342,12 @@ export const staffApi = {
     return data;
   },
 
+  /** Registrar (#97): change where the student's paper records are kept. */
+  updateArchiveLocation: async (studentId, payload) => {
+    const { data } = await apiClient.put(`/staff/students/${studentId}/archive-location`, payload);
+    return data;
+  },
+
   // ── Academic Progression endpoints ──
 
   /** Get full academic progress for a student (staff/admin). */

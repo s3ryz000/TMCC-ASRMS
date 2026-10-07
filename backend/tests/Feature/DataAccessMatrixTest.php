@@ -72,6 +72,7 @@ class DataAccessMatrixTest extends TestCase
         ['POST', '/api/staff/students'],
         ['PUT', '/api/staff/students/{A}'],
         ['POST', '/api/staff/students/{A}/archive'],
+        ['PUT', '/api/staff/students/{A}/archive-location'],
         ['PATCH', '/api/staff/students/{A}/program'],
         ['PATCH', '/api/staff/students/{A}/student-number'],
         ['POST', '/api/staff/students/{A}/documents'],

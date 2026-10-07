@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
 
     Route::post('/students', [StudentController::class, 'store']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archiveStudent']);
+    Route::put('/students/{id}/archive-location', [StudentController::class, 'updateArchiveLocation']);
     Route::patch('/students/{id}/program', [StudentController::class, 'updateProgram']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
     Route::post('/students/{id}/enrollments', [StudentController::class, 'storeEnrollment']);

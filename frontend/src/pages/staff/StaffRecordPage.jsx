@@ -10,6 +10,7 @@ import { formatDateOnly } from '../../lib/tools';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStudentQuery } from '../../hooks/useStudentQuery';
 import ArchiveModal from '../../components/ui/ArchiveModal';
+import EditArchiveLocationModal from '../../components/staff/EditArchiveLocationModal';
 import { RECORDS_PATH, editStudentPaths } from '../../features/students/studentRoutes';
 import { awardsFrom, formatGwa, subjectStatusBadge } from '../../features/students/studentRecord';
 
@@ -80,6 +81,7 @@ const StaffRecordPage = () => {
   const isRegistrar = role === 'staff';
   const queryClient = useQueryClient();
   const [archiving, setArchiving] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(false);
   const [downloading, setDownloading] = useState(null);
 
   const student = useStudentQuery(id);
@@ -177,7 +179,14 @@ const StaffRecordPage = () => {
             { label: 'Graduation date', value: showDate(s.graduation_date) },
           ]}
         />
-        <h4 className="m-0 mt-6 mb-3 text-sm font-semibold text-gray-700">Archive location</h4>
+        <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="m-0 text-sm font-semibold text-gray-700">Archive location</h4>
+          {isRegistrar && (
+            <button type="button" onClick={() => setEditingLocation(true)} className={editButtonClass}>
+              <FiEdit2 aria-hidden /> Edit location
+            </button>
+          )}
+        </div>
         {archive ? (
           <Details
             items={[
@@ -359,6 +368,18 @@ const StaffRecordPage = () => {
           onArchived={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.staff.studentDetail(id) });
             staffToast.success('Record archived', `${s.student_number}'s archive location was saved.`);
+          }}
+        />
+      )}
+      {isRegistrar && (
+        <EditArchiveLocationModal
+          isOpen={editingLocation}
+          onClose={() => setEditingLocation(false)}
+          studentId={s.student_id}
+          archive={archive}
+          onSaved={(res) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.staff.studentDetail(id) });
+            staffToast.success('Archive location', res?.message || 'Saved.');
           }}
         />
       )}
