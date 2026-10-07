@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { FiInfo, FiCheckCircle, FiClock, FiDownload, FiPlusCircle } from 'react-icons/fi';
+import { FiInfo, FiCheckCircle, FiClock, FiDownload, FiPlusCircle, FiCalendar, FiXCircle } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import jsPDF from 'jspdf';
 import { studentApi } from '../lib/api/studentApi';
 import { parseApiError } from '../lib/api/errors';
 import { studentToast } from '../lib/notifications';
+import { formatDateTime } from '../lib/tools';
+import { requestAction } from '../features/students/documentRequests';
 
 const StudentRequestRecordPage = () => {
   const queryClient = useQueryClient();
@@ -63,6 +65,30 @@ const StudentRequestRecordPage = () => {
       studentToast.success('Downloaded', 'The transcript has been downloaded successfully.');
     } catch (err) {
       studentToast.error('Download Failed', parseApiError(err)?.message || 'Failed to download transcript.');
+    }
+  };
+
+  // The approval slip for an approved request (#90): the existing student
+  // endpoint, which serves only the signed-in student's own requests.
+  const [downloadingSlip, setDownloadingSlip] = useState(null);
+  const handleDownloadSlip = async (requestId) => {
+    setDownloadingSlip(requestId);
+    try {
+      const response = await studentApi.downloadApprovalSlip(requestId);
+      const disposition = response.headers?.['content-disposition'] || '';
+      const name = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)?.[1] || `Approval_Slip_${requestId}.pdf`;
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = decodeURIComponent(name);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      studentToast.error('Download Failed', parseApiError(err)?.message || 'Failed to download the approval slip.');
+    } finally {
+      setDownloadingSlip(null);
     }
   };
 
@@ -139,6 +165,8 @@ const StudentRequestRecordPage = () => {
         awardName,
         requestStatus: latestReq?.status || null,
         requestId: latestReq?.id || null,
+        appointmentAt: latestReq?.appointment_at || null,
+        rejectionReason: latestReq?.rejection_reason || null,
       });
     };
 
@@ -219,19 +247,37 @@ const StudentRequestRecordPage = () => {
                           <FiClock /> Pending
                         </span>
                       ) : doc.requestStatus === 'approved' ? (
-                        <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
-                          <FiCheckCircle /> Approved
-                        </span>
+                        <>
+                          <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+                            <FiCheckCircle /> Approved
+                          </span>
+                          {doc.appointmentAt && (
+                            <span className="flex items-center gap-1 mt-1 text-xs text-gray-700 whitespace-normal">
+                              <FiCalendar aria-hidden /> Claim on {formatDateTime(doc.appointmentAt)}
+                            </span>
+                          )}
+                        </>
                       ) : doc.requestStatus === 'released' ? (
                         <span className="inline-flex items-center gap-1 text-green-600 font-medium">
                           <FiCheckCircle /> Released
                         </span>
+                      ) : doc.requestStatus === 'rejected' ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+                            <FiXCircle /> Rejected
+                          </span>
+                          {doc.rejectionReason && (
+                            <span className="block mt-1 text-xs text-gray-700 whitespace-normal max-w-xs">
+                              Reason: {doc.rejectionReason}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="text-gray-600 capitalize">{doc.requestStatus}</span>
                       )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      {!doc.requestStatus || doc.requestStatus === 'rejected' ? (
+                      {requestAction(doc.requestStatus) === 'request' ? (
                         <button
                           onClick={() => handleRequest(doc.docKey, doc.recordType, doc.ay, doc.sem, doc.awardName)}
                           disabled={submittingId === doc.docKey}
@@ -240,7 +286,7 @@ const StudentRequestRecordPage = () => {
                           <FiPlusCircle className="w-4 h-4" />
                           {submittingId === doc.docKey ? 'Requesting...' : 'Request Document'}
                         </button>
-                      ) : doc.requestStatus === 'released' ? (
+                      ) : requestAction(doc.requestStatus) === 'download' ? (
                         <button
                           onClick={() => {
                             if (doc.recordType === 'transcript') handleDownloadTranscript(doc.requestId);
@@ -251,6 +297,15 @@ const StudentRequestRecordPage = () => {
                         >
                           <FiDownload className="w-4 h-4" />
                           Download PDF
+                        </button>
+                      ) : requestAction(doc.requestStatus) === 'slip' ? (
+                        <button
+                          onClick={() => handleDownloadSlip(doc.requestId)}
+                          disabled={downloadingSlip === doc.requestId}
+                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          <FiDownload className="w-4 h-4" />
+                          {downloadingSlip === doc.requestId ? 'Downloading...' : 'Download approval slip'}
                         </button>
                       ) : (
                         <span className="text-gray-400 text-sm">Processing...</span>
