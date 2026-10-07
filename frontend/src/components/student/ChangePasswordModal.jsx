@@ -14,10 +14,15 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState({});
+  // Browsers ignore autocomplete="off" on password fields and fill in the
+  // saved password. A read-only field is never filled, so the field unlocks
+  // only when the user clicks or tabs into it and types the password.
+  const [currentUnlocked, setCurrentUnlocked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const resetForm = () => {
     setStep(1);
+    setCurrentUnlocked(false);
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -113,9 +118,10 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 className={errors.currentPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
                 placeholder="Password"
-                autoComplete="current-password"
+                autoComplete="off"
+                readOnly={!currentUnlocked}
+                onFocus={() => setCurrentUnlocked(true)}
                 aria-invalid={!!errors.currentPassword}
-                autoFocus
               />
               {errors.currentPassword && <p className="mt-1 text-xs text-red-600">{errors.currentPassword}</p>}
             </div>

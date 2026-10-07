@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
 import { authApi } from '../../lib/api/authApi';
 import { parseApiError } from '../../lib/api/errors';
@@ -13,6 +13,23 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  // Browsers ignore autocomplete="off" on password fields and fill in the
+  // saved password. A read-only field is never filled, so the field unlocks
+  // only when the user clicks or tabs into it and types the password.
+  const [currentUnlocked, setCurrentUnlocked] = useState(false);
+
+  // Start empty every time: clear what was typed whenever the dialog closes,
+  // however it was closed (Cancel, X, Escape or the backdrop).
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setCurrentUnlocked(false);
+      setErrors({});
+      setLoading(false);
+    }
+  }, [isOpen]);
 
   const validate = () => {
     const err = {};
@@ -75,7 +92,9 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className={errors.currentPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
-              autoComplete="current-password"
+              autoComplete="off"
+              readOnly={!currentUnlocked}
+              onFocus={() => setCurrentUnlocked(true)}
               aria-invalid={!!errors.currentPassword}
             />
             {errors.currentPassword && <p className="mt-1 text-xs text-red-600">{errors.currentPassword}</p>}
