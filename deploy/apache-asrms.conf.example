@@ -1,0 +1,75 @@
+# TMCC ASRMS on XAMPP's Apache (#61). See deploy\INSTALL.md, step 7.
+#
+# Copy this file to C:\xampp\apache\conf\extra\asrms.conf, change the two
+# paths below if ASRMS is not in C:\ASRMS, and add this line at the very end
+# of C:\xampp\apache\conf\httpd.conf:
+#
+#     Include conf/extra/asrms.conf
+#
+# Also in httpd.conf, remove the "#" in front of this line (XAMPP ships it
+# commented out):
+#
+#     LoadModule proxy_http_module modules/mod_proxy_http.so
+#
+# How it fits together:
+#   - Port 80 (what people open, e.g. http://asrms.tmcc.local or
+#     http://<server IP>): the React app from frontend\build. Requests to /api
+#     and to the QR-code page /appointment are passed to Laravel.
+#   - Port 8000, on this PC only (127.0.0.1): Laravel, run by Apache's PHP.
+#     Nothing else on the network can reach it directly.
+# Apache answers many requests at once; "php artisan serve" answers one at a
+# time and must not be used on the server.
+
+# ---------------------------------------------------------------- Laravel API
+Listen 127.0.0.1:8000
+
+<VirtualHost 127.0.0.1:8000>
+    ServerName localhost
+    DocumentRoot "C:/ASRMS/backend/public"
+
+    <Directory "C:/ASRMS/backend/public">
+        # Laravel's public\.htaccess sends every request to index.php.
+        AllowOverride All
+        Options -Indexes +FollowSymLinks
+        Require local
+    </Directory>
+
+    ErrorLog "logs/asrms-api-error.log"
+    CustomLog "logs/asrms-api-access.log" common
+</VirtualHost>
+
+# ----------------------------------------------------------- What people open
+<VirtualHost *:80>
+    # The name staff type, if TMCC sets one up on the LAN (otherwise the
+    # server's IP address works too, because this is the first site on port 80).
+    ServerName asrms.tmcc.local
+    DocumentRoot "C:/ASRMS/frontend/build"
+
+    <Directory "C:/ASRMS/frontend/build">
+        AllowOverride None
+        Options -Indexes
+        Require all granted
+        # The React app handles its own pages (/staff, /admin, /dashboard...).
+        FallbackResource /index.html
+    </Directory>
+
+    # The browser always loads the newest app after an update.
+    <Files "index.html">
+        Header set Cache-Control "no-cache"
+    </Files>
+
+    # Laravel: the API and the public appointment page behind the slip's QR code.
+    # PreserveHost keeps the address people used, so the QR code's signed link
+    # points at this server and still checks out when it is opened.
+    ProxyPreserveHost On
+    ProxyPass        "/api"         "http://127.0.0.1:8000/api"
+    ProxyPassReverse "/api"         "http://127.0.0.1:8000/api"
+    ProxyPass        "/appointment" "http://127.0.0.1:8000/appointment"
+    ProxyPassReverse "/appointment" "http://127.0.0.1:8000/appointment"
+
+    # Uploaded documents can be up to 5 MB.
+    LimitRequestBody 10485760
+
+    ErrorLog "logs/asrms-error.log"
+    CustomLog "logs/asrms-access.log" common
+</VirtualHost>

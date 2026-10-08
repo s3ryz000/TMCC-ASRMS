@@ -66,9 +66,16 @@ database-neutral in #84, and every other query runs on both.
 
 ### Not tested
 
-- **Oracle MySQL 8** (as opposed to XAMPP's MariaDB). Laravel supports both;
-  if TMCC installs MySQL 8 instead of XAMPP's MariaDB, run the test suite
-  against it once (step 9 of `INSTALL.md`) before go-live.
+- **Oracle MySQL 8** (as opposed to XAMPP's MariaDB). Laravel supports both.
+  If TMCC installs MySQL 8 instead of XAMPP's MariaDB, the team runs the
+  test suite against it once on a development PC before go-live, the same
+  way as above (the server has no test tools: `composer install --no-dev`).
+  MySQL 8's `mysqldump` may also need the `PROCESS` privilege for the
+  backup (`INSTALL.md`, step 4).
+- **The backup as the `asrms` database user.** The check above ran as
+  XAMPP's `root` on a throwaway database. On the server the backup runs as
+  the `asrms` user; the manual backup and restore drill in `INSTALL.md`
+  (steps 10 and 12) confirm it there.
 - **Moving the UAT data from SQLite into MySQL.** Go-live should start from an
   empty database with the real accounts (`INSTALL.md`), not from the UAT
   data, which holds test students.
