@@ -1,0 +1,87 @@
+# Runs the backend tests, the frontend tests and the frontend build for every
+# push and pull request to main (#38). No secrets are used and nothing deploys.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite3, pdo_sqlite, gd, zip, intl, mbstring
+          coverage: none
+          tools: composer:v2
+
+      - name: Find the Composer cache folder
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer packages
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+
+      - name: Run the backend tests
+        run: php artisan test
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install npm packages
+        run: npm ci
+
+      - name: Run the frontend tests
+        run: npm test -- --watchAll=false
+
+      # CI=false: the remaining lint warnings are listed in #38 for clean-up
+      # and must not fail the build meanwhile.
+      - name: Build
+        run: npm run build
+        env:
+          CI: false
