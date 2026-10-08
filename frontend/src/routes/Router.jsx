@@ -84,7 +84,8 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
-const router = createBrowserRouter([
+// The route table, exported so tests can mount it in a memory router.
+export const routes = [
   {
     path: '/',
     element: (
@@ -174,6 +175,8 @@ const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+const router = createBrowserRouter(routes);
 
 export default router;
