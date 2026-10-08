@@ -1,5 +1,10 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { configure, render, screen, waitFor, within } from '@testing-library/react';
+
+// The portal layouts render after their first requests resolve; on a busy CI
+// machine that can take over a second, so lookups wait up to 5 s.
+configure({ asyncUtilTimeout: 5000 });
+jest.setTimeout(15000);
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { routes } from '../routes/Router';
