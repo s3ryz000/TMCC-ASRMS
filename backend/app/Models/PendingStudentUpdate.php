@@ -6,9 +6,30 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * A student's profile change awaiting the registrar: pending → approved |
+ * rejected | revision_required; a returned request is corrected and goes back
+ * to pending (#88). rejection_reason holds the registrar's latest reason or
+ * remarks; review_history keeps every decision and resubmission.
+ */
 class PendingStudentUpdate extends Model
 {
     use HasFactory;
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_APPROVED = 'approved';
+
+    public const STATUS_REJECTED = 'rejected';
+
+    public const STATUS_REVISION_REQUIRED = 'revision_required';
+
+    public const STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+        self::STATUS_REVISION_REQUIRED,
+    ];
 
     protected $fillable = [
         'student_id',
@@ -24,6 +45,7 @@ class PendingStudentUpdate extends Model
         'supporting_document_size',
         'rejection_reason',
         'reviewed_at',
+        'review_history',
     ];
 
     protected $casts = [
@@ -31,6 +53,7 @@ class PendingStudentUpdate extends Model
         'new_values' => 'array',
         'changed_fields' => 'array',
         'reviewed_at' => 'datetime',
+        'review_history' => 'array',
     ];
 
     /**
@@ -44,6 +67,14 @@ class PendingStudentUpdate extends Model
     public function getHasSupportingDocumentAttribute(): bool
     {
         return (string) $this->supporting_document_path !== '';
+    }
+
+    /** Adds one entry (event, remarks, at) to review_history; the caller saves. */
+    public function recordHistory(string $event, ?string $remarks = null): void
+    {
+        $history = $this->review_history ?? [];
+        $history[] = ['event' => $event, 'remarks' => $remarks, 'at' => now()->toDateTimeString()];
+        $this->review_history = $history;
     }
 
     public function student(): BelongsTo

@@ -87,6 +87,7 @@ class DataAccessMatrixTest extends TestCase
         ['DELETE', '/api/staff/students/{A}/grades/999999'],
         ['PATCH', '/api/staff/pending-profile-updates/{A.update}/approve'],
         ['PATCH', '/api/staff/pending-profile-updates/{A.update}/reject'],
+        ['PATCH', '/api/staff/pending-profile-updates/{A.update}/return'],
         ['POST', '/api/staff/subjects'],
         ['PUT', '/api/staff/subjects/999999'],
         ['DELETE', '/api/staff/subjects/999999'],
@@ -141,12 +142,14 @@ class DataAccessMatrixTest extends TestCase
         ['GET', '/api/student/record-requests/{A.request}'],
         ['GET', '/api/student/record-requests/{A.request}/approval-slip'],
         ['GET', '/api/student/record-requests/{A.request}/transcript'],
+        ['GET', '/api/student/profile-updates'],
     ];
 
     private const STUDENT_WRITES = [
         ['POST', '/api/student/record-requests'],
         ['PUT', '/api/student/sis'],
         ['POST', '/api/student/sis'],
+        ['POST', '/api/student/profile-updates/{A.update}/resubmit'],
     ];
 
     protected function setUp(): void
@@ -247,6 +250,7 @@ class DataAccessMatrixTest extends TestCase
             ['GET', '/api/student/record-requests/{B.request}'],
             ['GET', '/api/student/record-requests/{B.request}/approval-slip'],
             ['GET', '/api/student/record-requests/{B.request}/transcript'],
+            ['POST', '/api/student/profile-updates/{B.update}/resubmit'],
         ], fn ($s) => in_array($s, [403, 404], true)));
 
         // B's record through the staff endpoints: forbidden.
@@ -260,7 +264,7 @@ class DataAccessMatrixTest extends TestCase
         ], fn ($s) => $s === 403));
 
         // A's own listings contain nothing of B.
-        foreach (['/api/student/record-requests', '/api/student/profile', '/api/student/grades', '/api/student/academic-summary'] as $uri) {
+        foreach (['/api/student/record-requests', '/api/student/profile', '/api/student/grades', '/api/student/academic-summary', '/api/student/profile-updates'] as $uri) {
             $body = $this->getJson($uri)->assertOk()->getContent();
             $this->assertStringNotContainsString(self::PERSONAL['B']['last'], $body, $uri);
             $this->assertStringNotContainsString(self::PERSONAL['B']['number'], $body, $uri);

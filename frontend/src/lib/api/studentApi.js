@@ -28,6 +28,20 @@ export const studentApi = {
     return data;
   },
 
+  /** The student's own profile update requests, newest first (#88). */
+  getProfileUpdates: async () => {
+    const { data } = await apiClient.get('/student/profile-updates');
+    return data;
+  },
+
+  /** Correct a request returned for revision and send it back (FormData: SIS fields + supporting_document?). */
+  resubmitProfileUpdate: async (id, payload) => {
+    const { data } = await apiClient.post(`/student/profile-updates/${id}/resubmit`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
   getSubjects: async (params = {}) => {
     const { data } = await apiClient.get('/student/subjects', { params });
     return data;

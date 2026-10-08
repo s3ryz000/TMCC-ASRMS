@@ -1,6 +1,8 @@
 import React from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { studentApi } from '../lib/api/studentApi';
-import { staffToast } from '../lib/notifications';
+import { queryKeys } from '../lib/react-query/queryKeys';
+import ProfileUpdateStatusBadge from '../components/ProfileUpdateStatusBadge';
 
 const CITIZENSHIP_OPTIONS = [
   'Filipino','American','Canadian','Japanese','Korean','Chinese','Australian',
@@ -8,54 +10,58 @@ const CITIZENSHIP_OPTIONS = [
   'Spanish','Indonesian','Thai','Vietnamese','Other',
 ];
 
+/** The editable SIS fields, filled from the student record. */
+const formFromStudent = (s = {}) => ({
+  contact_number: s.contact_number || '',
+  address: s.address || '',
+  place_of_birth: s.place_of_birth || '',
+  sex: s.sex === 'Male' || s.sex === 'male' ? 'M'
+     : s.sex === 'Female' || s.sex === 'female' ? 'F'
+     : (s.sex || ''),
+  guardian_name: s.guardian_name || '',
+  citizenship: s.citizenship || '',
+  elementary_school: s.elementary_school || '',
+  elementary_year: s.elementary_year ?? '',
+  high_school: s.high_school || '',
+  high_school_year: s.high_school_year ?? '',
+  previous_school: s.previous_school || '',
+  previous_course: s.previous_course || '',
+});
+
+/** "2026-10-08 09:30:00" (office time) → a short local date. */
+const formatDate = (value) => (value ? new Date(value.replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
 const StudentSISPage = () => {
+  const queryClient = useQueryClient();
   const [profile, setProfile] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState(null);
   const [file, setFile] = React.useState(null);
+  const [fileInputKey, setFileInputKey] = React.useState(0);
+  // The returned request being corrected (#88), or null for a new request.
+  const [resubmitting, setResubmitting] = React.useState(null);
+  const formRef = React.useRef(null);
 
   const student = profile?.student;
 
-  const [form, setForm] = React.useState({
-    contact_number: '',
-    address: '',
-    place_of_birth: '',
-    sex: '',
-    guardian_name: '',
-    citizenship: '',
-    elementary_school: '',
-    elementary_year: '',
-    high_school: '',
-    high_school_year: '',
-    previous_school: '',
-    previous_course: '',
+  const [form, setForm] = React.useState(formFromStudent());
+
+  const updatesQuery = useQuery({
+    queryKey: queryKeys.student.profileUpdates(),
+    queryFn: studentApi.getProfileUpdates,
+    select: (res) => res?.data ?? [],
+    refetchOnMount: 'always',
   });
+  const updates = updatesQuery.data ?? [];
 
   React.useEffect(() => {
     setLoading(true);
     studentApi.getProfile()
       .then((data) => {
         setProfile(data);
-        const s = data?.student || {};
-        setForm((prev) => ({
-          ...prev,
-          contact_number: s.contact_number || '',
-          address: s.address || '',
-          place_of_birth: s.place_of_birth || '',
-          sex: s.sex === 'Male' || s.sex === 'male' ? 'M'
-             : s.sex === 'Female' || s.sex === 'female' ? 'F'
-             : (s.sex || ''),
-          guardian_name: s.guardian_name || '',
-          citizenship: s.citizenship || '',
-          elementary_school: s.elementary_school || '',
-          elementary_year: s.elementary_year ?? '',
-          high_school: s.high_school || '',
-          high_school_year: s.high_school_year ?? '',
-          previous_school: s.previous_school || '',
-          previous_course: s.previous_course || '',
-        }));
+        setForm(formFromStudent(data?.student || {}));
       })
       .catch(() => {
         setError('Failed to load student profile.');
@@ -69,14 +75,37 @@ const StudentSISPage = () => {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
+  const clearFile = () => {
+    setFile(null);
+    setFileInputKey((k) => k + 1);
+  };
+
+  /** Pre-fill the form with the returned request's values so the student can fix them. */
+  const startResubmit = (update) => {
+    const requested = Object.fromEntries((update.fields || []).map((f) => [f.field, f.new ?? '']));
+    setForm({ ...formFromStudent(student || {}), ...requested });
+    setResubmitting(update);
+    setSaveStatus(null);
+    clearFile();
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const cancelResubmit = () => {
+    setResubmitting(null);
+    setForm(formFromStudent(student || {}));
+    setSaveStatus(null);
+    clearFile();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     setSaveStatus(null);
     try {
       let payload;
-      
-      if (file) {
+
+      // A resubmission always goes as multipart (#88), with or without a new file.
+      if (file || resubmitting) {
         payload = new FormData();
         Object.entries(form).forEach(([key, val]) => {
           if (key === 'elementary_year' || key === 'high_school_year') {
@@ -85,7 +114,7 @@ const StudentSISPage = () => {
             payload.append(key, val);
           }
         });
-        payload.append('supporting_document', file);
+        if (file) payload.append('supporting_document', file);
       } else {
         payload = {
           ...form,
@@ -94,16 +123,20 @@ const StudentSISPage = () => {
         };
       }
 
-      const res = await studentApi.updateSIS(payload);
-      
+      const res = resubmitting
+        ? await studentApi.resubmitProfileUpdate(resubmitting.id, payload)
+        : await studentApi.updateSIS(payload);
+
       if (res?.message === 'No changes detected.') {
         setSaveStatus({ type: 'info', message: 'No changes detected.' });
       } else {
-        setSaveStatus({ 
-          type: 'success', 
+        setSaveStatus({
+          type: 'success',
           message: res?.message || 'Your changes were submitted and are pending registrar approval.'
         });
-        setFile(null); // Clear file on success
+        clearFile(); // Clear file on success
+        setResubmitting(null);
+        queryClient.invalidateQueries({ queryKey: queryKeys.student.profileUpdates() });
       }
     } catch (err) {
       // Check for specific validation errors like missing document
@@ -137,12 +170,85 @@ const StudentSISPage = () => {
 
   return (
     <section className="sd-content">
-      <form onSubmit={handleSubmit}>
+      <div className="sd-enrollment-section mb-6" id="my-update-requests">
+        <h2 className="sd-section-title sd-title-red">My Update Requests</h2>
+        <p className="sd-filter-hint">
+          Changes you submitted and the Registrar&apos;s decision. A request returned for revision can be corrected and resubmitted.
+        </p>
+
+        {updatesQuery.isLoading ? (
+          <p className="text-gray-600 text-sm">Loading…</p>
+        ) : updatesQuery.isError ? (
+          <p className="text-red-700 text-sm" role="alert">Could not load your update requests.</p>
+        ) : updates.length === 0 ? (
+          <p className="text-gray-500 text-sm">You have not submitted any profile changes yet.</p>
+        ) : (
+          <ul className="space-y-3 m-0 p-0 list-none">
+            {updates.map((u) => (
+              <li
+                key={u.id}
+                className={`rounded-lg border p-3 sm:p-4 ${resubmitting?.id === u.id ? 'border-orange-400 bg-orange-50/40' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <ProfileUpdateStatusBadge status={u.status} />
+                  <span className="text-xs text-gray-500">
+                    Submitted {formatDate(u.submitted_at)}
+                    {u.decided_at ? ` · Decided ${formatDate(u.decided_at)}` : ''}
+                  </span>
+                </div>
+
+                <ul className="mt-2 space-y-1 text-sm m-0 p-0 list-none">
+                  {(u.fields || []).map((f) => (
+                    <li key={f.field} className="break-words">
+                      <span className="font-semibold capitalize">{f.label}:</span>{' '}
+                      <span className="text-gray-500 line-through">{f.old || 'empty'}</span>{' → '}
+                      <span className="text-gray-900">{f.new || 'empty'}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {u.reason && (
+                  <p className={`mt-2 mb-0 text-sm rounded-md px-3 py-2 ${u.status === 'revision_required' ? 'bg-orange-50 text-orange-900' : 'bg-red-50 text-red-900'}`}>
+                    <span className="font-semibold">{u.status === 'revision_required' ? 'Registrar\'s remarks: ' : 'Reason: '}</span>
+                    {u.reason}
+                  </p>
+                )}
+
+                {u.status === 'revision_required' && resubmitting?.id !== u.id && (
+                  <button
+                    type="button"
+                    onClick={() => startResubmit(u)}
+                    className="mt-3 inline-flex items-center px-3 py-1.5 text-sm font-semibold text-orange-800 bg-orange-100 border border-orange-200 rounded-md hover:bg-orange-200"
+                  >
+                    Correct and resubmit
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} ref={formRef}>
         <div className="sd-enrollment-section">
           <h2 className="sd-section-title sd-title-red">Student Information Sheet (SIS) / SIUF</h2>
           <p className="sd-filter-hint">
             Update the fields below as required by the Registrar.
           </p>
+
+          {resubmitting && (
+            <div className="mt-3 p-3 rounded-lg border border-orange-200 bg-orange-50 text-sm text-orange-900" role="status">
+              <p className="m-0 font-semibold">Correcting your returned request</p>
+              {resubmitting.reason && <p className="m-0 mt-1">Registrar&apos;s remarks: {resubmitting.reason}</p>}
+              <p className="m-0 mt-1">
+                The form shows the values you requested. Fix them, attach a new document if asked, then press Resubmit.
+                {resubmitting.has_supporting_document ? ' If you attach nothing, your earlier document is kept.' : ''}
+              </p>
+              <button type="button" onClick={cancelResubmit} className="mt-2 text-sm font-semibold underline text-orange-900">
+                Cancel correction
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mx-0 mt-3 p-3 rounded-lg border text-sm bg-red-50 border-red-200 text-red-800" role="alert">
@@ -341,6 +447,7 @@ const StudentSISPage = () => {
                 Supporting Document <span className="text-gray-500 font-normal">(Optional unless modifying personal/background info)</span>
               </label>
               <input
+                key={fileInputKey}
                 type="file"
                 accept=".png,.jpg,.jpeg,.pdf,.docx"
                 onChange={(e) => setFile(e.target.files[0] || null)}
@@ -370,7 +477,7 @@ const StudentSISPage = () => {
               style={{ width: 220, justifyContent: 'center' }}
               disabled={saving}
             >
-              {saving ? 'Saving…' : 'Save Changes'}
+              {saving ? 'Saving…' : resubmitting ? 'Resubmit' : 'Save Changes'}
             </button>
           </div>
         </div>

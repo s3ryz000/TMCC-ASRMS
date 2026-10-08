@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Models\PendingStudentUpdate;
 use App\Models\SystemLog;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,8 @@ class PendingStudentUpdateController extends Controller
     use AuthorizesRole;
 
     /**
-     * List all pending student updates.
+     * List profile updates, all or by ?status= (pending, approved, rejected,
+     * revision_required). Admins read the same list (#88).
      */
     public function index(Request $request): JsonResponse
     {
@@ -26,7 +28,12 @@ class PendingStudentUpdateController extends Controller
             return $err;
         }
 
-        $updates = PendingStudentUpdate::with(['student:student_id,student_number,first_name,last_name,program_id', 'student.program', 'submitter:id,name'])
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'in:' . implode(',', PendingStudentUpdate::STATUSES)],
+        ]);
+
+        $updates = PendingStudentUpdate::with(['student:student_id,student_number,first_name,last_name,program_id', 'student.program', 'submitter:id,name', 'reviewer:id,name'])
+            ->when($validated['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -75,34 +82,17 @@ class PendingStudentUpdateController extends Controller
             return response()->json(['message' => 'Pending update not found.'], 404);
         }
 
-        if ($update->status !== 'pending') {
+        if ($update->status !== PendingStudentUpdate::STATUS_PENDING) {
             return response()->json(['message' => 'This update has already been processed.'], 422);
         }
 
         $user = $request->user();
 
         DB::transaction(function () use ($update, $user) {
-            $student = $update->student;
-            
             // Apply new values
-            $student->update($update->new_values);
+            $update->student->update($update->new_values);
 
-            // Mark update as approved
-            $update->update([
-                'status' => 'approved',
-                'reviewed_by' => $user->id,
-                'reviewed_at' => now(),
-            ]);
-
-            $studentName = trim($student->first_name . ' ' . $student->last_name);
-            $studentNumber = $student->student_number ?? "ID#{$student->student_id}";
-            $changedStr = implode(', ', $update->changed_fields ?? []);
-            
-            SystemLog::create([
-                'action' => "Approved profile update for {$studentNumber} ({$studentName}): fields: {$changedStr}",
-                'user_id' => $user->id,
-                'role' => $user->roles->first()?->name ?? $user->role ?? 'staff',
-            ]);
+            $this->decide($update, $user, PendingStudentUpdate::STATUS_APPROVED, null, 'Approved');
         });
 
         return response()->json([
@@ -131,7 +121,7 @@ class PendingStudentUpdateController extends Controller
             return response()->json(['message' => 'Pending update not found.'], 404);
         }
 
-        if ($update->status !== 'pending') {
+        if ($update->status !== PendingStudentUpdate::STATUS_PENDING) {
             return response()->json(['message' => 'This update has already been processed.'], 422);
         }
 
@@ -141,28 +131,52 @@ class PendingStudentUpdateController extends Controller
         ]);
 
         DB::transaction(function () use ($update, $user, $validated) {
-            // Mark update as rejected
-            $update->update([
-                'status' => 'rejected',
-                'reviewed_by' => $user->id,
-                'reviewed_at' => now(),
-                'rejection_reason' => $validated['rejection_reason'] ?? null,
-            ]);
-
-            $student = $update->student;
-            $studentName = trim($student->first_name . ' ' . $student->last_name);
-            $studentNumber = $student->student_number ?? "ID#{$student->student_id}";
-            $changedStr = implode(', ', $update->changed_fields ?? []);
-            
-            SystemLog::create([
-                'action' => "Rejected profile update for {$studentNumber} ({$studentName}): fields: {$changedStr}",
-                'user_id' => $user->id,
-                'role' => $user->roles->first()?->name ?? $user->role ?? 'staff',
-            ]);
+            $this->decide($update, $user, PendingStudentUpdate::STATUS_REJECTED, $validated['rejection_reason'] ?? null, 'Rejected');
         });
 
         return response()->json([
             'message' => 'Student profile update rejected.',
+            'update' => $update->fresh(['student', 'reviewer'])
+        ]);
+    }
+
+    /**
+     * Return a pending update to the student for correction (#88). The
+     * remarks are required: they tell the student what to fix. Registrar
+     * staff only, like approve() and reject().
+     */
+    public function returnForRevision(Request $request, int $id): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['staff'])) {
+            return $err;
+        }
+
+        $update = PendingStudentUpdate::with('student')->find($id);
+
+        if (!$update) {
+            return response()->json(['message' => 'Pending update not found.'], 404);
+        }
+
+        if ($update->status !== PendingStudentUpdate::STATUS_PENDING) {
+            return response()->json(['message' => 'This update has already been processed.'], 422);
+        }
+
+        $validated = $request->validate([
+            'remarks' => ['required', 'string', 'max:1000'],
+        ], [
+            'remarks.required' => 'Write remarks telling the student what to correct.',
+        ]);
+        $user = $request->user();
+
+        DB::transaction(function () use ($update, $user, $validated) {
+            $this->decide($update, $user, PendingStudentUpdate::STATUS_REVISION_REQUIRED, trim($validated['remarks']), 'Returned for revision');
+        });
+
+        return response()->json([
+            'message' => 'Profile update returned to the student for revision.',
             'update' => $update->fresh(['student', 'reviewer'])
         ]);
     }
@@ -195,5 +209,32 @@ class PendingStudentUpdateController extends Controller
             $path,
             $update->supporting_document_original_name
         );
+    }
+
+    /**
+     * Records the registrar's decision on the update, in its review history
+     * and in the system log.
+     */
+    private function decide(PendingStudentUpdate $update, User $user, string $status, ?string $reason, string $verb): void
+    {
+        $update->fill([
+            'status' => $status,
+            'reviewed_by' => $user->id,
+            'reviewed_at' => now(),
+            'rejection_reason' => $reason,
+        ]);
+        $update->recordHistory($status, $reason);
+        $update->save();
+
+        $student = $update->student;
+        $studentName = trim($student->first_name . ' ' . $student->last_name);
+        $studentNumber = $student->student_number ?? "ID#{$student->student_id}";
+        $changedStr = implode(', ', $update->changed_fields ?? []);
+
+        SystemLog::create([
+            'action' => "{$verb} profile update for {$studentNumber} ({$studentName}): fields: {$changedStr}",
+            'user_id' => $user->id,
+            'role' => $user->roles->first()?->name ?? $user->role ?? 'staff',
+        ]);
     }
 }

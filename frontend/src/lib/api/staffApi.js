@@ -35,8 +35,9 @@ export const staffApi = {
     return data;
   },
 
-  getPendingProfileUpdates: async () => {
-    const { data } = await apiClient.get('/staff/pending-profile-updates');
+  /** Profile update requests. Params: status? (pending, approved, rejected, revision_required). */
+  getPendingProfileUpdates: async (params = {}) => {
+    const { data } = await apiClient.get('/staff/pending-profile-updates', { params });
     return data;
   },
 
@@ -47,6 +48,12 @@ export const staffApi = {
 
   rejectProfileUpdate: async (id, payload = {}) => {
     const { data } = await apiClient.patch(`/staff/pending-profile-updates/${id}/reject`, payload);
+    return data;
+  },
+
+  /** Return a pending update to the student with remarks (#88). */
+  returnProfileUpdate: async (id, remarks) => {
+    const { data } = await apiClient.patch(`/staff/pending-profile-updates/${id}/return`, { remarks });
     return data;
   },
 

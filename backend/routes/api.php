@@ -136,6 +136,7 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(function () {
     Route::patch('/pending-profile-updates/{id}/approve', [PendingStudentUpdateController::class, 'approve']);
     Route::patch('/pending-profile-updates/{id}/reject', [PendingStudentUpdateController::class, 'reject']);
+    Route::patch('/pending-profile-updates/{id}/return', [PendingStudentUpdateController::class, 'returnForRevision']);
 });
 
 // ---- Staff & Admin: Record requests (pending, approve, reject, approved list, release) ----
@@ -192,6 +193,9 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::get('/curriculum', [StudentProfileController::class, 'curriculum']);
     Route::get('/academic-summary', [StudentProfileController::class, 'academicSummary']);
     Route::match(['put', 'post'], '/sis', [StudentProfileController::class, 'updateSis']);
+    // The student's own profile update requests; a returned one is corrected and resubmitted (#88).
+    Route::get('/profile-updates', [StudentProfileController::class, 'profileUpdates']);
+    Route::post('/profile-updates/{id}/resubmit', [StudentProfileController::class, 'resubmitProfileUpdate']);
 });
 
 // ---- Student: Own record requests ----

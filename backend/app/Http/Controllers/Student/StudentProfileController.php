@@ -9,9 +9,12 @@ use App\Http\Requests\UpdateStudentSisRequest;
 use App\Models\SystemLog;
 use App\Models\SystemSetting;
 use App\Models\PendingStudentUpdate;
+use App\Models\Student;
 use App\Services\Enrollment\EnrollmentTerm;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,6 +23,29 @@ use Illuminate\Support\Facades\Log;
 class StudentProfileController extends Controller
 {
     use AuthorizesRole;
+
+    /** Plain names of the SIS fields, for logs and the student's request list. */
+    private const FIELD_LABELS = [
+        'contact_number'    => 'contact number',
+        'address'           => 'address',
+        'place_of_birth'    => 'place of birth',
+        'sex'               => 'sex',
+        'guardian_name'     => 'guardian name',
+        'citizenship'       => 'citizenship',
+        'elementary_school' => 'elementary school',
+        'elementary_year'   => 'elementary graduation year',
+        'high_school'       => 'high school',
+        'high_school_year'  => 'high school graduation year',
+        'previous_school'   => 'previous school',
+        'previous_course'   => 'previous course',
+    ];
+
+    /** Fields that need a supporting document when changed. */
+    private const DOCUMENT_REQUIRED_FIELDS = [
+        'address', 'place_of_birth', 'sex', 'guardian_name', 'citizenship',
+        'contact_number', 'elementary_school', 'elementary_year',
+        'high_school', 'high_school_year', 'previous_school', 'previous_course',
+    ];
 
     /**
      * Get authenticated student's profile (student record + program + user).
@@ -264,49 +290,8 @@ class StudentProfileController extends Controller
             return response()->json(['message' => 'Student record not found.'], 404);
         }
 
-        $validated = $request->validated();
-
-        $fieldLabels = [
-            'contact_number'    => 'contact number',
-            'address'           => 'address',
-            'place_of_birth'    => 'place of birth',
-            'sex'               => 'sex',
-            'guardian_name'     => 'guardian name',
-            'citizenship'       => 'citizenship',
-            'elementary_school' => 'elementary school',
-            'elementary_year'   => 'elementary graduation year',
-            'high_school'       => 'high school',
-            'high_school_year'  => 'high school graduation year',
-            'previous_school'   => 'previous school',
-            'previous_course'   => 'previous course',
-        ];
-
-        $oldValues = [];
-        $newValues = [];
-        $changedFields = [];
-        $changedLabels = [];
-
-        $supportingDocument = null;
-        if (array_key_exists('supporting_document', $validated)) {
-            $supportingDocument = $request->file('supporting_document');
-            unset($validated['supporting_document']);
-        }
-
-        foreach ($validated as $field => $newVal) {
-            $oldVal = $student->getAttribute($field);
-            
-            // Format dates if necessary
-            if ($oldVal instanceof \Carbon\Carbon || $oldVal instanceof \Illuminate\Support\Carbon) {
-                $oldVal = $oldVal->format('Y-m-d');
-            }
-
-            if ((string) $oldVal !== (string) ($newVal ?? '')) {
-                $oldValues[$field] = $oldVal;
-                $newValues[$field] = $newVal;
-                $changedFields[] = $field;
-                $changedLabels[] = $fieldLabels[$field] ?? str_replace('_', ' ', $field);
-            }
-        }
+        [$oldValues, $newValues, $changedFields] = $this->changesFrom($student, $request->validated());
+        $supportingDocument = $request->file('supporting_document');
 
         if (empty($changedFields)) {
             return response()->json([
@@ -314,50 +299,23 @@ class StudentProfileController extends Controller
             ]);
         }
 
-        // Check if supporting document is required
-        $documentRequiredFields = [
-            'address', 'place_of_birth', 'sex', 'guardian_name', 'citizenship',
-            'contact_number', 'elementary_school', 'elementary_year', 
-            'high_school', 'high_school_year', 'previous_school', 'previous_course'
-        ];
-        
-        $needsDocument = !empty(array_intersect($changedFields, $documentRequiredFields));
-
-        if ($needsDocument && !$supportingDocument) {
-            return response()->json([
-                'message' => 'A supporting document is required for the fields you modified.',
-                'errors' => ['supporting_document' => ['Proof document is required.']]
-            ], 422);
-        }
-
-        $documentPath = null;
-        $documentName = null;
-        $documentMime = null;
-        $documentSize = null;
-
-        if ($supportingDocument) {
-            $documentPath = $supportingDocument->store('pending-profile-updates', 'local');
-            $documentName = $supportingDocument->getClientOriginalName();
-            $documentMime = $supportingDocument->getMimeType();
-            $documentSize = $supportingDocument->getSize();
+        if ($this->needsDocument($changedFields) && !$supportingDocument) {
+            return $this->documentRequired();
         }
 
         PendingStudentUpdate::create([
             'student_id' => $student->student_id,
             'submitted_by' => $request->user()->id,
-            'status' => 'pending',
+            'status' => PendingStudentUpdate::STATUS_PENDING,
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'changed_fields' => $changedFields,
-            'supporting_document_path' => $documentPath,
-            'supporting_document_original_name' => $documentName,
-            'supporting_document_mime' => $documentMime,
-            'supporting_document_size' => $documentSize,
+            ...$this->storeDocument($supportingDocument),
         ]);
 
         $studentName   = trim($student->first_name . ' ' . $student->last_name);
         $studentNumber = $student->student_number ?? "ID#{$student->student_id}";
-        $changedStr    = implode(', ', $changedLabels);
+        $changedStr    = implode(', ', $this->labels($changedFields));
         $ip            = $request->ip();
 
         SystemLog::create([
@@ -370,6 +328,184 @@ class StudentProfileController extends Controller
             'message' => 'Your changes were submitted and are pending registrar approval.',
             'student' => $student->load('program'),
         ]);
+    }
+
+    /**
+     * GET /api/student/profile-updates: the student's own update requests,
+     * newest first, with the registrar's decision and reason or remarks (#88).
+     */
+    public function profileUpdates(Request $request): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['student'])) {
+            return $err;
+        }
+
+        $student = $request->user()->student;
+        if (! $student) {
+            return response()->json(['message' => 'Student record not found.'], 404);
+        }
+
+        $updates = PendingStudentUpdate::where('student_id', $student->student_id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (PendingStudentUpdate $u) => [
+                'id' => $u->id,
+                'status' => $u->status,
+                'fields' => collect($u->changed_fields ?? [])->map(fn ($field) => [
+                    'field' => $field,
+                    'label' => self::FIELD_LABELS[$field] ?? str_replace('_', ' ', $field),
+                    'old' => $u->old_values[$field] ?? null,
+                    'new' => $u->new_values[$field] ?? null,
+                ])->values(),
+                'submitted_at' => $u->created_at?->toDateTimeString(),
+                'decided_at' => $u->reviewed_at?->toDateTimeString(),
+                'reason' => $u->rejection_reason,
+                'history' => $u->review_history ?? [],
+                'has_supporting_document' => $u->has_supporting_document,
+                'supporting_document_name' => $u->supporting_document_original_name,
+            ]);
+
+        return response()->json(['data' => $updates]);
+    }
+
+    /**
+     * POST /api/student/profile-updates/{id}/resubmit: the student corrects a
+     * request returned for revision and sends it back to the registrar. The
+     * same request goes back to pending; the previous remarks stay in its
+     * review history. A new document replaces the old one; without one, the
+     * document already attached is kept.
+     */
+    public function resubmitProfileUpdate(UpdateStudentSisRequest $request, int $id): JsonResponse
+    {
+        if ($err = $this->requireAuth()) {
+            return $err;
+        }
+        if ($err = $this->requireRoles($request->user(), ['student'])) {
+            return $err;
+        }
+
+        $student = $request->user()->student;
+        if (! $student) {
+            return response()->json(['message' => 'Student record not found.'], 404);
+        }
+
+        // Another student's request is simply not found.
+        $update = PendingStudentUpdate::where('student_id', $student->student_id)->find($id);
+        if (! $update) {
+            return response()->json(['message' => 'Update request not found.'], 404);
+        }
+        if ($update->status !== PendingStudentUpdate::STATUS_REVISION_REQUIRED) {
+            return response()->json(['message' => 'Only a request returned for revision can be resubmitted.'], 422);
+        }
+
+        [$oldValues, $newValues, $changedFields] = $this->changesFrom($student, $request->validated());
+        $supportingDocument = $request->file('supporting_document');
+
+        if (empty($changedFields)) {
+            return response()->json([
+                'message' => 'Your corrected values are the same as your current record. Change at least one field.',
+            ], 422);
+        }
+
+        if ($this->needsDocument($changedFields) && ! $supportingDocument && ! $update->has_supporting_document) {
+            return $this->documentRequired();
+        }
+
+        $previousDocument = $supportingDocument ? $update->supporting_document_path : null;
+
+        $update->fill([
+            'status' => PendingStudentUpdate::STATUS_PENDING,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'changed_fields' => $changedFields,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+            'rejection_reason' => null,
+            ...($supportingDocument ? $this->storeDocument($supportingDocument) : []),
+        ]);
+        $update->recordHistory('resubmitted');
+        $update->save();
+
+        if ($previousDocument) {
+            Storage::disk('local')->delete($previousDocument);
+        }
+
+        $studentName   = trim($student->first_name . ' ' . $student->last_name);
+        $studentNumber = $student->student_number ?? "ID#{$student->student_id}";
+        $changedStr    = implode(', ', $this->labels($changedFields));
+
+        SystemLog::create([
+            'action'  => "Student {$studentNumber} ({$studentName}) resubmitted a returned profile update for approval: {$changedStr} [IP: {$request->ip()}]",
+            'user_id' => $request->user()->id,
+            'role'    => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'Your corrected request was resubmitted and is pending registrar approval.',
+        ]);
+    }
+
+    /**
+     * The submitted SIS values that differ from the student's record, as
+     * [old values, new values, changed field names].
+     */
+    private function changesFrom(Student $student, array $validated): array
+    {
+        unset($validated['supporting_document']);
+
+        $oldValues = [];
+        $newValues = [];
+        $changedFields = [];
+
+        foreach ($validated as $field => $newVal) {
+            $oldVal = $student->getAttribute($field);
+
+            // Format dates if necessary
+            if ($oldVal instanceof \Carbon\Carbon || $oldVal instanceof \Illuminate\Support\Carbon) {
+                $oldVal = $oldVal->format('Y-m-d');
+            }
+
+            if ((string) $oldVal !== (string) ($newVal ?? '')) {
+                $oldValues[$field] = $oldVal;
+                $newValues[$field] = $newVal;
+                $changedFields[] = $field;
+            }
+        }
+
+        return [$oldValues, $newValues, $changedFields];
+    }
+
+    private function labels(array $fields): array
+    {
+        return array_map(fn ($field) => self::FIELD_LABELS[$field] ?? str_replace('_', ' ', $field), $fields);
+    }
+
+    private function needsDocument(array $changedFields): bool
+    {
+        return ! empty(array_intersect($changedFields, self::DOCUMENT_REQUIRED_FIELDS));
+    }
+
+    private function documentRequired(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'A supporting document is required for the fields you modified.',
+            'errors' => ['supporting_document' => ['Proof document is required.']]
+        ], 422);
+    }
+
+    /** Stores the uploaded proof and returns its supporting_document_* columns. */
+    private function storeDocument(?UploadedFile $file): array
+    {
+        return [
+            'supporting_document_path' => $file?->store('pending-profile-updates', 'local'),
+            'supporting_document_original_name' => $file?->getClientOriginalName(),
+            'supporting_document_mime' => $file?->getMimeType(),
+            'supporting_document_size' => $file?->getSize(),
+        ];
     }
 
     /**
