@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\Staff;
 use App\Models\SystemLog;
 use App\Models\User;
+use App\Support\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,8 @@ class UserController extends Controller
             return $user;
         });
 
+        AuditLog::write("User created: {$user->username} ({$user->role})", $request->user());
+
         $user->load('roles');
 
         return response()->json([
@@ -162,6 +165,7 @@ class UserController extends Controller
         }
 
         $user->update($validated);
+        $this->logUserChanges($request->user(), $user);
 
         // Deactivating an account ends its open sessions at once (#79).
         if ($user->wasChanged('status') && $user->status === 'inactive') {
@@ -214,9 +218,46 @@ class UserController extends Controller
             return $refusal;
         }
 
+        // The system log is append-only (#95): an account that appears in it
+        // stays, so its entries keep their name. Deactivate it instead.
+        if (SystemLog::where('user_id', $user->id)->exists()) {
+            return response()->json([
+                'message' => 'This account has activity in the system log and cannot be deleted. Deactivate it instead.',
+            ], 422);
+        }
+
+        $username = $user->username;
+        $role = $user->role;
         $user->delete();
 
+        AuditLog::write("User deleted: {$username} ({$role})", $request->user());
+
         return response()->json(['message' => 'User deleted successfully.']);
+    }
+
+    /**
+     * Logs what an update changed (#95): activation or deactivation as its
+     * own entry, then the role (old → new) and the names of other changed
+     * fields. Password resets are logged separately and never shown.
+     */
+    private function logUserChanges(User $actor, User $user): void
+    {
+        if ($user->wasChanged('status')) {
+            AuditLog::write(($user->status === 'active' ? 'User activated: ' : 'User deactivated: ') . $user->username, $actor);
+        }
+
+        $parts = [];
+        if ($user->wasChanged('role')) {
+            $parts[] = 'role ' . AuditLog::value($user->getPrevious()['role'] ?? null) . ' → ' . AuditLog::value($user->role);
+        }
+        $fields = array_values(array_intersect(['name', 'email', 'department'], array_keys($user->getChanges())));
+        if ($fields) {
+            $parts[] = 'changed ' . implode(', ', $fields);
+        }
+
+        if ($parts) {
+            AuditLog::write("User updated: {$user->username} — " . implode('; ', $parts), $actor);
+        }
     }
 
     /**

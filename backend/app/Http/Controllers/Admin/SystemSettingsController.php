@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Http\Requests\UpdateSystemSettingsRequest;
 use App\Models\SystemSetting;
+use App\Models\User;
+use App\Support\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -90,6 +92,7 @@ class SystemSettingsController extends Controller
         }
 
         $validated = $request->validated();
+        $before = $this->getSettingsArray();
 
         foreach (self::KEYS as $key) {
             if (! array_key_exists($key, $validated)) {
@@ -105,10 +108,31 @@ class SystemSettingsController extends Controller
             SystemSetting::setValue($key, $value);
         }
 
+        $after = $this->getSettingsArray();
+        $this->logChanges($request->user(), $before, $after);
+
         return response()->json([
             'message' => 'Settings updated successfully.',
-            'settings' => $this->getSettingsArray(),
+            'settings' => $after,
         ]);
+    }
+
+    /**
+     * One log entry listing each changed setting as old → new (#95). None of
+     * these settings is secret; a save that changes nothing logs nothing.
+     */
+    private function logChanges(User $actor, array $before, array $after): void
+    {
+        $changes = [];
+        foreach (self::KEYS as $key) {
+            if (($before[$key] ?? null) != ($after[$key] ?? null)) {
+                $changes[] = str_replace('_', ' ', $key) . ' ' . AuditLog::value($before[$key] ?? null) . ' → ' . AuditLog::value($after[$key] ?? null);
+            }
+        }
+
+        if ($changes) {
+            AuditLog::write('Settings changed: ' . implode('; ', $changes), $actor);
+        }
     }
 
     private function getSettingsArray(): array

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -31,19 +32,30 @@ class SessionLifetime
     {
         if (! $isValid) {
             if (self::isPastLifetime($token)) {
-                $token->delete();
+                self::end($token, self::maxHours() . '-hour limit');
             }
 
             return false;
         }
 
         if (self::isIdle($token)) {
-            $token->delete();
+            self::end($token, 'idle over ' . self::idleMinutes() . ' min');
 
             return false;
         }
 
         return true;
+    }
+
+    /** Deletes the ended token and logs the expiry once (#95). */
+    private static function end(PersonalAccessToken $token, string $why): void
+    {
+        $token->delete();
+
+        $user = $token->tokenable;
+        if ($user instanceof User) {
+            AuditLog::write("Session expired: {$user->username} ({$why})", $user);
+        }
     }
 
     /** No request for longer than the idle window (0 turns the idle check off). */

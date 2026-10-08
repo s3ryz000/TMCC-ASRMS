@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class SystemLog extends Model
 {
@@ -18,6 +19,15 @@ class SystemLog extends Model
         'role',
     ];
 
+
+    /**
+     * action is a varchar(255): a longer text (a settings change, an address)
+     * is shortened rather than refused by MySQL's strict mode.
+     */
+    public function setActionAttribute(?string $value): void
+    {
+        $this->attributes['action'] = Str::limit((string) $value, 254, '…');
+    }
 
     public function user(): BelongsTo
     {
