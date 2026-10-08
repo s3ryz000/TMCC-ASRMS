@@ -64,8 +64,15 @@ export const adminApi = {
     return data;
   },
 
-  exportSystemLogsPdf: async () => {
-    const { data } = await apiClient.get('/admin/logs/export-pdf', { responseType: 'blob' });
+  /** Same filters as getSystemLogs (#94): user_id, role, q, date_from, date_to. */
+  exportSystemLogsPdf: async (params = {}) => {
+    const { data } = await apiClient.get('/admin/logs/export-pdf', { params, responseType: 'blob' });
+    return data;
+  },
+
+  /** The people who appear in the log, for the user filter. */
+  getSystemLogUsers: async () => {
+    const { data } = await apiClient.get('/admin/logs/users');
     return data;
   },
 

@@ -13,6 +13,7 @@ export const queryKeys = {
     settings: () => [...queryKeys.admin.all, 'systemSettings'],
     logs: () => [...queryKeys.admin.all, 'systemLogs'],
     logsList: (filters) => [...queryKeys.admin.all, 'systemLogs', filters],
+    logUsers: () => [...queryKeys.admin.all, 'systemLogUsers'],
     backupStatus: () => [...queryKeys.admin.all, 'backupStatus'],
   },
   student: {
@@ -35,5 +36,6 @@ export const queryKeys = {
     subjectPrefixes: () => [...queryKeys.staff.all, 'subject-prefixes'],
     studentNumberCheck: (number) => [...queryKeys.staff.all, 'student-number-check', number],
     studentNumberMismatches: () => [...queryKeys.staff.all, 'student-number-mismatches'],
+    myActivity: (filters) => [...queryKeys.staff.all, 'my-activity', filters],
   },
 };

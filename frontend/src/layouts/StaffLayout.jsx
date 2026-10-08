@@ -17,6 +17,7 @@ import {
   FiUserPlus,
   FiBook,
   FiLayers,
+  FiActivity,
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePasswordModal from '../components/staff/ChangePasswordModal';
@@ -264,6 +265,7 @@ const StaffLayout = () => {
               </div>
             )}
           </div>
+          {renderNavLink({ id: 'my-activity', label: 'My Activity', icon: FiActivity, path: '/staff/my-activity' })}
         </nav>
 
         <div className="p-4 pt-4 border-t border-white/15 shrink-0">

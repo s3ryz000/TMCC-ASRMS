@@ -25,6 +25,7 @@ import StaffEditStudentHubPage from '../pages/staff/StaffEditStudentHubPage';
 import StaffEditStudentInformationPage from '../pages/staff/StaffEditStudentInformationPage';
 import StaffEditStudentGradesPage from '../pages/staff/StaffEditStudentGradesPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
+import StaffMyActivityPage from '../pages/staff/StaffMyActivityPage';
 import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
 import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
 import StaffNewSubjectPage from '../pages/staff/StaffNewSubjectPage';
@@ -121,6 +122,8 @@ const router = createBrowserRouter([
           { index: true, element: <StaffDashboardPage /> },
           { path: 'requests', element: <StaffPendingRequestsPage /> },
           { path: 'profile-updates', element: <StaffPendingProfileUpdatesPage /> },
+          // The signed-in user's own system log, read-only (#94).
+          { path: 'my-activity', element: <StaffMyActivityPage /> },
           // Manage Records (#57); the old Student Records and View Records URLs land there.
           { path: 'records', element: <StaffManageRecordsPage /> },
           { path: 'records/:id', element: <StaffRecordPage /> },

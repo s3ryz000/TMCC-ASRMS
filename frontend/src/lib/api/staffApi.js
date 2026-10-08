@@ -35,6 +35,12 @@ export const staffApi = {
     return data;
   },
 
+  /** The signed-in user's own system log rows (#94). Params: role?, q?, date_from?, date_to?, page?, per_page? */
+  getMyActivity: async (params = {}) => {
+    const { data } = await apiClient.get('/staff/my-activity', { params });
+    return data;
+  },
+
   /** Profile update requests. Params: status? (pending, approved, rejected, revision_required). */
   getPendingProfileUpdates: async (params = {}) => {
     const { data } = await apiClient.get('/staff/pending-profile-updates', { params });

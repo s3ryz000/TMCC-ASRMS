@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\CurriculumController;
 use App\Http\Controllers\Api\CurriculumEntryController;
+use App\Http\Controllers\Api\MyActivityController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\StudentDocumentController;
@@ -158,6 +159,8 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
 Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(function () {
     Route::get('/reports/summary', [ReportController::class, 'summary']);
     Route::get('/reports/transaction-history', [ReportController::class, 'transactionHistory']);
+    // The caller's own system log rows, read-only (#94).
+    Route::get('/my-activity', MyActivityController::class);
 });
 
 // ---- Admin only: Users CRUD ----
@@ -169,6 +172,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::get('/logs', [SystemLogController::class, 'index']);
     Route::get('/logs/export-pdf', [SystemLogController::class, 'exportPdf']);
+    Route::get('/logs/users', [SystemLogController::class, 'users']);
 });
 
 // ---- Admin only: System settings ----
