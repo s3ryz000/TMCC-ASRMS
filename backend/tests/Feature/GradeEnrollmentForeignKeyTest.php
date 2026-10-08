@@ -10,6 +10,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
 use Tests\Concerns\BuildsAcademicRecords;
@@ -39,10 +40,11 @@ class GradeEnrollmentForeignKeyTest extends TestCase
         Sanctum::actingAs($this->makeUser('staff'), ['*']);
     }
 
+    /** column => "table.column ON DELETE", read the same way on SQLite and MySQL (#61). */
     private function foreignKeys(): array
     {
-        return collect(DB::select('PRAGMA foreign_key_list(grades)'))
-            ->mapWithKeys(fn ($fk) => [$fk->from => "{$fk->table}.{$fk->to} {$fk->on_delete}"])
+        return collect(Schema::getForeignKeys('grades'))
+            ->mapWithKeys(fn ($fk) => [$fk['columns'][0] => "{$fk['foreign_table']}.{$fk['foreign_columns'][0]} " . strtoupper($fk['on_delete'])])
             ->sortKeys()
             ->all();
     }
@@ -55,10 +57,11 @@ class GradeEnrollmentForeignKeyTest extends TestCase
             'subject_id'    => 'subjects.id RESTRICT',
         ], $this->foreignKeys());
 
-        $indexes = collect(DB::select('PRAGMA index_list(grades)'))->pluck('name')->all();
+        $indexes = array_column(Schema::getIndexes('grades'), 'name');
         $this->assertContains('grades_student_id_subject_id_academic_year_semester_unique', $indexes);
-        $this->assertNotNull(collect(DB::select('PRAGMA table_info(grades)'))->firstWhere('name', 'enrollment_id'));
-        $this->assertSame(0, (int) collect(DB::select('PRAGMA table_info(grades)'))->firstWhere('name', 'enrollment_id')->notnull);
+        $enrollmentId = collect(Schema::getColumns('grades'))->firstWhere('name', 'enrollment_id');
+        $this->assertNotNull($enrollmentId);
+        $this->assertTrue($enrollmentId['nullable']);
     }
 
     public function test_a_grade_cannot_point_at_a_missing_enrollment(): void
@@ -101,6 +104,8 @@ class GradeEnrollmentForeignKeyTest extends TestCase
 
     public function test_the_migration_refuses_when_a_grade_points_at_a_missing_enrollment(): void
     {
+        $this->onlyOnSqlite('replays the migration that added this key to the existing SQLite data');
+
         /** @var Migration $migration */
         $migration = require database_path('migrations/2026_10_03_000004_add_foreign_key_to_grades_enrollment_id.php');
         $migration->down();

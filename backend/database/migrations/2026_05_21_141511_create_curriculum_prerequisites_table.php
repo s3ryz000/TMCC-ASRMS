@@ -17,7 +17,10 @@ return new class extends Migration
             $table->foreignId('prerequisite_subject_id')->constrained('subjects')->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['curriculum_id', 'prerequisite_subject_id']);
+            // Named explicitly (#61): the generated name is 70 characters and
+            // MySQL/MariaDB allow 64. Databases created earlier on SQLite keep
+            // the long name; nothing refers to it by name.
+            $table->unique(['curriculum_id', 'prerequisite_subject_id'], 'curriculum_prerequisites_pair_unique');
         });
     }
 

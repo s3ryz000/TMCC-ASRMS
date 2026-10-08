@@ -37,6 +37,7 @@ class CanonicalizeSubjectCodesMigrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->onlyOnSqlite('replays the one-time subject code repair of the existing SQLite data, which creates and drops tables');
 
         $this->migration = require database_path('migrations/2026_10_02_000001_canonicalize_subject_codes.php');
         // Back to the pre-#16 schema: UNIQUE(code, title), no change log.

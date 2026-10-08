@@ -47,7 +47,7 @@ class ReportExportTest extends TestCase
 
     public function test_export_works_on_sqlite_with_processed_requests(): void
     {
-        $this->assertSame('sqlite', \DB::connection()->getDriverName());
+        $this->onlyOnSqlite('the #84 regression; the other tests here run the export on MySQL too');
 
         $this->processedRequest('2026-09-01 08:00:00', '2026-09-03 09:00:00');                                // 2 days
         $this->processedRequest('2026-09-01 08:00:00', '2026-09-06 07:00:00', RecordRequest::STATUS_REJECTED); // 4 days 23 h → 4

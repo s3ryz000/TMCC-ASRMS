@@ -151,7 +151,8 @@ class StudentNumberTest extends TestCase
         // check and its insert; the unique index refuses the second insert.
         $raced = false;
         DB::listen(function (QueryExecuted $query) use (&$raced) {
-            if ($raced || ! str_contains($query->sql, '"username" = ?') || ($query->bindings[0] ?? null) !== '260004') {
+            // "username" on SQLite, `username` on MySQL (#61).
+            if ($raced || ! preg_match('/["`]username["`] = \?/', $query->sql) || ($query->bindings[0] ?? null) !== '260004') {
                 return;
             }
             $raced = true;

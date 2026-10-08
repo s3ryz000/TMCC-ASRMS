@@ -25,7 +25,9 @@ trait UsesTemporarySqliteFile
         $this->databaseFile = $this->tmp . DIRECTORY_SEPARATOR . 'live.sqlite';
         touch($this->databaseFile);
 
-        config(['database.connections.sqlite.database' => $this->databaseFile]);
+        // The default connection too, so these tests use the SQLite file even
+        // when the suite runs against MySQL (#61).
+        config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => $this->databaseFile]);
         DB::purge('sqlite');
         Artisan::call('migrate', ['--force' => true]);
 
