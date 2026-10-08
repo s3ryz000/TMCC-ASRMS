@@ -42,6 +42,22 @@ export const studentApi = {
     return data;
   },
 
+  /** The student's own notifications, newest first (paginated) with unread_count (#89). */
+  getNotifications: async (params = {}) => {
+    const { data } = await apiClient.get('/student/notifications', { params });
+    return data;
+  },
+
+  markNotificationRead: async (id) => {
+    const { data } = await apiClient.patch(`/student/notifications/${id}/read`);
+    return data;
+  },
+
+  markAllNotificationsRead: async () => {
+    const { data } = await apiClient.patch('/student/notifications/read-all');
+    return data;
+  },
+
   getSubjects: async (params = {}) => {
     const { data } = await apiClient.get('/student/subjects', { params });
     return data;

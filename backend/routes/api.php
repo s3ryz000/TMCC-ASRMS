@@ -16,6 +16,7 @@ use App\Http\Controllers\auth\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
+use App\Http\Controllers\Student\NotificationController;
 use App\Http\Controllers\Student\RecordRequestController;
 use App\Http\Controllers\Student\StudentProfileController;
 use Illuminate\Http\Request;
@@ -205,4 +206,11 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::get('/record-requests/{id}', [RecordRequestController::class, 'show']);
     Route::get('/record-requests/{id}/transcript', [RecordRequestController::class, 'downloadTranscript']);
     Route::get('/record-requests/{id}/approval-slip', [RequestController::class, 'downloadApprovalSlipStudent']);
+});
+
+// ---- Student: Own in-app notifications (#89) ----
+Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead']);
 });

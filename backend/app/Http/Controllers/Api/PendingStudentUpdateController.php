@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\AuthorizesRole;
 use App\Models\PendingStudentUpdate;
 use App\Models\SystemLog;
 use App\Models\User;
+use App\Services\StudentNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\DB;
 class PendingStudentUpdateController extends Controller
 {
     use AuthorizesRole;
+
+    public function __construct(
+        private StudentNotifier $notifier,
+    ) {}
 
     /**
      * List profile updates, all or by ?status= (pending, approved, rejected,
@@ -213,7 +218,7 @@ class PendingStudentUpdateController extends Controller
 
     /**
      * Records the registrar's decision on the update, in its review history
-     * and in the system log.
+     * and in the system log, and tells the student in the portal (#89).
      */
     private function decide(PendingStudentUpdate $update, User $user, string $status, ?string $reason, string $verb): void
     {
@@ -236,5 +241,7 @@ class PendingStudentUpdateController extends Controller
             'user_id' => $user->id,
             'role' => $user->roles->first()?->name ?? $user->role ?? 'staff',
         ]);
+
+        $this->notifier->profileUpdateChanged($update);
     }
 }

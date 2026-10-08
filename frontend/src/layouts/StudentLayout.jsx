@@ -8,9 +8,10 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { studentApi } from '../lib/api/studentApi';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
+import NotificationBell from '../components/student/NotificationBell';
 
 const StudentLayout = () => {
-  const { logout, logoutMutation } = useAuth();
+  const { logout, logoutMutation, role } = useAuth();
   const location = useLocation();
   const [currentTime, setCurrentTime] = useState('');
   const [currentDate, setCurrentDate] = useState('');
@@ -90,6 +91,8 @@ const StudentLayout = () => {
                 <span className="sd-date">{currentDate}</span>
                 <span className="sd-time">{currentTime}</span>
               </div>
+              {/* Staff and admins can open this layout; the bell is the student's own (#89). */}
+              {role === 'student' && <NotificationBell />}
               <button type="button" className="sd-link-btn" onClick={handleChangePassword} aria-label="Change Password">
                 <FiKey className="sd-icon" />
                 Change Password

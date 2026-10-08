@@ -18,6 +18,16 @@ class RecordRequest extends Model
 
     public const STATUS_RELEASED = 'released';
 
+    /** The document names students see in the portal. */
+    public const TYPE_LABELS = [
+        'transcript' => 'Transcript of Records',
+        'certificate_of_grades' => 'Certificate of Grades',
+        'copy_of_grades' => 'Copy of Grades',
+        'deans_list_certificate' => "Dean's List Certificate",
+        'presidents_list_certificate' => "President's List Certificate",
+        'latin_honor_certificate' => 'Latin Honor Certificate',
+    ];
+
     protected $fillable = [
         'student_id',
         'record_type',
@@ -41,6 +51,11 @@ class RecordRequest extends Model
         'appointment_at' => 'datetime',
         'released_at' => 'datetime',
     ];
+
+    public function typeLabel(): string
+    {
+        return self::TYPE_LABELS[$this->record_type] ?? ucwords(str_replace('_', ' ', (string) $this->record_type));
+    }
 
     public function student(): BelongsTo
     {

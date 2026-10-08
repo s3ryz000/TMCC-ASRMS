@@ -18,6 +18,7 @@ export const queryKeys = {
   student: {
     all: ['student'],
     profileUpdates: () => [...queryKeys.student.all, 'profile-updates'],
+    notifications: () => [...queryKeys.student.all, 'notifications'],
   },
   staff: {
     all: ['staff'],

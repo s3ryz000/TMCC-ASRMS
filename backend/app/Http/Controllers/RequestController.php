@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\QrCodeGenerator;
 use App\Services\StaffService;
+use App\Services\StudentNotifier;
 use App\Support\SchoolLogo;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
@@ -32,7 +33,8 @@ class RequestController extends Controller
     private const OFFICE_TIMEZONE = 'Asia/Manila';
 
     public function __construct(
-        private StaffService $staffService
+        private StaffService $staffService,
+        private StudentNotifier $notifier,
     ) {}
 
     /**
@@ -141,6 +143,7 @@ class RequestController extends Controller
             'appointment_at' => $appointmentAt,
             'rejection_reason' => null,
         ]);
+        $this->notifier->recordRequestChanged($recordRequest);
 
         SystemLog::create([
             'action' => 'Request approved',
@@ -189,6 +192,7 @@ class RequestController extends Controller
             'processed_at' => now(),
             'rejection_reason' => $request->validated('rejection_reason'),
         ]);
+        $this->notifier->recordRequestChanged($recordRequest);
 
         return response()->json([
             'message' => 'Request rejected.',
@@ -558,6 +562,7 @@ class RequestController extends Controller
             'status' => RecordRequest::STATUS_RELEASED,
             'released_at' => now(),
         ]);
+        $this->notifier->recordRequestChanged($recordRequest);
 
         RecordTransaction::create([
             'student_id' => $recordRequest->student_id,
