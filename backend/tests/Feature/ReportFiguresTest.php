@@ -241,6 +241,41 @@ class ReportFiguresTest extends TestCase
             ->assertJsonPath('totals.requests', ['pending' => 1, 'approved' => 2, 'rejected' => 2, 'released' => 2]);
     }
 
+    // ── Processed Today (#100) ──────────────────────────────────────────────
+
+    public function test_processed_today_counts_requests_decided_today_not_students_added(): void
+    {
+        $this->travelTo('2026-10-09 15:00:00');
+        $today = '2026-10-09';
+        $this->request('approved', 'transcript', '2026-10-08 09:00:00', "$today 08:00:00");
+        $this->request('rejected', 'copy_of_grades', '2026-10-08 09:00:00', "$today 10:30:00");
+        $this->request('released', 'certificate_of_grades', '2026-10-07 09:00:00', "$today 00:00:00");
+        $this->request('pending', 'transcript', "$today 09:00:00");
+        $this->request('approved', 'copy_of_grades', '2026-10-07 09:00:00', '2026-10-08 23:59:59');
+        // Students added today are not "processed".
+        $this->makeStudent(Program::findOrFail($this->student->program_id), ['student_number' => '2026-0002', 'email' => 'ana@tmcc.test']);
+
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('kpis.processed_today', 3);
+        $this->getJson('/api/staff/reports/summary')->assertOk()->assertJsonPath('processed_today', 3);
+
+        Sanctum::actingAs($this->makeUser('staff', 'staff01'), ['*']);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('kpis.processed_today', 3);
+    }
+
+    public function test_approving_and_rejecting_raise_processed_today(): void
+    {
+        $staff = $this->makeUser('staff', 'staff01');
+        Sanctum::actingAs($staff, ['*']);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('kpis.processed_today', 0);
+
+        $a = $this->request('pending', 'transcript', now()->toDateTimeString());
+        $b = $this->request('pending', 'copy_of_grades', now()->toDateTimeString());
+        $this->patchJson("/api/staff/requests/{$a->id}/approve")->assertOk();
+        $this->patchJson("/api/staff/requests/{$b->id}/reject", ['rejection_reason' => 'x'])->assertOk();
+
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('kpis.processed_today', 2);
+    }
+
     public function test_the_registrar_dashboard_has_no_system_totals(): void
     {
         Sanctum::actingAs($this->makeUser('staff', 'staff01'), ['*']);

@@ -54,7 +54,7 @@ class DashboardController extends Controller
     {
         $pendingCount = RecordRequest::where('status', RecordRequest::STATUS_PENDING)->count();
         $pendingProfileUpdates = \App\Models\PendingStudentUpdate::where('status', 'pending')->count();
-        $processedToday = Student::whereDate('created_at', today())->count();
+        $processedToday = app(ReportFigures::class)->processedToday();
         $studentsCount = \App\Models\Student::count();
         $releasedToday = RecordRequest::where('status', RecordRequest::STATUS_RELEASED)
             ->whereDate('released_at', today())

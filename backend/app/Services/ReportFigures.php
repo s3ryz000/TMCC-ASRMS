@@ -140,6 +140,21 @@ class ReportFigures
     }
 
     /**
+     * "Processed Today" on the staff and admin dashboards (#100): document
+     * requests the registrar decided today, approved or rejected. A request
+     * approved today and already released still counts; a pending one has no
+     * decision yet. (It used to count students added today.)
+     */
+    public function processedToday(): int
+    {
+        $today = CarbonImmutable::today()->toDateString();
+
+        return $this->inRange(RecordRequest::query()->toBase(), 'processed_at', $today, $today)
+            ->whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_REJECTED, RecordRequest::STATUS_RELEASED])
+            ->count();
+    }
+
+    /**
      * Admin dashboard totals: users per role split by active/inactive,
      * students, and requests per status.
      */
