@@ -146,7 +146,6 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
     Route::get('/pending-requests', [RequestController::class, 'indexPending']);
     Route::patch('/requests/{id}/approve', [RequestController::class, 'approve']);
     Route::patch('/requests/{id}/reject', [RequestController::class, 'reject']);
-    Route::get('/appointment-slots', [RequestController::class, 'appointmentSlots']);
     Route::get('/approved-release', [RequestController::class, 'indexApproved']);
     Route::get('/rejected-requests', [RequestController::class, 'indexRejected']);
     Route::put('/requests/{id}/release', [RequestController::class, 'release']);

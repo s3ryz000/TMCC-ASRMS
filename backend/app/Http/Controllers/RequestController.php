@@ -83,7 +83,9 @@ class RequestController extends Controller
     }
 
     /**
-     * Approve a pending request (staff + admin).
+     * Approve a pending request (staff + admin). Approving means the document
+     * is ready for pick-up at the Registrar's Office: there is no appointment
+     * date (#44, client decision of 9 Oct 2026); the student is notified.
      */
     public function approve(Request $request, int $id): JsonResponse
     {
@@ -106,41 +108,10 @@ class RequestController extends Controller
         if (! $staff) {
             return response()->json(['message' => 'Staff record not available.'], 403);
         }
-        $validated = $request->validate([
-            'appointment_at' => ['required', 'date'],
-        ]);
-
-        $appointmentAtOffice = Carbon::parse($validated['appointment_at'])
-            ->setTimezone(self::OFFICE_TIMEZONE)
-            ->seconds(0);
-        if ($appointmentAtOffice->lessThanOrEqualTo(now(self::OFFICE_TIMEZONE))) {
-            return response()->json(['message' => 'Please select a future appointment date and time.'], 422);
-        }
-
-        // The registrar's office is closed on Sundays (#80).
-        if ($appointmentAtOffice->isSunday()) {
-            return response()->json(['message' => 'Selected appointment date is not an office day.'], 422);
-        }
-
-        if (! in_array($appointmentAtOffice->format('H:i'), $this->availableTimeSlots(), true)) {
-            return response()->json(['message' => 'Selected appointment time is not available.'], 422);
-        }
-
-        $appointmentAt = $this->toStorageTime($appointmentAtOffice);
-        $isTaken = RecordRequest::whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_RELEASED])
-            ->whereNotNull('appointment_at')
-            ->where('appointment_at', $appointmentAt->toDateTimeString())
-            ->exists();
-
-        if ($isTaken) {
-            return response()->json(['message' => 'Selected appointment slot is already taken.'], 422);
-        }
-
         $recordRequest->update([
             'status' => RecordRequest::STATUS_APPROVED,
             'processed_by' => $staff->staff_id,
             'processed_at' => now(),
-            'appointment_at' => $appointmentAt,
             'rejection_reason' => null,
         ]);
         $this->notifier->recordRequestChanged($recordRequest);
@@ -152,7 +123,7 @@ class RequestController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Request approved successfully.',
+            'message' => 'Request approved. The student is notified that the document is ready for pick-up.',
             'record_request' => $recordRequest->load('student'),
         ]);
     }
@@ -337,52 +308,6 @@ class RequestController extends Controller
         return $this->doRelease($recordRequest, $staff, $request->user(), 'Transaction created');
     }
 
-    public function appointmentSlots(Request $request): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles($request->user(), ['staff', 'admin'])) {
-            return $err;
-        }
-
-        $monthInput = (string) $request->input('month', now(self::OFFICE_TIMEZONE)->format('Y-m'));
-        try {
-            $monthStartOffice = Carbon::createFromFormat('Y-m', $monthInput, self::OFFICE_TIMEZONE)->startOfMonth();
-        } catch (\Throwable) {
-            return response()->json(['message' => 'Invalid month format. Use YYYY-MM.'], 422);
-        }
-        $monthEndOffice = (clone $monthStartOffice)->endOfMonth();
-        $monthStart = $this->toStorageTime($monthStartOffice);
-        $monthEnd = $this->toStorageTime($monthEndOffice);
-
-        $rows = RecordRequest::query()
-            ->whereIn('status', [RecordRequest::STATUS_APPROVED, RecordRequest::STATUS_RELEASED])
-            ->whereBetween('appointment_at', [$monthStart->toDateTimeString(), $monthEnd->toDateTimeString()])
-            ->whereNotNull('appointment_at')
-            ->get(['appointment_at']);
-
-        $takenByDate = [];
-        foreach ($rows as $row) {
-            if (! $row->appointment_at) {
-                continue;
-            }
-            $apptOffice = $row->appointment_at->copy()->setTimezone(self::OFFICE_TIMEZONE);
-            $dateKey = $apptOffice->format('Y-m-d');
-            $time = $apptOffice->format('H:i');
-            $takenByDate[$dateKey] ??= [];
-            if (! in_array($time, $takenByDate[$dateKey], true)) {
-                $takenByDate[$dateKey][] = $time;
-            }
-        }
-
-        return response()->json([
-            'month' => $monthStartOffice->format('Y-m'),
-            'time_slots' => $this->availableTimeSlots(),
-            'taken_by_date' => $takenByDate,
-        ]);
-    }
-
     public function downloadTranscriptTemplate(Request $request, int $id): StreamedResponse|JsonResponse
     {
         if ($err = $this->requireAuth()) {
@@ -487,11 +412,8 @@ class RequestController extends Controller
             $recordRequest->student?->last_name,
             $recordRequest->student?->first_name,
         ])));
-        $appointment = $recordRequest->appointment_at
-            ? $recordRequest->appointment_at->copy()->timezone(self::OFFICE_TIMEZONE)->format('m/d/Y - h:i A')
-            : 'To be scheduled';
+        $pickup = $recordRequest->pickupLabel();
         $logoDataUri = $this->resolveSchoolLogoDataUri();
-        $status = Str::upper((string) $recordRequest->status);
 
         $selfUrl = $request->fullUrl();
 
@@ -506,7 +428,7 @@ class RequestController extends Controller
               <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <title>Appointment Details</title>
+                <title>Document Request</title>
                 <style>
                   body { margin: 0; background: #e5e7eb; font-family: Arial, sans-serif; color: #111827; }
                   .wrap { max-width: 720px; margin: 0 auto; padding: 22px 14px 36px; text-align: center; }
@@ -527,16 +449,15 @@ class RequestController extends Controller
                     ($logoDataUri !== '' ? '<img src="' . $logoDataUri . '" alt="School Logo" class="logo" />' : '') . '
                     <h1 class="school">TRECE MARTIRES CITY COLLEGE</h1>
                   </div>
-                  <div class="sys">ONLINE APPOINTMENT SYSTEM</div>
+                  <div class="sys">DOCUMENT REQUEST</div>
                   <table>
                     <tr><th>Reference Number</th><td>' . $this->safeHtml('REQ-' . $recordRequest->id . '-' . $recordRequest->created_at?->format('Ymd')) . '</td></tr>
                     <tr><th>Timestamp</th><td>' . $this->safeHtml($recordRequest->requested_at?->timezone(self::OFFICE_TIMEZONE)->format('Y-m-d H:i:s') ?? 'N/A') . '</td></tr>
                     <tr><th>SRCODE / Application No.</th><td>' . $this->safeHtml((string) ($recordRequest->student?->student_number ?? 'N/A')) . '</td></tr>
                     <tr><th>Fullname</th><td>' . $this->safeHtml($studentName ?: 'N/A') . '</td></tr>
-                    <tr><th>Appointment Date</th><td>' . $this->safeHtml($appointment) . '</td></tr>
-                    <tr><th>Event</th><td>' . $this->safeHtml((string) $recordRequest->record_type) . '</td></tr>
+                    <tr><th>Document</th><td>' . $this->safeHtml($recordRequest->typeLabel()) . '</td></tr>
                     <tr><th>Office</th><td>Registrar&apos;s Office</td></tr>
-                    <tr><th>Status</th><td>' . $this->safeHtml($status) . '</td></tr>
+                    <tr><th>Status</th><td>' . $this->safeHtml($pickup) . '</td></tr>
                   </table>
                   <img class="qr" src="' . $this->safeHtml($qrUrl) . '" alt="QR Code" />
                 </div>
@@ -584,25 +505,6 @@ class RequestController extends Controller
         ]);
     }
 
-    /**
-     * Timestamps are stored as wall-clock time in the application timezone,
-     * which is how Eloquent reads them back. Appointments used to be written
-     * as UTC wall-clock time instead, so a 2:00 PM booking read back as
-     * 6:00 AM everywhere it was displayed.
-     */
-    private function toStorageTime(Carbon $time): Carbon
-    {
-        return $time->copy()->setTimezone(config('app.timezone'));
-    }
-
-    private function availableTimeSlots(): array
-    {
-        return [
-            '08:00', '09:00', '10:00', '11:00',
-            '13:00', '14:00', '15:00', '16:00',
-        ];
-    }
-
     private function buildApprovalSlipPdf(RecordRequest $recordRequest): StreamedResponse
     {
         $studentName = trim(implode(' ', array_filter([
@@ -612,9 +514,7 @@ class RequestController extends Controller
         $schoolName = 'TRECE MARTIRES CITY COLLEGE';
         $logoDataUri = $this->resolveSchoolLogoDataUri();
 
-        $appointment = $recordRequest->appointment_at
-            ? $recordRequest->appointment_at->copy()->timezone(self::OFFICE_TIMEZONE)->format('F d, Y - h:i A')
-            : 'To be scheduled';
+        $pickup = $recordRequest->pickupLabel();
         $verificationUrl = URL::temporarySignedRoute(
             'appointment.public.form',
             now()->addDays(30),
@@ -658,18 +558,17 @@ class RequestController extends Controller
                   <table>
                     <tr><th>Reference Number</th><td>' . $this->safeHtml('REQ-' . $recordRequest->id . '-' . $recordRequest->created_at?->format('Ymd')) . '</td></tr>
                     <tr><th>Student Name</th><td>' . $this->safeHtml($studentName ?: 'N/A') . '</td></tr>
-                    <tr><th>Record Type</th><td>' . $this->safeHtml((string) $recordRequest->record_type) . '</td></tr>
+                    <tr><th>Record Type</th><td>' . $this->safeHtml($recordRequest->typeLabel()) . '</td></tr>
                     <tr><th>Purpose</th><td>' . $this->safeHtml((string) ($recordRequest->purpose ?? 'N/A')) . '</td></tr>
                     <tr><th>Requested At</th><td>' . $this->safeHtml($recordRequest->requested_at?->format('F d, Y h:i A') ?? 'N/A') . '</td></tr>
                     <tr><th>Approved At</th><td>' . $this->safeHtml($recordRequest->processed_at?->format('F d, Y h:i A') ?? 'N/A') . '</td></tr>
-                    <tr><th>Appointment Schedule</th><td>' . $this->safeHtml($appointment) . '</td></tr>
-                    <tr><th>Status</th><td>' . $this->safeHtml(Str::upper((string) $recordRequest->status)) . '</td></tr>
+                    <tr><th>Status</th><td>' . $this->safeHtml($pickup) . '</td></tr>
                   </table>
                   <div class="qr-wrap">
                     <img src="' . $this->safeHtml($qrUrl) . '" alt="Request QR" class="qr" />
                     <div class="link">' . $this->safeHtml($verificationUrl) . '</div>
                   </div>
-                  <p class="footer">Please keep this slip for your release appointment.</p>
+                  <p class="footer">Bring this slip when you pick up your document at the Registrar&apos;s Office.</p>
                 </div>
               </body>
             </html>

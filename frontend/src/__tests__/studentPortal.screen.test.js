@@ -10,11 +10,10 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { routes } from '../routes/Router';
 import { apiClient } from '../lib/api/client';
 import { queryClient } from '../lib/react-query/queryClient';
-import { localDateString } from '../lib/tools';
 
 /**
  * Student portal screens (#91, #90, #93, #92, #88, #89) and the registrar's
- * appointment calendar (#83), on the real routes with the API mocked. The
+ * approval (#44), on the real routes with the API mocked. The
  * data is made up; the shapes follow the API.
  */
 jest.mock('../lib/api/client', () => ({
@@ -96,10 +95,10 @@ test('#91 the dashboard shows the request summary and no false residency warning
 
 // ------------------------------------------------------------------ #90
 
-test('#90 approved requests show the appointment and the slip; rejected show the reason; released keep Download PDF', async () => {
+test('#90 approved requests show ready for pick-up and the slip; rejected show the reason; released keep Download PDF', async () => {
   responses['/student/record-requests'] = {
     data: [
-      { id: 11, record_type: 'transcript', academic_year: null, semester: null, status: 'approved', appointment_at: '2026-10-12T01:00:00.000000Z', requested_at: '2026-10-08T01:00:00Z' },
+      { id: 11, record_type: 'transcript', academic_year: null, semester: null, status: 'approved', requested_at: '2026-10-08T01:00:00Z' },
       { id: 12, record_type: 'certificate_of_grades', academic_year: null, semester: null, status: 'rejected', rejection_reason: 'Unpaid clearance', requested_at: '2026-10-08T01:00:00Z' },
       { id: 13, record_type: 'copy_of_grades', academic_year: null, semester: null, status: 'released', requested_at: '2026-10-08T01:00:00Z' },
     ],
@@ -107,7 +106,8 @@ test('#90 approved requests show the appointment and the slip; rejected show the
   signIn('student');
   renderAt('/dashboard/request');
 
-  expect((await screen.findAllByText(/Claim on/))[0]).toHaveTextContent(/Oct(ober)? 12, 2026/);
+  expect((await screen.findAllByText(/Ready for pick-up at the Registrar's Office/)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Claim on/)).not.toBeInTheDocument();
   expect(screen.getAllByRole('button', { name: /Download approval slip/ }).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Reason: Unpaid clearance/).length).toBeGreaterThan(0);
   expect(screen.getAllByRole('button', { name: /Download PDF/ }).length).toBeGreaterThan(0);
@@ -139,28 +139,23 @@ test('#93 Request Document opens a form with purpose and copies before anything 
 
 // ------------------------------------------------------------------ #83
 
-test('#83 the approval calendar disables days that have passed', async () => {
+test('#44 approving asks for confirmation only: no calendar, no date sent', async () => {
   responses['/staff/pending-requests'] = {
     data: [{ id: 21, record_type: 'transcript', status: 'pending', purpose: 'Employment', copies: 1, requested_at: '2026-10-08T01:00:00Z', student: { student_number: '269901', first_name: 'Tess', last_name: 'Tester' } }],
   };
-  responses['/staff/appointment-slots'] = { taken: [], slots: [] };
+  apiClient.patch.mockResolvedValue({ data: { message: 'Request approved.' } });
   signIn('staff');
   renderAt('/staff/requests');
 
   await userEvent.click(await screen.findByRole('button', { name: /^\s*Approve\s*$/ }));
-  await screen.findByText('Approve Request & Set Schedule');
+  const dialog = await screen.findByRole('dialog', { name: 'Approve Request' });
+  expect(dialog).toHaveTextContent(/ready for pick-up at the Registrar's Office/);
+  expect(screen.queryByText(/Set Schedule|Pick Date and Time|Taken Slots/)).not.toBeInTheDocument();
+  expect(apiClient.get).not.toHaveBeenCalledWith('/staff/appointment-slots', expect.anything());
 
-  const today = new Date();
-  const days = screen.getAllByRole('button').filter((b) => /^\d{1,2}$/.test(b.textContent));
-  const thisMonth = days.filter((b) => !b.className.includes('opacity-35'));
-  const past = thisMonth.filter((b) => Number(b.textContent) < today.getDate());
-  past.forEach((b) => {
-    expect(b).toBeDisabled();
-    expect(b).toHaveAttribute('title', 'This day has passed');
-  });
-  const todayButton = thisMonth.find((b) => Number(b.textContent) === today.getDate());
-  if (today.getDay() !== 0) expect(todayButton).toBeEnabled();
-  expect(localDateString()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await userEvent.click(screen.getByRole('button', { name: 'Approve - ready for pick-up' }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith('/staff/requests/21/approve'));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Approve Request' })).not.toBeInTheDocument());
 });
 
 // ------------------------------------------------------------------ #92

@@ -10,7 +10,7 @@ export const formatTime = (date) => {
   };
 
 // The API returns timestamps in UTC (e.g. 2026-10-01T02:00:00.000000Z); show them in
-// the registrar office's local time so a 10:00 AM appointment doesn't read as 02:00.
+// the registrar office's local time so a 10:00 AM timestamp doesn't read as 02:00.
 export const formatDateTime = (value) => {
   if (!value) return '—';
   const d = new Date(value);
@@ -25,7 +25,7 @@ export const formatDateTime = (value) => {
   });
 };
 // ── Calendar dates (#77) ───────────────────────────────────────────────────
-// Date-only values (birth, enrollment, appointment day) must never go through
+// Date-only values (birth, enrollment) must never go through
 // toISOString(): that converts to UTC, which in Manila (UTC+8) is the previous
 // day for any time before 8 AM.
 
@@ -36,12 +36,6 @@ export const localDateString = (date = new Date()) => {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
-
-/**
- * A "YYYY-MM-DD" day before today (here). The keys sort as text, so they
- * compare directly; used to disable past days in the appointment calendar (#83).
- */
-export const isPastDay = (dateKey, today = localDateString()) => Boolean(dateKey) && dateKey < today;
 
 /** An API date ("2006-06-21") as the value of an <input type="date">; '' when empty. */
 export const toDateInputValue = (value) => {

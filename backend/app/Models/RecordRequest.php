@@ -52,6 +52,20 @@ class RecordRequest extends Model
         'released_at' => 'datetime',
     ];
 
+    /**
+     * Where the document stands for the student (#44): an approved request is
+     * ready for pick-up at the Registrar's Office; there is no appointment.
+     */
+    public function pickupLabel(): string
+    {
+        return match ($this->status) {
+            self::STATUS_APPROVED => "Ready for pick-up at the Registrar's Office",
+            self::STATUS_RELEASED => 'Released' . ($this->released_at ? ' on ' . $this->released_at->format('F d, Y') : ''),
+            self::STATUS_REJECTED => 'Rejected',
+            default => 'Pending review',
+        };
+    }
+
     public function typeLabel(): string
     {
         return self::TYPE_LABELS[$this->record_type] ?? ucwords(str_replace('_', ' ', (string) $this->record_type));

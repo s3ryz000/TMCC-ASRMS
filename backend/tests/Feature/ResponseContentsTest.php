@@ -27,7 +27,7 @@ class ResponseContentsTest extends TestCase
         '/api/staff/students/{A}/academic-summary', '/api/staff/students/{A}/documents', '/api/staff/programs',
         '/api/staff/subjects', '/api/staff/subject-prefixes', '/api/staff/pending-profile-updates',
         '/api/staff/pending-profile-updates/{A.update}', '/api/staff/pending-requests', '/api/staff/approved-release',
-        '/api/staff/rejected-requests', '/api/staff/appointment-slots', '/api/staff/reports/summary',
+        '/api/staff/rejected-requests', '/api/staff/reports/summary',
         '/api/staff/reports/transaction-history', '/api/dashboard', '/api/settings/current', '/api/user',
     ];
 

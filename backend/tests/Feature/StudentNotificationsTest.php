@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 /**
  * #89: students are told in the portal when a document request is approved
- * (with the appointment), rejected (with the reason) or released, and when a
+ * (ready for pick-up), rejected (with the reason) or released, and when a
  * profile update is approved, rejected or returned for revision. Each student
  * sees and marks only their own notifications.
  */
@@ -53,27 +53,18 @@ class StudentNotificationsTest extends TestCase
         ]);
     }
 
-    /** A future office slot (never a Sunday) at 9:00 AM office time. */
-    private function slot(): Carbon
-    {
-        $day = Carbon::now('Asia/Manila')->addDays(4)->setTime(9, 0);
-
-        return $day->isSunday() ? $day->addDay() : $day;
-    }
-
     // ------------------------------------------------------ document requests
 
-    public function test_approving_a_document_request_notifies_the_student_with_the_appointment(): void
+    public function test_approving_a_document_request_tells_the_student_it_is_ready_for_pick_up(): void
     {
         $request = $this->pendingRequest('A');
-        $slot = $this->slot();
         Sanctum::actingAs($this->registrar, ['*']);
 
-        $this->patchJson("/api/staff/requests/{$request->id}/approve", ['appointment_at' => $slot->toIso8601String()])->assertOk();
+        $this->patchJson("/api/staff/requests/{$request->id}/approve")->assertOk();
 
         $n = $this->onlyNotificationOf('A');
         $this->assertSame(
-            'Your Transcript of Records request was approved. Release: ' . $slot->format('D j M Y') . ', 9:00 AM.',
+            "Your Transcript of Records request was approved. It is ready for pick-up at the Registrar's Office.",
             $n->data['message'],
         );
         $this->assertSame('/dashboard/request', $n->data['link']);
@@ -96,7 +87,7 @@ class StudentNotificationsTest extends TestCase
     public function test_releasing_a_document_notifies_the_student(): void
     {
         $request = $this->pendingRequest('A');
-        $request->update(['status' => RecordRequest::STATUS_APPROVED, 'appointment_at' => $this->slot()]);
+        $request->update(['status' => RecordRequest::STATUS_APPROVED]);
         Sanctum::actingAs($this->registrar, ['*']);
 
         $this->putJson("/api/staff/requests/{$request->id}/release")->assertOk();
@@ -112,7 +103,7 @@ class StudentNotificationsTest extends TestCase
         $released = $this->people['A']['request'];
         Sanctum::actingAs($this->registrar, ['*']);
 
-        $this->patchJson("/api/staff/requests/{$released->id}/approve", ['appointment_at' => $this->slot()->toIso8601String()])->assertStatus(422);
+        $this->patchJson("/api/staff/requests/{$released->id}/approve")->assertStatus(422);
         $this->patchJson("/api/staff/requests/{$released->id}/reject", ['rejection_reason' => 'x'])->assertStatus(422);
         $this->putJson("/api/staff/requests/{$released->id}/release")->assertStatus(422);
         $this->patchJson("/api/staff/pending-profile-updates/{$this->people['A']['update']->id}/return", ['remarks' => ''])->assertStatus(422);
@@ -164,7 +155,7 @@ class StudentNotificationsTest extends TestCase
         $this->patchJson("/api/staff/pending-profile-updates/{$this->people['A']['update']->id}/return", ['remarks' => 'Attach proof.'])->assertOk();
         Carbon::setTestNow();
         $approved = $this->pendingRequest('A');
-        $approved->update(['status' => RecordRequest::STATUS_APPROVED, 'appointment_at' => $this->slot()]);
+        $approved->update(['status' => RecordRequest::STATUS_APPROVED]);
         $this->putJson("/api/staff/requests/{$approved->id}/release")->assertOk();
 
         Sanctum::actingAs($this->people['A']['user'], ['*']);

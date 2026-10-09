@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { FiInfo, FiCheckCircle, FiClock, FiDownload, FiPlusCircle, FiCalendar, FiXCircle } from 'react-icons/fi';
+import { FiInfo, FiCheckCircle, FiClock, FiDownload, FiPlusCircle, FiMapPin, FiXCircle } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import jsPDF from 'jspdf';
 import { studentApi } from '../lib/api/studentApi';
 import { parseApiError } from '../lib/api/errors';
 import { studentToast } from '../lib/notifications';
-import { formatDateTime } from '../lib/tools';
 import { requestAction } from '../features/students/documentRequests';
 import RequestDocumentModal from '../components/student/RequestDocumentModal';
 
@@ -162,7 +161,6 @@ const StudentRequestRecordPage = () => {
         awardName,
         requestStatus: latestReq?.status || null,
         requestId: latestReq?.id || null,
-        appointmentAt: latestReq?.appointment_at || null,
         rejectionReason: latestReq?.rejection_reason || null,
       });
     };
@@ -213,11 +211,9 @@ const StudentRequestRecordPage = () => {
         <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
           <FiCheckCircle /> Approved
         </span>
-        {doc.appointmentAt && (
-          <span className="flex items-center gap-1 mt-1 text-xs text-gray-700 whitespace-normal">
-            <FiCalendar aria-hidden /> Claim on {formatDateTime(doc.appointmentAt)}
-          </span>
-        )}
+        <span className="flex items-center gap-1 mt-1 text-xs text-gray-700 whitespace-normal">
+          <FiMapPin aria-hidden /> Ready for pick-up at the Registrar&apos;s Office
+        </span>
       </>
     ) : doc.requestStatus === 'released' ? (
       <span className="inline-flex items-center gap-1 text-green-600 font-medium">

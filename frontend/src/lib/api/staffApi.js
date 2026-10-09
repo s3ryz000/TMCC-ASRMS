@@ -20,8 +20,9 @@ export const staffApi = {
     return data;
   },
 
-  approveRequest: async (id, payload = {}) => {
-    const { data } = await apiClient.patch(`/staff/requests/${id}/approve`, payload);
+  // No appointment: approving marks the document ready for pick-up (#44).
+  approveRequest: async (id) => {
+    const { data } = await apiClient.patch(`/staff/requests/${id}/approve`);
     return data;
   },
 
@@ -83,11 +84,6 @@ export const staffApi = {
       responseType: 'blob',
     });
     return response;
-  },
-
-  getAppointmentSlots: async (params = {}) => {
-    const { data } = await apiClient.get('/staff/appointment-slots', { params });
-    return data;
   },
 
   downloadApprovalSlip: async (requestId) => {

@@ -48,7 +48,6 @@ class DataAccessMatrixTest extends TestCase
         ['GET', '/api/staff/pending-requests'],
         ['GET', '/api/staff/approved-release'],
         ['GET', '/api/staff/rejected-requests'],
-        ['GET', '/api/staff/appointment-slots'],
         ['GET', '/api/staff/requests/{A.request}/approval-slip'],
         ['GET', '/api/staff/requests/{A.request}/transcript-template'],
         ['GET', '/api/staff/reports/summary'],

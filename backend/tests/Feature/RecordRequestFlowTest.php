@@ -13,8 +13,8 @@ use Tests\Concerns\BuildsAcademicRecords;
 use Tests\TestCase;
 
 /**
- * A5: a student submits a records request, registrar staff review it (approve
- * with an appointment slot, or reject), and an approved request is released.
+ * A5: a student submits a records request, registrar staff review it (approve:
+ * ready for pick-up, #44; or reject), and an approved request is released.
  */
 class RecordRequestFlowTest extends TestCase
 {
@@ -41,26 +41,6 @@ class RecordRequestFlowTest extends TestCase
         $this->student = $this->makeStudent($this->program, [], $this->studentUser);
     }
 
-    /**
-     * A future office-hours slot, as the approval modal sends it. A Sunday is
-     * moved to the Monday after, since Sundays are refused (#80).
-     */
-    private function slot(int $daysAhead = 3, int $hour = 9): string
-    {
-        $day = Carbon::now('Asia/Manila')->addDays($daysAhead);
-        if ($day->isSunday()) {
-            $day->addDay();
-        }
-
-        return $day->setTime($hour, 0)->toIso8601String();
-    }
-
-    /** The next given weekday (Carbon::SUNDAY, Carbon::MONDAY, ...) at least two days ahead. */
-    private function next(int $weekday, int $hour = 9): Carbon
-    {
-        return Carbon::now('Asia/Manila')->addDays(2)->startOfDay()->next($weekday)->setTime($hour, 0);
-    }
-
     private function submit(array $payload = ['record_type' => 'transcript', 'purpose' => 'Employment'])
     {
         Sanctum::actingAs($this->studentUser, ['*']);
@@ -73,11 +53,12 @@ class RecordRequestFlowTest extends TestCase
         return RecordRequest::findOrFail($this->submit(['record_type' => $type, 'purpose' => 'Employment'])->assertCreated()->json('record_request.id'));
     }
 
-    private function approve(RecordRequest $request, ?string $slot = null, ?User $as = null)
+    /** Approve as the registrar (or $as); there is no appointment to choose (#44). */
+    private function approve(RecordRequest $request, ?User $as = null)
     {
         Sanctum::actingAs($as ?? $this->staff, ['*']);
 
-        return $this->patchJson("/api/staff/requests/{$request->id}/approve", ['appointment_at' => $slot ?? $this->slot()]);
+        return $this->patchJson("/api/staff/requests/{$request->id}/approve");
     }
 
     // ----------------------------------------------------------------- submit
@@ -144,96 +125,67 @@ class RecordRequestFlowTest extends TestCase
 
     // ----------------------------------------------------------------- review
 
-    public function test_staff_approve_with_an_appointment_slot(): void
+    public function test_approving_marks_the_request_ready_for_pick_up_without_a_date(): void
     {
         $request = $this->pendingRequest();
 
-        $this->approve($request)->assertOk()->assertJsonPath('record_request.status', 'approved');
+        $this->approve($request)
+            ->assertOk()
+            ->assertJsonPath('record_request.status', 'approved')
+            ->assertJsonPath('message', 'Request approved. The student is notified that the document is ready for pick-up.');
 
         $request->refresh();
         $this->assertSame('approved', $request->status);
         $this->assertNotNull($request->processed_by);
-        $this->assertNotNull($request->appointment_at);
+        $this->assertNotNull($request->processed_at);
+        $this->assertNull($request->appointment_at);
+        $this->assertSame("Ready for pick-up at the Registrar's Office", $request->pickupLabel());
+        $this->assertDatabaseHas('system_logs', ['action' => 'Request approved']);
     }
 
-    public function test_approval_refuses_a_sunday(): void
+    public function test_a_date_sent_with_the_approval_is_ignored(): void
     {
         $request = $this->pendingRequest();
-        $sunday = $this->next(Carbon::SUNDAY);
+        Sanctum::actingAs($this->staff, ['*']);
 
-        $this->approve($request, $sunday->toIso8601String())
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Selected appointment date is not an office day.');
+        // Any day works, Sundays and past days included: nothing is booked (#44).
+        $this->patchJson("/api/staff/requests/{$request->id}/approve", ['appointment_at' => '2020-01-05T09:00:00+08:00'])->assertOk();
 
-        $this->assertSame('pending', $request->fresh()->status);
         $this->assertNull($request->fresh()->appointment_at);
     }
 
-    public function test_a_weekday_9am_slot_saves_as_9am_that_day(): void
+    public function test_the_appointment_slots_endpoint_is_gone(): void
     {
-        $request = $this->pendingRequest();
-        $monday = $this->next(Carbon::MONDAY);
-        // Sent the way the modal sends it: the instant in UTC (09:00 Manila = 01:00Z).
-        $sent = $monday->copy()->utc()->format('Y-m-d\TH:i:s.v\Z');
+        Sanctum::actingAs($this->staff, ['*']);
 
-        $this->approve($request, $sent)->assertOk();
-
-        $this->assertSame($monday->format('Y-m-d') . ' 09:00', $request->fresh()->appointment_at->setTimezone('Asia/Manila')->format('Y-m-d H:i'));
+        $this->getJson('/api/staff/appointment-slots')->assertNotFound();
     }
 
-    public function test_the_appointment_reads_back_as_booked(): void
+    public function test_the_slip_and_its_qr_page_say_ready_for_pick_up(): void
     {
         $request = $this->pendingRequest();
-        $slot = $this->slot(hour: 14);
+        $this->approve($request)->assertOk();
 
-        $response = $this->approve($request, $slot)->assertOk();
-
-        $this->assertTrue(Carbon::parse($slot)->equalTo($request->fresh()->appointment_at));
-        $this->assertTrue(Carbon::parse($slot)->equalTo(Carbon::parse($response->json('record_request.appointment_at'))));
-    }
-
-    public function test_a_booked_slot_shows_as_taken(): void
-    {
-        $slot = Carbon::parse($this->slot(hour: 14))->setTimezone('Asia/Manila');
-        $this->approve($this->pendingRequest(), $slot->toIso8601String())->assertOk();
-
-        $this->getJson('/api/staff/appointment-slots?month=' . $slot->format('Y-m'))
+        $html = $this->get(\Illuminate\Support\Facades\URL::temporarySignedRoute('appointment.public.form', now()->addDay(), ['id' => $request->id]))
             ->assertOk()
-            ->assertJsonPath('taken_by_date.' . $slot->format('Y-m-d'), ['14:00']);
+            ->getContent();
+        $this->assertStringContainsString('Ready for pick-up at the Registrar&#039;s Office', $html);
+        $this->assertStringContainsString('Transcript of Records', $html);
+        $this->assertStringNotContainsString('Appointment', $html);
+
+        Sanctum::actingAs($this->studentUser, ['*']);
+        $slip = $this->get("/api/student/record-requests/{$request->id}/approval-slip")->assertOk();
+        $this->assertStringStartsWith('%PDF-', $slip->streamedContent());
     }
 
     public function test_a_refused_approval_is_not_logged(): void
     {
-        $this->approve($this->pendingRequest(), $this->slot(daysAhead: -1))->assertStatus(422);
+        $request = $this->pendingRequest();
+        $request->update(['status' => RecordRequest::STATUS_REJECTED]);
+
+        $this->approve($request)->assertStatus(422);
 
         $this->assertDatabaseMissing('system_logs', ['action' => 'Request approved']);
-    }
-
-    public function test_approval_needs_a_future_slot(): void
-    {
-        $this->approve($this->pendingRequest(), $this->slot(daysAhead: -1))
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Please select a future appointment date and time.');
-    }
-
-    public function test_approval_needs_an_office_hours_slot(): void
-    {
-        $this->approve($this->pendingRequest(), $this->slot(hour: 12))
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Selected appointment time is not available.');
-    }
-
-    public function test_a_slot_can_only_be_booked_once(): void
-    {
-        $slot = $this->slot();
-        $first = $this->pendingRequest('transcript');
-        $second = $this->pendingRequest('copy_of_grades');
-
-        $this->approve($first, $slot)->assertOk();
-
-        $this->approve($second, $slot)
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Selected appointment slot is already taken.');
     }
 
     public function test_only_pending_requests_can_be_approved(): void
@@ -241,7 +193,7 @@ class RecordRequestFlowTest extends TestCase
         $request = $this->pendingRequest();
         $this->approve($request)->assertOk();
 
-        $this->approve($request, $this->slot(daysAhead: 4))->assertStatus(422)->assertJsonPath('message', 'Request is not pending.');
+        $this->approve($request)->assertStatus(422)->assertJsonPath('message', 'Request is not pending.');
     }
 
     public function test_staff_reject_with_a_reason(): void

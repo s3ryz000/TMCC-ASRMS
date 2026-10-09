@@ -3,7 +3,7 @@ import { FiCheck, FiX, FiSearch, FiChevronUp, FiChevronDown, FiInbox, FiCheckCir
 import { staffToast } from '../lib/notifications';
 import { staffApi } from '../lib/api/staffApi';
 import { parseApiError } from '../lib/api/errors';
-import { formatDateTime, isPastDay, localDateString } from '../lib/tools';
+import { formatDateTime } from '../lib/tools';
 
 const ENTRIES_OPTIONS = [5, 10, 25, 50];
 const TABS = [
@@ -11,8 +11,6 @@ const TABS = [
   { id: 'approved', label: 'Approved', icon: FiCheckCircle },
   { id: 'rejected', label: 'Rejected', icon: FiXCircle },
 ];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DEFAULT_TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
 
 const sortData = (data, key, dir) => {
   if (!data.length) return data;
@@ -26,38 +24,6 @@ const sortData = (data, key, dir) => {
     if (va > vb) return 1 * mult;
     return 0;
   });
-};
-
-// The local calendar day of a Date. toISOString() gave the UTC day, which in
-// Manila is the day before, so the clicked day was not the saved day (#80).
-const toDateInput = (date) => localDateString(date);
-
-// The registrar's office is closed on Sundays; the server refuses them too (#80).
-const isSunday = (dateKey) => Boolean(dateKey) && new Date(`${dateKey}T00:00:00`).getDay() === 0;
-
-const monthKeyFromDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-const buildMonthCells = (monthDate) => {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const startOffset = firstDay.getDay();
-  const startDate = new Date(year, month, 1 - startOffset);
-  return Array.from({ length: 42 }, (_, index) => {
-    const current = new Date(startDate);
-    current.setDate(startDate.getDate() + index);
-    return current;
-  });
-};
-
-const isSameDate = (left, right) =>
-  left.getFullYear() === right.getFullYear() &&
-  left.getMonth() === right.getMonth() &&
-  left.getDate() === right.getDate();
-
-const toIsoAppointment = (dateStr, timeStr) => {
-  const localDate = new Date(`${dateStr}T${timeStr}:00`);
-  return localDate.toISOString();
 };
 
 const saveBlob = (response, fallbackFilename) => {
@@ -94,11 +60,6 @@ const StaffPendingRequestsPage = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectLoading, setRejectLoading] = useState(false);
   const [approveModal, setApproveModal] = useState(null);
-  const [approveMonth, setApproveMonth] = useState(new Date());
-  const [slotsPayload, setSlotsPayload] = useState({ month: '', time_slots: DEFAULT_TIME_SLOTS, taken_by_date: {} });
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [appointmentDate, setAppointmentDate] = useState('');
-  const [appointmentTime, setAppointmentTime] = useState('');
   const [approveLoading, setApproveLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -191,17 +152,9 @@ const StaffPendingRequestsPage = () => {
     }
   };
 
+  // Approving means the document is ready for pick-up; there is no appointment (#44).
   const handleApprove = (id) => {
-    const row = pendingRequests.find((r) => r.id === id);
-    const now = new Date();
-    // Start on the next office day when today is a Sunday.
-    const start = now.getDay() === 0 ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) : now;
-    const initialDate = toDateInput(start);
-    setApproveModal(row || null);
-    setApproveMonth(new Date(now.getFullYear(), now.getMonth(), 1));
-    setAppointmentDate(initialDate);
-    setAppointmentTime('');
-    setSlotsPayload({ month: '', time_slots: DEFAULT_TIME_SLOTS, taken_by_date: {} });
+    setApproveModal(pendingRequests.find((r) => r.id === id) || null);
   };
 
   const closeApproveModal = () => {
@@ -210,19 +163,14 @@ const StaffPendingRequestsPage = () => {
   };
 
   const onConfirmApprove = async () => {
-    if (!approveModal || !appointmentDate || !appointmentTime) {
-      staffToast.error('Missing schedule', 'Please pick appointment date and time before approving.');
-      return;
-    }
+    if (!approveModal) return;
     setApproveLoading(true);
     try {
-      await staffApi.approveRequest(approveModal.id, {
-        appointment_at: toIsoAppointment(appointmentDate, appointmentTime),
-      });
+      await staffApi.approveRequest(approveModal.id);
       setPendingRequests((prev) => prev.filter((r) => r.id !== approveModal.id));
       setApproveModal(null);
       window.dispatchEvent(new Event('staff:dashboard-refresh'));
-      staffToast.success('Request approved', `${approveModal.student_name}'s request is approved with a schedule.`);
+      staffToast.success('Request approved', `${approveModal.student_name} is notified that the document is ready for pick-up.`);
     } catch (err) {
       const parsed = parseApiError(err);
       staffToast.error('Approve failed', parsed.message || 'Could not approve this request.');
@@ -299,60 +247,8 @@ const StaffPendingRequestsPage = () => {
   }, [pendingFiltered, pendingPage, pendingEntries]);
 
   const pendingRecordTypes = useMemo(() => [...new Set(pendingRequests.map((r) => r.record_type))], [pendingRequests]);
-  const monthCells = useMemo(() => buildMonthCells(approveMonth), [approveMonth]);
-  const selectedDateTaken = slotsPayload.taken_by_date?.[appointmentDate] || [];
-  const selectedDateObj = appointmentDate ? new Date(`${appointmentDate}T00:00:00`) : null;
-  const now = useMemo(() => new Date(), []);
-  const isSelectedToday = selectedDateObj ? isSameDate(selectedDateObj, now) : false;
-  const disabledPastSlots = useMemo(() => {
-    if (!isSelectedToday) return new Set();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    return new Set(
-      (slotsPayload.time_slots || []).filter((slot) => {
-        const [hours, minutes] = String(slot).split(':').map(Number);
-        const slotMinutes = (hours * 60) + minutes;
-        return slotMinutes <= currentMinutes;
-      })
-    );
-  }, [isSelectedToday, now, slotsPayload.time_slots]);
-  const fullyBookedDates = useMemo(() => {
-    const slotsCount = slotsPayload.time_slots?.length || 0;
-    return new Set(
-      Object.entries(slotsPayload.taken_by_date || {})
-        .filter(([, taken]) => Array.isArray(taken) && taken.length >= slotsCount && slotsCount > 0)
-        .map(([date]) => date)
-    );
-  }, [slotsPayload]);
 
   const currentError = activeTab === 'requests' ? loadError : activeTab === 'approved' ? approvedLoadError : rejectedLoadError;
-
-  useEffect(() => {
-    if (!approveModal) return;
-    const fetchSlots = async () => {
-      setSlotsLoading(true);
-      try {
-        const month = monthKeyFromDate(approveMonth);
-        const data = await staffApi.getAppointmentSlots({ month });
-        setSlotsPayload({
-          month: data?.month || month,
-          time_slots: Array.isArray(data?.time_slots) && data.time_slots.length > 0 ? data.time_slots : DEFAULT_TIME_SLOTS,
-          taken_by_date: data?.taken_by_date || {},
-        });
-      } catch {
-        setSlotsPayload((prev) => ({ ...prev, month: monthKeyFromDate(approveMonth), time_slots: DEFAULT_TIME_SLOTS }));
-      } finally {
-        setSlotsLoading(false);
-      }
-    };
-    fetchSlots();
-  }, [approveModal, approveMonth]);
-
-  useEffect(() => {
-    if (!appointmentTime) return;
-    if (disabledPastSlots.has(appointmentTime)) {
-      setAppointmentTime('');
-    }
-  }, [appointmentTime, disabledPastSlots]);
 
   return (
     <>
@@ -525,7 +421,7 @@ const StaffPendingRequestsPage = () => {
                     <SortableTh label="Purpose" sortKey="purpose" currentSortKey={approvedSortKey} currentSortDir={approvedSortDir} onToggle={toggleApprovedSort} />
                     <SortableTh label="Requested" sortKey="requested_at" currentSortKey={approvedSortKey} currentSortDir={approvedSortDir} onToggle={toggleApprovedSort} />
                     <SortableTh label="Processed" sortKey="processed_at" currentSortKey={approvedSortKey} currentSortDir={approvedSortDir} onToggle={toggleApprovedSort} />
-                    <th className="py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700">Schedule</th>
+                    <th className="py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700">Status</th>
                     <th className="py-3 px-4 text-left border-b-2 border-gray-200 bg-gray-100 font-semibold text-gray-700">Slip</th>
                   </tr>
                 </thead>
@@ -549,7 +445,7 @@ const StaffPendingRequestsPage = () => {
                         <td className="py-3 px-4 text-gray-700 text-xs">{req.purpose || '—'}</td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.requested_at)}</td>
                         <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.processed_at)}</td>
-                        <td className="py-3 px-4 text-gray-700 text-xs">{formatDateTime(req.appointment_at)}</td>
+                        <td className="py-3 px-4 text-gray-700 text-xs">Ready for pick-up</td>
                         <td className="py-3 px-4">
                           <button
                             type="button"
@@ -685,144 +581,32 @@ const StaffPendingRequestsPage = () => {
 
       {approveModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl rounded-xl shadow-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div role="dialog" aria-labelledby="approve-title" className="bg-white w-full max-w-md rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full bg-green-100">
+                <FiCheckCircle className="w-5 h-5 text-green-700" />
+              </span>
               <div>
-                <h3 className="m-0 text-lg font-semibold text-gray-900">Approve Request & Set Schedule</h3>
-                <p className="m-0 mt-1 text-sm text-gray-600">{approveModal.student_name} - {approveModal.record_type}</p>
+                <h3 id="approve-title" className="m-0 text-base font-semibold text-gray-900">Approve Request</h3>
+                <p className="m-0 mt-0.5 text-sm text-gray-500">{approveModal.student_name} - {approveModal.record_type.replace(/_/g, ' ')}</p>
               </div>
-              <button type="button" className="text-gray-500 hover:text-gray-700" onClick={closeApproveModal}>Close</button>
             </div>
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <button
-                    type="button"
-                    className="px-2 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    disabled={monthKeyFromDate(approveMonth) <= monthKeyFromDate(new Date()) /* earlier months have passed */}
-                    onClick={() => setApproveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                  >
-                    Prev
-                  </button>
-                  <div className="font-medium text-gray-800">
-                    {approveMonth.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}
-                  </div>
-                  <button
-                    type="button"
-                    className="px-2 py-1 border rounded text-sm hover:bg-gray-50"
-                    onClick={() => setApproveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-xs text-center mb-1">
-                  {WEEKDAYS.map((day) => (
-                    <div key={day} className="font-semibold text-gray-500 py-1">{day}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-sm">
-                  {monthCells.map((day) => {
-                    const key = toDateInput(day);
-                    const inMonth = day.getMonth() === approveMonth.getMonth();
-                    const closed = day.getDay() === 0;
-                    // The server refuses past days too (#83).
-                    const past = isPastDay(key);
-                    const selected = key === appointmentDate;
-                    const booked = fullyBookedDates.has(key);
-                    return (
-                      <button
-                        type="button"
-                        key={key}
-                        disabled={!inMonth || closed || past}
-                        title={inMonth ? (past ? 'This day has passed' : closed ? 'Closed on Sundays' : undefined) : undefined}
-                        onClick={() => setAppointmentDate(key)}
-                        className={`py-2 rounded border text-center ${
-                          !inMonth ? 'opacity-35 cursor-not-allowed' : closed || past
-                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : selected
-                            ? 'bg-tmcc text-white border-tmcc'
-                            : booked ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {day.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-3 mb-0 text-xs text-gray-500">
-                  Red dates are fully booked based on taken time slots.
-                </p>
-              </div>
-
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="m-0 text-base font-semibold text-gray-800">Taken Slots</h4>
-                {slotsLoading ? (
-                  <p className="text-sm text-gray-500 mt-2">Loading availability...</p>
-                ) : (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedDateTaken.length > 0 ? selectedDateTaken.map((slot) => (
-                      <span key={slot} className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 border border-red-200">{slot}</span>
-                    )) : (
-                      <span className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">No taken slots on selected date</span>
-                    )}
-                  </div>
-                )}
-                <div className="mt-5">
-                  <h4 className="m-0 text-base font-semibold text-gray-800">Pick Date and Time</h4>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="date"
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      value={appointmentDate}
-                      min={localDateString()}
-                      onChange={(e) => {
-                        if (isPastDay(e.target.value)) {
-                          staffToast.warning('Day has passed', 'Pick today or a later date.');
-                          return;
-                        }
-                        // A date input can't grey out weekdays, so refuse Sundays here.
-                        if (isSunday(e.target.value)) {
-                          staffToast.warning('Not an office day', "The registrar's office is closed on Sundays. Pick another date.");
-                          return;
-                        }
-                        setAppointmentDate(e.target.value);
-                      }}
-                    />
-                    <select
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      value={appointmentTime}
-                      onChange={(e) => setAppointmentTime(e.target.value)}
-                    >
-                      <option value="">Select time</option>
-                      {slotsPayload.time_slots.map((slot) => {
-                        const taken = selectedDateTaken.includes(slot);
-                        const past = disabledPastSlots.has(slot);
-                        return (
-                          <option key={slot} value={slot} disabled={taken || past}>
-                            {slot}{taken ? ' (taken)' : past ? ' (past)' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  {isSelectedToday && (
-                    <p className="mt-2 mb-0 text-xs text-amber-700">
-                      Past time slots for today are automatically disabled.
-                    </p>
-                  )}
-                </div>
-              </div>
+            <div className="px-6 py-4">
+              <p className="m-0 text-sm text-gray-700">
+                The student will be notified that the document is ready for pick-up at the Registrar&apos;s Office.
+              </p>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
-              <button type="button" className="px-4 py-2 border rounded-lg text-sm" onClick={closeApproveModal} disabled={approveLoading}>
+              <button type="button" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60" onClick={closeApproveModal} disabled={approveLoading}>
                 Cancel
               </button>
               <button
                 type="button"
                 className="px-4 py-2 rounded-lg text-sm bg-tmcc text-white hover:bg-tmcc-dark disabled:opacity-70"
                 onClick={onConfirmApprove}
-                disabled={approveLoading || !appointmentDate || !appointmentTime}
+                disabled={approveLoading}
               >
-                {approveLoading ? 'Approving...' : 'Approve'}
+                {approveLoading ? 'Approving...' : 'Approve - ready for pick-up'}
               </button>
             </div>
           </div>

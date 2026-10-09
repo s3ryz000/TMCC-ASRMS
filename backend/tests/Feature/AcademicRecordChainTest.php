@@ -8,7 +8,6 @@ use App\Models\Student;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\OfficialTranscriptExportService;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use ReflectionMethod;
@@ -115,9 +114,7 @@ class AcademicRecordChainTest extends TestCase
             ->json('record_request.id');
 
         Sanctum::actingAs($this->staff, ['*']);
-        $this->patchJson("/api/staff/requests/{$requestId}/approve", [
-            'appointment_at' => Carbon::now('Asia/Manila')->addDays(2)->setTime(10, 0)->toIso8601String(),
-        ])->assertOk();
+        $this->patchJson("/api/staff/requests/{$requestId}/approve")->assertOk();
 
         Sanctum::actingAs($studentUser, ['*']);
         $pdf = $this->get("/api/student/record-requests/{$requestId}/transcript")->assertOk();

@@ -23,8 +23,7 @@ class StudentNotifier
         $what = 'Your ' . $request->typeLabel() . ' request';
 
         $message = match ($request->status) {
-            RecordRequest::STATUS_APPROVED => "{$what} was approved."
-                . ($request->appointment_at ? ' Release: ' . $request->appointment_at->format('D j M Y, g:i A') . '.' : ''),
+            RecordRequest::STATUS_APPROVED => "{$what} was approved. It is ready for pick-up at the Registrar's Office.",
             RecordRequest::STATUS_REJECTED => "{$what} was rejected."
                 . (filled($request->rejection_reason) ? " Reason: {$request->rejection_reason}" : ''),
             RecordRequest::STATUS_RELEASED => "{$what} was released to you.",
