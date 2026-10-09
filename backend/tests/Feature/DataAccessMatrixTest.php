@@ -145,6 +145,8 @@ class DataAccessMatrixTest extends TestCase
         ['GET', '/api/student/record-requests/{A.request}/transcript'],
         ['GET', '/api/student/profile-updates'],
         ['GET', '/api/student/notifications'],
+        ['GET', '/api/student/report-card/terms'],
+        ['GET', '/api/student/report-card?academic_year=2026-2027&semester=1'],
     ];
 
     private const STUDENT_WRITES = [
@@ -268,7 +270,7 @@ class DataAccessMatrixTest extends TestCase
         ], fn ($s) => $s === 403));
 
         // A's own listings contain nothing of B.
-        foreach (['/api/student/record-requests', '/api/student/profile', '/api/student/grades', '/api/student/academic-summary', '/api/student/profile-updates', '/api/student/notifications'] as $uri) {
+        foreach (['/api/student/record-requests', '/api/student/profile', '/api/student/grades', '/api/student/academic-summary', '/api/student/profile-updates', '/api/student/notifications', '/api/student/report-card/terms'] as $uri) {
             $body = $this->getJson($uri)->assertOk()->getContent();
             $this->assertStringNotContainsString(self::PERSONAL['B']['last'], $body, $uri);
             $this->assertStringNotContainsString(self::PERSONAL['B']['number'], $body, $uri);

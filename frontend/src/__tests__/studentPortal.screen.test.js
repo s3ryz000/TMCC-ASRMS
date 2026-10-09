@@ -171,6 +171,36 @@ test('#92 Academic Records marks an archived subject and does not offer it as el
   expect(screen.getAllByText('TPC5').length).toBeGreaterThan(0);
 });
 
+// ------------------------------------------------------------------ #34
+
+test('#34 Academic Records downloads the unofficial report card for the chosen semester', async () => {
+  responses['/student/report-card/terms'] = {
+    data: [
+      { academic_year: '2025-2026', semester: '2', label: '2nd Semester, A.Y. 2025-2026' },
+      { academic_year: '2026-2027', semester: '1', label: '1st Semester, A.Y. 2026-2027' },
+    ],
+  };
+  apiClient.get.mockImplementation((url) => Promise.resolve(url === '/student/report-card'
+    ? { data: new Blob(['%PDF-']), headers: { 'content-disposition': 'attachment; filename="UNOFFICIAL_REPORT_CARD_269901_2025-2026_SEM2.pdf"' } }
+    : { data: responses[url] ?? {} }));
+  window.URL.createObjectURL = jest.fn(() => 'blob:card');
+  window.URL.revokeObjectURL = jest.fn();
+  signIn('student');
+  renderAt('/dashboard/academic-records');
+
+  const select = await screen.findByLabelText('Report card semester');
+  await waitFor(() => expect(select).toHaveDisplayValue('1st Semester, A.Y. 2026-2027'));
+  expect(screen.getByText(/not valid\s+without the registrar's seal/)).toBeInTheDocument();
+
+  await userEvent.selectOptions(select, '2nd Semester, A.Y. 2025-2026');
+  await userEvent.click(screen.getByRole('button', { name: /Download report card/ }));
+
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/student/report-card', {
+    params: { academic_year: '2025-2026', semester: '2' }, responseType: 'blob',
+  }));
+  await waitFor(() => expect(window.URL.createObjectURL).toHaveBeenCalled());
+});
+
 // ------------------------------------------------------------------ #88
 
 test('#88 the SIS page lists update requests with remarks and offers Correct and resubmit', async () => {

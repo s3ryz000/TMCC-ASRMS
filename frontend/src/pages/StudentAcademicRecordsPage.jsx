@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FiSearch } from 'react-icons/fi';
+import { FiSearch, FiDownload } from 'react-icons/fi';
 import { studentApi } from '../lib/api/studentApi';
+import { parseApiError } from '../lib/api/errors';
+import { studentToast } from '../lib/notifications';
 import { roadmapMatchesStatus, subjectStatusBadge } from '../features/students/studentRecord';
 
 const ArchivedTag = () => (
@@ -20,6 +22,75 @@ const StatusBadge = ({ status }) => (
 );
 
 const formatGrade = (grade) => (grade ? Number(grade).toFixed(2) : '-');
+
+// The unofficial report card for one semester, any time (#34). The official
+// transcript stays a request on Request Documents.
+const ReportCardDownload = () => {
+  const { data } = useQuery({ queryKey: ['studentReportCardTerms'], queryFn: studentApi.getReportCardTerms });
+  const terms = useMemo(() => data?.data || [], [data]);
+  const [choice, setChoice] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  // Default to the latest semester.
+  const selected = choice || (terms.length ? String(terms.length - 1) : '');
+
+  const download = async () => {
+    const term = terms[Number(selected)];
+    if (!term) return;
+    setDownloading(true);
+    try {
+      const response = await studentApi.downloadReportCard(term);
+      const disposition = response.headers?.['content-disposition'] || '';
+      const name = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)?.[1] || 'Unofficial_Report_Card.pdf';
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = decodeURIComponent(name);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      studentToast.error('Download Failed', parseApiError(err)?.message || 'Could not download the report card.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 bg-white rounded-lg shadow border border-gray-200 p-4">
+      <h3 className="m-0 text-base font-semibold text-gray-800">Unofficial Report Card</h3>
+      <p className="m-0 mt-1 text-sm text-gray-600">
+        Your subjects, grades, GWA, units and honors for a semester, as a PDF. It is an unofficial copy, not valid
+        without the registrar&apos;s seal; request the official transcript on Request Documents.
+      </p>
+      {terms.length === 0 ? (
+        <p className="m-0 mt-3 text-sm text-gray-500 italic">No grades on file yet.</p>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
+          <select
+            className="flex-1 min-w-0 sm:flex-none border border-gray-300 rounded-md px-3 py-2 bg-white"
+            aria-label="Report card semester"
+            value={selected}
+            onChange={(e) => setChoice(e.target.value)}
+          >
+            {terms.map((t, i) => (
+              <option key={`${t.academic_year}-${t.semester}`} value={String(i)}>{t.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={download}
+            disabled={downloading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-tmcc text-white text-sm font-medium hover:bg-tmcc-dark disabled:opacity-60"
+          >
+            <FiDownload aria-hidden /> {downloading ? 'Downloading...' : 'Download report card'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const StudentAcademicRecordsPage = () => {
   const { data: academicSummary, isLoading, error } = useQuery({
@@ -60,6 +131,8 @@ const StudentAcademicRecordsPage = () => {
   return (
     <section className="sd-content">
       <h2 className="sd-section-title sd-title-red mb-6">Academic Records & Curriculum Roadmap</h2>
+
+      <ReportCardDownload />
 
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
 

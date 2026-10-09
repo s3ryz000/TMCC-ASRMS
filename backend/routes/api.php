@@ -19,6 +19,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\Student\NotificationController;
 use App\Http\Controllers\Student\RecordRequestController;
+use App\Http\Controllers\Student\ReportCardController;
 use App\Http\Controllers\Student\StudentProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -209,6 +210,12 @@ Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(fu
     Route::get('/record-requests/{id}', [RecordRequestController::class, 'show']);
     Route::get('/record-requests/{id}/transcript', [RecordRequestController::class, 'downloadTranscript']);
     Route::get('/record-requests/{id}/approval-slip', [RequestController::class, 'downloadApprovalSlipStudent']);
+});
+
+// ---- Student: Own unofficial report card, any time (#34) ----
+Route::middleware(['auth:sanctum', 'role:student'])->prefix('student')->group(function () {
+    Route::get('/report-card/terms', [ReportCardController::class, 'terms']);
+    Route::get('/report-card', [ReportCardController::class, 'download']);
 });
 
 // ---- Student: Own in-app notifications (#89) ----

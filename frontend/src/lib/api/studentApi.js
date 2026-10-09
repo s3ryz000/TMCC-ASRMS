@@ -94,6 +94,21 @@ export const studentApi = {
     return response;
   },
 
+  /** The semesters with grades, for the unofficial report card (#34). */
+  getReportCardTerms: async () => {
+    const { data } = await apiClient.get('/student/report-card/terms');
+    return data;
+  },
+
+  /** The student's own unofficial report card for one semester, as a PDF (#34). */
+  downloadReportCard: async ({ academic_year, semester }) => {
+    const response = await apiClient.get('/student/report-card', {
+      params: { academic_year, semester },
+      responseType: 'blob',
+    });
+    return response;
+  },
+
   downloadTranscript: async (id) => {
     const response = await apiClient.get(`/student/record-requests/${id}/transcript`, {
       responseType: 'blob',
