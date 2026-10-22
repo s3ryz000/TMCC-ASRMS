@@ -59,7 +59,7 @@ class AcademicProgressionService
         '2.50' => 'Fair',
         '2.75' => 'Fair',
         '3.00' => AcademicStatus::PASSED,
-        '4.00' => AcademicStatus::INC,
+        '4.00' => AcademicStatus::CONDITIONAL,
         '5.00' => AcademicStatus::FAILED,
     ];
 
@@ -215,7 +215,7 @@ class AcademicProgressionService
                 } elseif ($grade->grade_value !== null) {
                     // Legacy: has grade_value but no status — treat as complete
                     $hasFinaStatus = true;
-                } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED'])) {
+                } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'CONDITIONAL', 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED'])) {
                     $hasFinaStatus = true;
                 }
             }
@@ -303,7 +303,7 @@ class AcademicProgressionService
                     $hasFinal = $grade && (
                         ($grade->status && in_array($grade->status, self::FINAL_STATUSES))
                         || $grade->grade_value !== null
-                        || ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED']))
+                        || ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', AcademicStatus::INC, 'CONDITIONAL', 'WITHDRAWN', AcademicStatus::FDA, 'CREDITED']))
                     );
                     if (!$hasFinal) {
                         $allDone = false;
@@ -434,6 +434,7 @@ class AcademicProgressionService
 
         // Get subject IDs with INC status (blocks prerequisites but doesn't count as passed)
         $incSubjectIds = $this->records->incSubjectIds($student);
+        $conditionalSubjectIds = $this->records->conditionalSubjectIds($student);
 
         $available = [];
         $programCurriculum = null; // loaded on first need (#82)
@@ -535,6 +536,8 @@ class AcademicProgressionService
 
                     if ($hasInc) {
                         $prereqStatus = 'inc';
+                    } elseif (array_intersect($missingIds, $conditionalSubjectIds)) {
+                        $prereqStatus = 'conditional';
                     } else {
                         // Check if any missing prereq was failed/withdrawn/FDA
                         $hasFailed = Grade::where('student_id', $student->student_id)
@@ -599,6 +602,9 @@ class AcademicProgressionService
                 if ($prereqStatus === 'inc') {
                     $missingDisplay = implode(', ', $missingPrereqs);
                     $blockedReason = "{$missingDisplay} has INC status. Complete the prerequisite first.";
+                } elseif ($prereqStatus === 'conditional') {
+                    $missingDisplay = implode(', ', $missingPrereqs);
+                    $blockedReason = "{$missingDisplay} is Conditional (4.0). Resolve it to 3.0 or 5.0 first.";
                 } else {
                     $prereqLogic = $entry->prerequisite_logic ?? 'AND';
                     if (count($missingPrereqs) > 1) {
@@ -1043,7 +1049,7 @@ class AcademicProgressionService
                 return AcademicStatus::PASSED;
             }
             if (abs($gradeValue - 4.00) < 0.001) {
-                return AcademicStatus::INC;
+                return AcademicStatus::CONDITIONAL;
             }
             if (abs($gradeValue - 5.00) < 0.001) {
                 return AcademicStatus::FAILED;
@@ -1063,7 +1069,7 @@ class AcademicProgressionService
     public function autoStatusFromGrade(?float $gradeValue, ?string $explicitStatus): string
     {
         // If explicit status provided, use it
-        if ($explicitStatus && in_array($explicitStatus, [AcademicStatus::PASSED, AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::CREDITED, AcademicStatus::ENROLLED, AcademicStatus::CANCELLED])) {
+        if ($explicitStatus && in_array($explicitStatus, [AcademicStatus::PASSED, AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::CONDITIONAL, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::CREDITED, AcademicStatus::ENROLLED, AcademicStatus::CANCELLED])) {
             return $explicitStatus;
         }
 
@@ -1072,7 +1078,7 @@ class AcademicProgressionService
                 return AcademicStatus::PASSED;
             }
             if (abs($gradeValue - 4.00) < 0.001) {
-                return AcademicStatus::INC;
+                return AcademicStatus::CONDITIONAL;
             }
             if (abs($gradeValue - 5.00) < 0.001) {
                 return AcademicStatus::FAILED;
@@ -1172,6 +1178,8 @@ class AcademicProgressionService
                         $failedSubjectsCount++;
                     } elseif ($latestGrade->status === AcademicStatus::INC || strtoupper($latestGrade->remarks ?? '') === AcademicStatus::INC) {
                         $status = 'Incomplete';
+                    } elseif ($latestGrade->status === AcademicStatus::CONDITIONAL) {
+                        $status = 'Conditional';
                     } else {
                         $status = $latestGrade->status ?? 'Unknown';
                     }

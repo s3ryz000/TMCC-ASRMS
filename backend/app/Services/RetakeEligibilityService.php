@@ -122,11 +122,11 @@ class RetakeEligibilityService
         foreach ($latestGradeBySubject as $subjectId => $grade) {
             $status = $this->resolveEffectiveStatus($grade);
 
-            if ($status === AcademicStatus::INC) {
+            if (in_array($status, AcademicStatus::UNRESOLVED, true)) {
                 $incSubjects[] = $this->buildSubjectEntry($grade, $status, [
-                    'blocked_reason' =>
-                        "This subject has an INC status. Complete or convert the INC " .
-                        "before creating a retake enrollment.",
+                    'blocked_reason' => $status === AcademicStatus::INC
+                        ? 'This subject has an INC status. Complete or convert the INC before creating a retake enrollment.'
+                        : 'This subject is Conditional (4.0). Resolve it to 3.0 or 5.0 before creating a retake enrollment.',
                 ]);
                 continue;
             }
@@ -231,7 +231,7 @@ class RetakeEligibilityService
 
             // Must be a genuine retake candidate (latest status = Failed/Withdrawn/FDA)
             if (in_array($subjectId, $incIds)) {
-                $errors[] = "{$code} has an INC status. Resolve INC before creating a retake.";
+                $errors[] = "{$code} has an unresolved INC or Conditional grade. Resolve it before creating a retake.";
                 continue;
             }
             if (!in_array($subjectId, $requiredIds)) {

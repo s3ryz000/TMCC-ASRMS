@@ -157,7 +157,8 @@ class AcademicStandingService
 
         foreach ($grades as $grade) {
             // Exclude Credited and Withdrawn
-            if (in_array($grade->status, [AcademicStatus::CREDITED, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::CANCELLED, AcademicStatus::ENROLLED])) {
+            if (in_array($grade->status, [AcademicStatus::CREDITED, AcademicStatus::WITHDRAWN, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::CANCELLED, AcademicStatus::ENROLLED, AcademicStatus::CONDITIONAL])) {
+                // A Conditional (4.0) counts only once it is resolved (#104).
                 continue;
             }
 
@@ -196,7 +197,7 @@ class AcademicStandingService
                 continue;
             }
 
-            if (in_array($grade->status, [AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::WITHDRAWN, AcademicStatus::CANCELLED])) {
+            if (in_array($grade->status, [AcademicStatus::FAILED, AcademicStatus::INC, AcademicStatus::CONDITIONAL, AcademicStatus::FDA, AcademicStatus::DRP, AcademicStatus::WITHDRAWN, AcademicStatus::CANCELLED])) {
                 $issues[] = "{$grade->status} in {$code}";
                 continue;
             }

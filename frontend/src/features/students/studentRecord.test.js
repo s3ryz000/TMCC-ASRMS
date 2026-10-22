@@ -24,6 +24,8 @@ describe('student record helpers (#57)', () => {
     expect(formatGwa(null)).toBe('—');
     expect(subjectStatusBadge('Completed')).toContain('green');
     expect(subjectStatusBadge('Failed - Retake Required')).toContain('red');
+    // TMCC's 4.0 (#104) looks like an INC: unresolved, not failed.
+    expect(subjectStatusBadge('Conditional')).toBe(subjectStatusBadge('Incomplete'));
   });
 });
 

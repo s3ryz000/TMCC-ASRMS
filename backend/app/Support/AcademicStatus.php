@@ -20,20 +20,21 @@ final class AcademicStatus
     public const FDA       = 'FDA';
     public const CREDITED  = 'Credited';
     public const DRP       = 'DRP';
-    public const CON       = 'CON';
+    /** A 4.0: TMCC's conditional grade, later resolved to 3.0 or 5.0 (#104). */
+    public const CONDITIONAL = 'Conditional';
     public const CANCELLED = 'Cancelled';
     public const ARCHIVED  = 'Archived';
 
     /** Every status the system stores. */
     public const ALL = [
         self::ENROLLED, self::PASSED, self::FAILED, self::INC, self::WITHDRAWN, self::FDA,
-        self::CREDITED, self::DRP, self::CON, self::CANCELLED, self::ARCHIVED,
+        self::CREDITED, self::DRP, self::CONDITIONAL, self::CANCELLED, self::ARCHIVED,
     ];
 
     /** What grade entry may set (bulk and single). */
     public const GRADE = [
         self::ENROLLED, self::PASSED, self::FAILED, self::INC, self::WITHDRAWN, self::FDA,
-        self::CREDITED, self::DRP, self::CON,
+        self::CREDITED, self::DRP, self::CONDITIONAL,
     ];
 
     /** What an enrollment's status may be set to by hand (#76). */
@@ -46,7 +47,13 @@ final class AcademicStatus
     public const RETAKE = [self::FAILED, self::WITHDRAWN, self::FDA];
 
     /** An outcome has been recorded for the subject. */
-    public const RECORDED = [self::PASSED, self::FAILED, self::INC, self::WITHDRAWN, self::FDA, self::CREDITED];
+    public const RECORDED = [self::PASSED, self::FAILED, self::INC, self::CONDITIONAL, self::WITHDRAWN, self::FDA, self::CREDITED];
+
+    /**
+     * Recorded but not settled: not passed, not retakeable, and blocking any
+     * subject that needs it as a prerequisite until it is resolved.
+     */
+    public const UNRESOLVED = [self::INC, self::CONDITIONAL];
 
     /** The term is finished for the subject (progression may move on). */
     public const FINAL = [...self::RECORDED, self::CANCELLED];
@@ -58,7 +65,7 @@ final class AcademicStatus
     public const CLOSED = [self::ARCHIVED, self::CANCELLED, self::FAILED, self::WITHDRAWN, self::FDA, self::DRP];
 
     /** Older spellings that mean a canonical status. */
-    private const ALIASES = ['dropped' => self::DRP];
+    private const ALIASES = ['dropped' => self::DRP, 'con' => self::CONDITIONAL];
 
     /**
      * The canonical form of a status, matched without regard to case

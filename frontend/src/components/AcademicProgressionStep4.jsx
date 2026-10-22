@@ -118,8 +118,9 @@ export default function AcademicProgressionStep4({
         status = 'Passed';
         remarks = 'Passed';
       } else if (numGrade === 4.0) {
-        status = 'INC';
-        remarks = 'Incomplete';
+        // TMCC's 4.0 is Conditional, later resolved to 3.0 or 5.0 (#104).
+        status = 'Conditional';
+        remarks = 'Conditional';
       } else if (numGrade === 5.0) {
         status = 'Failed';
         remarks = 'Failed';
@@ -144,7 +145,7 @@ export default function AcademicProgressionStep4({
     else if (statusValue === 'FDA' && currentGrade === '5.00') remarks = 'FDA';
     else if (statusValue === 'Credited') remarks = 'Credited';
     else if (statusValue === 'Withdrawn') remarks = 'Withdrawn';
-    else if (statusValue === 'INC' && currentGrade === '4.00') remarks = 'Incomplete';
+    else if (statusValue === 'Conditional') remarks = 'Conditional';
     else if (statusValue === 'INC') remarks = 'Incomplete';
 
     setEditingGrades((prev) => ({
@@ -184,7 +185,7 @@ export default function AcademicProgressionStep4({
 
   const handleCancelEnrollment = (enrollment) => {
     // If it has a final grade, warn them (backend will block anyway, but good for UX)
-    const finalStatuses = ['Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited'];
+    const finalStatuses = ['Passed', 'Failed', 'INC', 'Conditional', 'Withdrawn', 'FDA', 'Credited'];
     if (enrollment.grade_status && finalStatuses.includes(enrollment.grade_status)) {
       staffToast.error('This enrollment already has a final status. Use the correction workflow instead.');
       return;
@@ -332,16 +333,21 @@ export default function AcademicProgressionStep4({
                         const currentStatus = editState?.status ?? subj.grade_status ?? 'Enrolled';
                         const currentRemarks = editState?.remarks ?? subj.remarks ?? '';
 
-                        let availableStatuses = ['Enrolled', 'Passed', 'Failed', 'INC', 'Withdrawn', 'FDA', 'Credited'];
+                        let availableStatuses;
                         if (currentGrade === '5.00') {
                           availableStatuses = ['Failed', 'FDA'];
                         } else if (['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00'].includes(currentGrade)) {
                           availableStatuses = ['Passed'];
                         } else if (currentGrade === '4.00') {
-                          availableStatuses = ['INC'];
+                          availableStatuses = ['Conditional'];
                         } else {
-                          availableStatuses = ['Enrolled', 'Withdrawn', 'Credited'];
+                          // No grade: still enrolled, Incomplete (INC), withdrawn or credited.
+                          availableStatuses = ['Enrolled', 'INC', 'Withdrawn', 'Credited'];
                         }
+                        // A saved Conditional (4.0) can only be resolved to 3.0 or 5.0 (#104).
+                        const gradeOptions = subj.grade_status === 'Conditional'
+                          ? ['4.00', '3.00', '5.00']
+                          : ['', '1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', '4.00', '5.00'];
 
                         return (
                           <tr key={subj.enrollment_id} className="hover:bg-gray-50/50">
@@ -354,8 +360,8 @@ export default function AcademicProgressionStep4({
                                 value={currentGrade}
                                 onChange={(e) => handleGradeSelect(subj.grade_id, e.target.value)}
                               >
-                                {['', '1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', '4.00', '5.00'].map(opt => (
-                                  <option key={opt} value={opt}>{opt || '—'}</option>
+                                {gradeOptions.map(opt => (
+                                  <option key={opt} value={opt}>{opt === '4.00' ? '4.00 (Conditional)' : (opt || '—')}</option>
                                 ))}
                               </select>
                             </td>

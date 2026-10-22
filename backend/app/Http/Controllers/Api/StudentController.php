@@ -739,7 +739,7 @@ class StudentController extends Controller
                 $hasFinalStatus = true;
             } elseif ($grade->grade_value !== null && $grade->grade_value > 0) {
                 $hasFinalStatus = true;
-            } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', 'INC', 'WITHDRAWN', 'FDA', 'CREDITED'])) {
+            } elseif ($grade->remarks && in_array(strtoupper($grade->remarks), ['PASSED', 'FAILED', 'INC', 'CONDITIONAL', 'WITHDRAWN', 'FDA', 'CREDITED'])) {
                 $hasFinalStatus = true;
             }
         }
@@ -1426,10 +1426,22 @@ class StudentController extends Controller
             'remarks'     => $grade->remarks,
         ]);
 
+        // TMCC: a 4.0 (Conditional) can only become 3.0 or 5.0 (#104).
+        if ($oldStatus === AcademicStatus::CONDITIONAL && $newStatus !== AcademicStatus::CONDITIONAL) {
+            $resolved = ($newStatus === AcademicStatus::PASSED && $gradeValue !== null && abs($gradeValue - 3.00) < 0.001)
+                || ($newStatus === AcademicStatus::FAILED && $gradeValue !== null && abs($gradeValue - 5.00) < 0.001);
+            if (! $resolved) {
+                return "Grade #{$grade->id}: a Conditional (4.0) grade can only be resolved to 3.00 (Passed) or 5.00 (Failed).";
+            }
+        }
+
         $convertedFrom = null;
         $convertedAt = null;
         if ($oldStatus === AcademicStatus::INC && $newStatus === AcademicStatus::PASSED) {
             $convertedFrom = AcademicStatus::INC;
+            $convertedAt = now();
+        } elseif ($oldStatus === AcademicStatus::CONDITIONAL && $newStatus !== AcademicStatus::CONDITIONAL) {
+            $convertedFrom = AcademicStatus::CONDITIONAL;
             $convertedAt = now();
         }
 
@@ -1456,6 +1468,8 @@ class StudentController extends Controller
         $action = 'grade_updated';
         if ($convertedFrom === AcademicStatus::INC) {
             $action = 'inc_to_passed';
+        } elseif ($convertedFrom === AcademicStatus::CONDITIONAL) {
+            $action = 'conditional_resolved';
         } elseif ($newStatus === AcademicStatus::CREDITED) {
             $action = 'marked_credited';
         }

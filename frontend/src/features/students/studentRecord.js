@@ -36,7 +36,7 @@ export function subjectStatusBadge(status) {
   if (status === 'Completed') return 'bg-green-100 text-green-800';
   if (status === 'Currently Enrolled' || status === 'Enrolled') return 'bg-blue-100 text-blue-800';
   if (String(status ?? '').startsWith('Failed')) return 'bg-red-100 text-red-800';
-  if (status === 'Incomplete') return 'bg-orange-100 text-orange-800';
+  if (status === 'Incomplete' || status === 'Conditional') return 'bg-orange-100 text-orange-800';
   if (status === 'Archived') return 'bg-amber-100 text-amber-800';
   if (String(status ?? '').includes('Blocked')) return 'bg-gray-100 text-gray-800';
   return 'bg-gray-50 text-gray-600';

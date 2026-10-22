@@ -54,6 +54,21 @@ class AcademicRecordQuery
     }
 
     /**
+     * Subject IDs sitting at a Conditional (4.0) grade (#104). Like an INC, it
+     * does not satisfy a prerequisite until it is resolved.
+     *
+     * @return int[]
+     */
+    public function conditionalSubjectIds(Student $student): array
+    {
+        return Grade::where('student_id', $student->student_id)
+            ->where('status', AcademicStatus::CONDITIONAL)
+            ->pluck('subject_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
      * Subject IDs sitting at INC. An INC does not satisfy a prerequisite.
      *
      * @return int[]

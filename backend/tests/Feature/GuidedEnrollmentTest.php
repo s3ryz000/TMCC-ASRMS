@@ -249,7 +249,7 @@ class GuidedEnrollmentTest extends TestCase
 
         $this->enrollNextTerm($this->student, [], ['A'])
             ->assertStatus(422)
-            ->assertJsonFragment(['A has an INC status. Resolve INC before creating a retake.']);
+            ->assertJsonFragment(['A has an unresolved INC or Conditional grade. Resolve it before creating a retake.']);
     }
 
     // --------------------------------------------------------- academic load
