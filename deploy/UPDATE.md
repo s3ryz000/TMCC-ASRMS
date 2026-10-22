@@ -50,9 +50,12 @@ The command has to be installed once, and again whenever `deploy/asrms-update.sh
 
 ```
 cd /var/www/asrms && sudo git pull && sudo bash deploy/install-asrms-update.sh
+sudo asrms-update --rebuild
 ```
 
-This copies the script to `/usr/local/bin/asrms-update`.
+The first line copies the script to `/usr/local/bin/asrms-update`. Its `git pull` already moves the code to the newest `main`, so a plain `sudo asrms-update` would only say "Already up to date". **`--rebuild`** runs every step anyway: backup, composer, migrations, caches, frontend build, chown, reload and the check. Note the `Updating <old>..<new>` line that `git pull` prints. `<old>` is the version to go back to if something fails, because the rollback lines printed by `--rebuild` can only name the version after the pull.
+
+Use `--rebuild` any time the code was pulled by hand without building.
 
 ## When not to update
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # asrms-update: update the live ASRMS site from GitHub main in one command (#108).
 #
-#   sudo asrms-update
+#   sudo asrms-update             update to origin/main
+#   sudo asrms-update --rebuild   run every step even if the code is already
+#                                 current (e.g. right after a manual git pull)
 #
 # Backs up the database first, puts the API in maintenance mode, fast-forwards
 # /var/www/asrms to origin/main, rebuilds the backend and the frontend, fixes
@@ -20,6 +22,13 @@ LOG=/var/log/asrms-update.log
 SITE=https://asrms-tmcc.duckdns.org
 PHP_FPM=php8.2-fpm
 COMPOSER=/usr/local/bin/composer
+
+REBUILD=0
+case "${1:-}" in
+    "") ;;
+    --rebuild) REBUILD=1 ;;
+    *) echo "Usage: sudo asrms-update [--rebuild]" >&2; exit 2 ;;
+esac
 
 if [[ $EUID -ne 0 ]]; then
     echo "Run with sudo: sudo asrms-update" >&2
@@ -95,13 +104,18 @@ git -C "$APP_DIR" fetch origin main
 OLD=$(git -C "$APP_DIR" rev-parse HEAD)
 NEW=$(git -C "$APP_DIR" rev-parse origin/main)
 
-if [[ $OLD == "$NEW" ]]; then
+if [[ $OLD == "$NEW" && $REBUILD -eq 0 ]]; then
     echo "Already up to date ($(git -C "$APP_DIR" rev-parse --short HEAD))."
+    echo "If the code was pulled by hand and not built yet, run: sudo asrms-update --rebuild"
     exit 0
 fi
 
-echo "Will deploy:"
-git -C "$APP_DIR" --no-pager log --oneline "HEAD..origin/main"
+if [[ $OLD == "$NEW" ]]; then
+    echo "Code is current ($(git -C "$APP_DIR" rev-parse --short HEAD)); rebuilding anyway (--rebuild)."
+else
+    echo "Will deploy:"
+    git -C "$APP_DIR" --no-pager log --oneline "HEAD..origin/main"
+fi
 
 # ── 2. Backup first ────────────────────────────────────────────────────────
 step "Backing up the database (asrms:backup --label=pre-update)"
@@ -122,6 +136,8 @@ SITE_DOWN=1
 
 # ── 4. Code ────────────────────────────────────────────────────────────────
 step "Updating the code to origin/main"
+# With --rebuild on current code there is nothing to merge, but the rebuild
+# itself (composer, migrations, build) can still need undoing.
 CODE_CHANGED=1
 git -C "$APP_DIR" merge --ff-only origin/main
 
