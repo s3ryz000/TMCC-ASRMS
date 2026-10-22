@@ -176,24 +176,8 @@ const StudentRequestRecordPage = () => {
       if (summary.latin_honors?.eligible) {
         pushDoc('Overall', 'Graduation', 'Latin Honor', summary.latin_honors.honor, 'latin_honor_certificate', summary.latin_honors.honor);
       }
-
-      // Presidents List
-      if (summary.years) {
-        summary.years.forEach(yr => {
-          if (yr.presidents_list?.eligible) {
-            pushDoc(yr.academic_year, 'All', 'Academic Award', 'President\'s List', 'presidents_list_certificate', 'President\'s List');
-          }
-        });
-      }
-
-      // Deans List
-      if (summary.terms) {
-        summary.terms.forEach(term => {
-          if (term.deans_list?.eligible) {
-            pushDoc(term.academic_year, term.semester, 'Academic Award', 'Dean\'s List', 'deans_list_certificate', 'Dean\'s List');
-          }
-        });
-      }
+      // No Dean's List or President's List: at TMCC they come from each
+      // school, not the Registrar's Office (#102).
     }
     return list;
   }, [summaryPayload, requestsList]);

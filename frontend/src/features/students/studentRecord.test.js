@@ -1,24 +1,16 @@
 import { awardsFrom, formatGwa, roadmapMatchesStatus, subjectStatusBadge } from './studentRecord';
 
 describe('student record helpers (#57)', () => {
-  test('awards are exactly the ones the backend marks eligible', () => {
+  test("awards are the Latin honors the backend marks eligible; no Dean's or President's List (#102)", () => {
     const summary = {
       overall_gwa: 1.45,
       latin_honors: { eligible: true, honor: 'Magna Cum Laude', reason: null },
-      years: [
-        { academic_year: '2026-2027', presidents_list: { eligible: true } },
-        { academic_year: '2027-2028', presidents_list: { eligible: false } },
-      ],
-      terms: [
-        { academic_year: '2026-2027', semester: '1', deans_list: { eligible: true } },
-        { academic_year: '2026-2027', semester: '2', deans_list: { eligible: false, reason: 'GPA' } },
-      ],
+      years: [{ academic_year: '2026-2027', gpa: 1.45 }],
+      terms: [{ academic_year: '2026-2027', semester: '1', gpa: 1.45 }],
     };
 
     expect(awardsFrom(summary)).toEqual([
       { key: 'latin', name: 'Magna Cum Laude', when: 'Latin honors (on graduation)' },
-      { key: 'president-2026-2027', name: "President's List", when: 'A.Y. 2026-2027' },
-      { key: 'dean-2026-2027-1', name: "Dean's List", when: 'A.Y. 2026-2027, 1st semester' },
     ]);
   });
 

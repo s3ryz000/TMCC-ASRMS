@@ -18,7 +18,11 @@ class RecordRequest extends Model
 
     public const STATUS_RELEASED = 'released';
 
-    /** The document names students see in the portal. */
+    /**
+     * The document names students see in the portal. Dean's List and
+     * President's List certificates can no longer be requested (#102); the
+     * labels stay so older requests still show their name.
+     */
     public const TYPE_LABELS = [
         'transcript' => 'Transcript of Records',
         'certificate_of_grades' => 'Certificate of Grades',

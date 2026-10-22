@@ -83,7 +83,6 @@ class UnofficialReportCardService
 
         $grades = $this->grades($student, $academicYear, $semester);
         $gwa = $this->standing->computeSemesterGpa($student, $academicYear, $semester);
-        $deansList = $this->standing->checkDeanList($student, $academicYear, $semester, $gwa);
         $latin = $this->standing->checkLatinHonorEligibility($student, $this->standing->computeOverallGwa($student));
 
         $rows = '';
@@ -122,7 +121,6 @@ class UnofficialReportCardService
         $program = $e($student->program?->name ?? $student->program?->code ?? '');
         $term = $e(self::semesterLabel($semester) . ', A.Y. ' . $academicYear);
         $gwaText = $gwa !== null ? number_format($gwa, 2) : 'Not available yet';
-        $deans = $deansList['eligible'] ? "Dean's List" : 'None';
         $latinText = $latin['eligible'] ? $e($latin['honor']) . ' (based on the overall GWA so far)' : 'None';
         $notice = $e(self::NOTICE);
         $generated = $e(now()->format('F j, Y g:i A'));
@@ -195,7 +193,6 @@ body { font-family: DejaVu Sans, sans-serif; font-size: 9pt; color: #000; }
 <tr><td class="lb">Units enrolled:</td><td class="vl">{$total}</td></tr>
 <tr><td class="lb">Units earned:</td><td class="vl">{$earned}</td></tr>
 <tr><td class="lb">Semestral GWA:</td><td class="vl">{$gwaText}</td></tr>
-<tr><td class="lb">Honors this term:</td><td class="vl">{$deans}</td></tr>
 <tr><td class="lb">Latin honors:</td><td class="vl">{$latinText}</td></tr>
 </table>
 </body>

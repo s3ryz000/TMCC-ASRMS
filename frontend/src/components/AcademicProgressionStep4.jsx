@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiPlus, FiSave, FiAlertCircle, FiTrash2, FiClock, FiAward, FiCheckCircle, FiAlertTriangle, FiXCircle, FiInfo } from 'react-icons/fi';
+import { FiPlus, FiSave, FiAlertCircle, FiTrash2, FiClock, FiCheckCircle, FiAlertTriangle, FiXCircle, FiInfo } from 'react-icons/fi';
 
 import { staffApi } from '../lib/api/staffApi';
 import { staffToast } from '../lib/notifications';
@@ -397,26 +397,9 @@ export default function AcademicProgressionStep4({
 
                 {termSummary && (
                   <div className="bg-gray-50/80 px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-700">Calculated Semestral GWA:</span>
-                        <span className="text-lg font-bold text-tmcc">{termSummary.gpa != null ? termSummary.gpa.toFixed(2) : '—'}</span>
-                      </div>
-                      {!termSummary.deans_list?.eligible && termSummary.gpa != null && (
-                         <span className="text-xs text-gray-500">{termSummary.deans_list?.reason}</span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      {termSummary.deans_list?.eligible && (
-                        <div className="px-3 py-1 bg-amber-100 text-amber-800 border border-amber-200 rounded-md text-sm font-semibold flex items-center gap-1.5 shadow-sm">
-                          <FiAward /> Dean's List Awardee
-                        </div>
-                      )}
-                      {Number(group.semester) === 2 && summary?.years?.find(y => y.academic_year === group.academic_year)?.presidents_list?.eligible && (
-                        <div className="px-3 py-1 bg-blue-100 text-blue-800 border border-blue-200 rounded-md text-sm font-semibold flex items-center gap-1.5 shadow-sm">
-                          <FiAward /> President's List Awardee
-                        </div>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-gray-700">Calculated Semestral GWA:</span>
+                      <span className="text-lg font-bold text-tmcc">{termSummary.gpa != null ? termSummary.gpa.toFixed(2) : '—'}</span>
                     </div>
                   </div>
                 )}
@@ -485,17 +468,10 @@ export default function AcademicProgressionStep4({
                 <p className="m-0 mt-1 text-sm">{next_allowed_term.blocking_reason}</p>
 
                 {summary && (
-                  <div className="mt-4 pt-4 border-t border-green-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="mt-4 pt-4 border-t border-green-200 grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="bg-white/60 p-3 rounded-lg border border-green-100">
                         <p className="text-xs text-green-700 uppercase font-bold tracking-wide mb-1">Final Overall GWA</p>
                         <p className="text-2xl font-black text-green-900 m-0">{summary.overall_gwa != null ? summary.overall_gwa.toFixed(2) : '—'}</p>
-                     </div>
-                     <div className="bg-white/60 p-3 rounded-lg border border-green-100">
-                        <p className="text-xs text-green-700 uppercase font-bold tracking-wide mb-1">Honors Received</p>
-                        <p className="text-sm font-medium text-green-900 m-0">
-                          Dean's List: {summary.terms?.filter(t => t.deans_list?.eligible).length || 0} times<br/>
-                          President's List: {summary.years?.filter(y => y.presidents_list?.eligible).length || 0} times
-                        </p>
                      </div>
                      <div className="bg-white/60 p-3 rounded-lg border border-green-100">
                         <p className="text-xs text-green-700 uppercase font-bold tracking-wide mb-1">Latin Honors</p>

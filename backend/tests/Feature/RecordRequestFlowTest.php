@@ -90,9 +90,32 @@ class RecordRequestFlowTest extends TestCase
     {
         $this->recordGrade($this->student, 'A', '2026-2027', 1, 2.50, 'Passed');
 
-        $this->submit(['record_type' => 'deans_list_certificate', 'academic_year' => '2026-2027', 'semester' => '1', 'purpose' => 'Scholarship'])
+        $this->submit(['record_type' => 'latin_honor_certificate', 'purpose' => 'Graduation'])
             ->assertForbidden()
             ->assertJsonPath('message', 'You are not eligible to request this award certificate.');
+    }
+
+    /**
+     * Dean's List and President's List certificates are not the registrar's to
+     * issue at TMCC (#102).
+     *
+     * @dataProvider removedAwardTypes
+     */
+    public function test_deans_and_presidents_list_certificates_cannot_be_requested(string $type): void
+    {
+        $this->recordGrade($this->student, 'A', '2026-2027', 1, 1.00, 'Passed');
+
+        $this->submit(['record_type' => $type, 'academic_year' => '2026-2027', 'semester' => '1', 'purpose' => 'Scholarship'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('record_type');
+    }
+
+    public static function removedAwardTypes(): array
+    {
+        return [
+            "dean's list"      => ['deans_list_certificate'],
+            "president's list" => ['presidents_list_certificate'],
+        ];
     }
 
     public function test_eligible_student_can_request_an_award_certificate(): void

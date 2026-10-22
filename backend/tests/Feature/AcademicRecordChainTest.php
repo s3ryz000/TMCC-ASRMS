@@ -106,7 +106,7 @@ class AcademicRecordChainTest extends TestCase
         $summary = $this->getJson('/api/student/academic-summary')->assertOk()->json('summary');
 
         $this->assertSame(1.38, $summary['overall_gwa']);
-        $this->assertTrue($summary['terms'][0]['deans_list']['eligible']);
+        $this->assertSame(1.38, $summary['terms'][0]['gpa']);
 
         // ── 6. Transcript: request → approve → download → release ───────────
         $requestId = $this->postJson('/api/student/record-requests', ['record_type' => 'transcript', 'purpose' => 'Employment'])

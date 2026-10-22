@@ -78,16 +78,17 @@ class AcademicStandingTest extends TestCase
         $this->assertSame(1.50, $this->summary()['overall_gwa']);
     }
 
-    public function test_deans_list_needs_a_semester_gpa_of_1_75_or_better(): void
+    public function test_each_term_has_its_own_gpa_and_no_deans_list(): void
     {
         $this->gradeFirstTerm(1.50, 1.75, 2.00);                   // GPA 1.75
         $this->recordGrade($this->student, 'C', '2026-2027', 2, 2.00, 'Passed'); // GPA 2.00
 
         $terms = collect($this->summary()['terms'])->keyBy('semester');
 
-        $this->assertTrue($terms['1']['deans_list']['eligible']);
-        $this->assertFalse($terms['2']['deans_list']['eligible']);
-        $this->assertStringContainsString('lower than the required 1.75', $terms['2']['deans_list']['reason']);
+        $this->assertSame(1.75, $terms['1']['gpa']);
+        $this->assertSame(2.0, $terms['2']['gpa']);
+        // TMCC's Dean's List comes from each school, not the registrar (#102).
+        $this->assertArrayNotHasKey('deans_list', $terms['1']);
     }
 
     public function test_a_grade_below_2_00_blocks_honors_despite_a_high_gpa(): void
@@ -96,9 +97,8 @@ class AcademicStandingTest extends TestCase
 
         $summary = $this->summary();
 
-        $this->assertFalse($summary['terms'][0]['deans_list']['eligible']);
-        $this->assertStringContainsString('G (2.25)', $summary['terms'][0]['deans_list']['reason']);
         $this->assertFalse($summary['latin_honors']['eligible']);
+        $this->assertStringContainsString('G (2.25)', $summary['latin_honors']['reason']);
     }
 
     public function test_inc_blocks_honors(): void
@@ -113,7 +113,7 @@ class AcademicStandingTest extends TestCase
         $this->assertStringContainsString('INC in G', $summary['latin_honors']['reason']);
     }
 
-    public function test_presidents_list_uses_the_annual_gpa(): void
+    public function test_each_year_has_an_annual_gpa_and_no_presidents_list(): void
     {
         $this->gradeFirstTerm(1.25, 1.25, 1.25);
         $this->recordGrade($this->student, 'C', '2026-2027', 2, 1.50, 'Passed');
@@ -122,7 +122,8 @@ class AcademicStandingTest extends TestCase
 
         $this->assertSame('2026-2027', $year['academic_year']);
         $this->assertSame(1.31, $year['gpa']);
-        $this->assertTrue($year['presidents_list']['eligible']);
+        // TMCC has no President's List (#102).
+        $this->assertArrayNotHasKey('presidents_list', $year);
     }
 
     /**
@@ -185,7 +186,7 @@ class AcademicStandingTest extends TestCase
         $this->getJson("/api/staff/students/{$this->student->student_id}/academic-summary")
             ->assertOk()
             ->assertJsonPath('summary.latin_honors.honor', 'Cum Laude')
-            ->assertJsonPath('summary.terms.0.deans_list.eligible', true);
+            ->assertJsonPath('summary.terms.0.gpa', 1.5);
     }
 
     // --------------------------------------------- E1: correction recomputes
@@ -197,7 +198,7 @@ class AcademicStandingTest extends TestCase
         $this->submitGrades($this->student, ['A' => 1.00, 'B' => 3.00, 'G' => 2.00])->assertOk();
 
         $this->assertSame('2.00', $this->student->fresh()->GPA);
-        $this->assertFalse($this->summary()['terms'][0]['deans_list']['eligible']);
+        $this->assertFalse($this->summary()['latin_honors']['eligible']);
 
         $this->submitGrades($this->student, ['B' => 1.25])->assertOk();
 
@@ -205,7 +206,7 @@ class AcademicStandingTest extends TestCase
         $this->assertSame('1.42', $this->student->fresh()->GPA);
         $summary = $this->summary();
         $this->assertSame(1.42, $summary['overall_gwa']);
-        $this->assertTrue($summary['terms'][0]['deans_list']['eligible']);
+        $this->assertSame(1.42, $summary['terms'][0]['gpa']);
         $this->assertSame('Magna Cum Laude', $summary['latin_honors']['honor']);
     }
 

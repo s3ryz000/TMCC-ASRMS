@@ -9,7 +9,11 @@ use App\Models\Grade;
 class AcademicStandingService
 {
     /**
-     * Get full academic summary including GWA, GPAs, and Honors eligibility.
+     * Get full academic summary including GWA, GPAs, and Latin honors eligibility.
+     *
+     * Dean's List and President's List are not computed: TMCC's Dean's List
+     * comes from each school, not the Registrar's Office, and TMCC has no
+     * President's List (client walkthrough, 21 Oct 2026, #102).
      */
     public function getAcademicSummary(Student $student): array
     {
@@ -27,14 +31,10 @@ class AcademicStandingService
 
         foreach ($termKeys as $key) {
             [$ay, $sem] = explode('|', $key);
-            $semGpa = $this->computeSemesterGpa($student, $ay, $sem);
-            $deansList = $this->checkDeanList($student, $ay, $sem, $semGpa);
-
             $terms[] = [
                 'academic_year' => $ay,
                 'semester' => $sem,
-                'gpa' => $semGpa,
-                'deans_list' => $deansList,
+                'gpa' => $this->computeSemesterGpa($student, $ay, $sem),
             ];
 
             if (!isset($annualGroups[$ay])) {
@@ -45,13 +45,9 @@ class AcademicStandingService
 
         $years = [];
         foreach ($annualGroups as $ay => $sems) {
-            $annualGpa = $this->computeAnnualGpa($student, $ay);
-            $presidentsList = $this->checkPresidentList($student, $ay, $annualGpa);
-
             $years[] = [
                 'academic_year' => $ay,
-                'gpa' => $annualGpa,
-                'presidents_list' => $presidentsList,
+                'gpa' => $this->computeAnnualGpa($student, $ay),
             ];
         }
 
@@ -117,49 +113,6 @@ class AcademicStandingService
     {
         $gwa = $this->computeOverallGwa($student);
         $student->update(['GPA' => $gwa]);
-    }
-
-    /**
-     * Check Dean's List Eligibility for a semester
-     */
-    public function checkDeanList(Student $student, string $academicYear, string $semester, ?float $semGpa): array
-    {
-        if ($semGpa === null) {
-            return ['eligible' => false, 'reason' => 'No numeric grades available for this semester.'];
-        }
-
-        if ($semGpa > 1.75) {
-            return ['eligible' => false, 'reason' => "Semestral GPA ($semGpa) is lower than the required 1.75."];
-        }
-
-        $grades = Grade::with('subject')
-            ->where('student_id', $student->student_id)
-            ->where('academic_year', $academicYear)
-            ->where('semester', $semester)
-            ->get();
-
-        return $this->evaluateHonorGrades($grades);
-    }
-
-    /**
-     * Check President's List Eligibility for an academic year
-     */
-    public function checkPresidentList(Student $student, string $academicYear, ?float $annualGpa): array
-    {
-        if ($annualGpa === null) {
-            return ['eligible' => false, 'reason' => 'No numeric grades available for this academic year.'];
-        }
-
-        if ($annualGpa > 1.75) {
-            return ['eligible' => false, 'reason' => "Annual GPA ($annualGpa) is lower than the required 1.75."];
-        }
-
-        $grades = Grade::with('subject')
-            ->where('student_id', $student->student_id)
-            ->where('academic_year', $academicYear)
-            ->get();
-
-        return $this->evaluateHonorGrades($grades);
     }
 
     /**

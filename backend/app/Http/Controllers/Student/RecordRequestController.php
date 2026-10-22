@@ -89,30 +89,12 @@ class RecordRequestController extends Controller
             return response()->json(['message' => 'You already have a pending request for this document.'], 422);
         }
 
-        // Check eligibility for awards
-        if (in_array($recordType, ['deans_list_certificate', 'presidents_list_certificate', 'latin_honor_certificate'])) {
+        // Check eligibility for the Latin honor certificate
+        if ($recordType === 'latin_honor_certificate') {
             $summary = $this->academicStandingService->getAcademicSummary($student);
-            $isEligible = false;
-
-            if ($recordType === 'deans_list_certificate') {
-                foreach ($summary['terms'] as $term) {
-                    if ($term['academic_year'] === $academicYear && $term['semester'] === $semester) {
-                        $isEligible = $term['deans_list']['eligible'];
-                        break;
-                    }
-                }
-            } elseif ($recordType === 'presidents_list_certificate') {
-                foreach ($summary['years'] as $year) {
-                    if ($year['academic_year'] === $academicYear) {
-                        $isEligible = $year['presidents_list']['eligible'];
-                        break;
-                    }
-                }
-            } elseif ($recordType === 'latin_honor_certificate') {
-                $isEligible = $summary['latin_honors']['eligible'];
-                if ($isEligible) {
-                    $validated['award_name'] = $summary['latin_honors']['honor'];
-                }
+            $isEligible = $summary['latin_honors']['eligible'];
+            if ($isEligible) {
+                $validated['award_name'] = $summary['latin_honors']['honor'];
             }
 
             if (!$isEligible) {

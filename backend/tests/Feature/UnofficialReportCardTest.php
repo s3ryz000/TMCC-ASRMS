@@ -76,14 +76,16 @@ class UnofficialReportCardTest extends TestCase
         $this->assertStringContainsString('UNOFFICIAL COPY', $html);
     }
 
-    public function test_it_shows_deans_list_and_latin_honors_when_earned(): void
+    public function test_it_shows_latin_honors_but_no_deans_list(): void
     {
         $this->recordGrade($this->student, 'IT101', '2026-2027', 1, 1.25, 'Passed');
         $this->recordGrade($this->student, 'IT102', '2026-2027', 1, 1.50, 'Passed');
 
         $html = $this->html();
 
-        $this->assertStringContainsString("Honors this term:</td><td class=\"vl\">Dean's List<", $html);
+        // TMCC's Dean's List comes from each school, not the registrar (#102).
+        $this->assertStringNotContainsString("Dean's List", $html);
+        $this->assertStringNotContainsString('Honors this term', $html);
         $this->assertStringContainsString('Magna Cum Laude', $html);
     }
 
@@ -99,7 +101,7 @@ class UnofficialReportCardTest extends TestCase
         $html = $this->html();
         $this->assertStringContainsString('<td class="c">INC</td>', $html);
         $this->assertStringContainsString('No grade yet', $html);
-        $this->assertMatchesRegularExpression('/Honors this term:<\/td><td class="vl">None</', $html);
+        $this->assertMatchesRegularExpression('/Latin honors:<\/td><td class="vl">None</', $html);
         // Only IT101 is earned so far.
         $this->assertMatchesRegularExpression('/Units earned:<\/td><td class="vl">3</', $html);
     }

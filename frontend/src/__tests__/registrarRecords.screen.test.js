@@ -41,9 +41,9 @@ const ACADEMIC = {
   student: { student_number: '269901', name: 'Tess Tester', program: 'BS Tourism Management', program_code: 'BSTM', enrollment_date: '2026-08-10' },
   summary: {
     overall_gwa: 1.4,
-    latin_honors: { eligible: false, reason: 'Not yet graduated', honor: null },
-    terms: [{ academic_year: '2026-2027', semester: '1', gpa: 1.4, deans_list: { eligible: true, reason: '' } }],
-    years: [{ academic_year: '2026-2027', gpa: 1.4, presidents_list: { eligible: false, reason: 'Year not complete' } }],
+    latin_honors: { eligible: true, reason: 'Meets all requirements.', honor: 'Magna Cum Laude' },
+    terms: [{ academic_year: '2026-2027', semester: '1', gpa: 1.4 }],
+    years: [{ academic_year: '2026-2027', gpa: 1.4 }],
   },
   curriculum: { roadmap: [], total_curriculum_units: 0, completed_units: 0, units_left: 0, failed_subjects_count: 0 },
   notifications: [],
@@ -125,7 +125,9 @@ describe('#57 Manage Records', () => {
     }
     expect(apiClient.get).toHaveBeenCalledWith('/staff/students/3');
     expect(apiClient.get).toHaveBeenCalledWith('/staff/students/3/academic-summary');
-    expect(await screen.findByText(/Dean's List/)).toBeInTheDocument();
+    expect(await screen.findByText('Magna Cum Laude')).toBeInTheDocument();
+    // #102: no Dean's List or President's List at TMCC's registrar.
+    expect(screen.queryByText(/Dean's List/)).not.toBeInTheDocument();
     expect(screen.queryByText(/President's List/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Archive Record/ })).toBeInTheDocument();
     // #97: the registrar edits the archive location here.

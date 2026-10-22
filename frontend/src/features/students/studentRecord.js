@@ -5,16 +5,10 @@
  * they change.
  */
 
-const semesterName = (semester) => {
-  const n = Number(semester);
-  if (n === 1) return '1st semester';
-  if (n === 2) return '2nd semester';
-  return semester ? `semester ${semester}` : '';
-};
-
 /**
- * Every award the backend marks eligible: Latin honors, President's List per
- * academic year, Dean's List per term.
+ * Every award the backend marks eligible: Latin honors. Dean's List and
+ * President's List are not shown: at TMCC they come from each school, not the
+ * Registrar's Office (#102).
  *
  * @param {object} summary the `summary` of the academic-summary response
  * @returns {Array<{ key: string, name: string, when: string }>}
@@ -26,20 +20,6 @@ export function awardsFrom(summary) {
   if (summary.latin_honors?.eligible && summary.latin_honors.honor) {
     awards.push({ key: 'latin', name: summary.latin_honors.honor, when: 'Latin honors (on graduation)' });
   }
-  (summary.years ?? []).forEach((year) => {
-    if (year.presidents_list?.eligible) {
-      awards.push({ key: `president-${year.academic_year}`, name: "President's List", when: `A.Y. ${year.academic_year}` });
-    }
-  });
-  (summary.terms ?? []).forEach((term) => {
-    if (term.deans_list?.eligible) {
-      awards.push({
-        key: `dean-${term.academic_year}-${term.semester}`,
-        name: "Dean's List",
-        when: `A.Y. ${term.academic_year}, ${semesterName(term.semester)}`,
-      });
-    }
-  });
 
   return awards;
 }
