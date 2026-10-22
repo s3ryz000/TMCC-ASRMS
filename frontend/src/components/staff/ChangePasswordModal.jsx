@@ -4,6 +4,7 @@ import { authApi } from '../../lib/api/authApi';
 import { parseApiError } from '../../lib/api/errors';
 import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { staffToast } from '../../lib/notifications';
+import PasswordInput from '../ui/PasswordInput';
 
 /**
  */
@@ -86,9 +87,8 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
             <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">
               Current password
             </label>
-            <input
+            <PasswordInput
               id="current-password"
-              type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className={errors.currentPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
@@ -103,9 +103,8 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
             <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
               New password
             </label>
-            <input
+            <PasswordInput
               id="new-password"
-              type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className={errors.newPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}
@@ -120,9 +119,8 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
             <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className={errors.confirmPassword ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}

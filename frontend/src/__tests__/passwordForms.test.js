@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import StaffChangePasswordModal from '../components/staff/ChangePasswordModal';
 import StudentChangePasswordModal from '../components/student/ChangePasswordModal';
 import CreateUserModal from '../components/admin/CreateUserModal';
+import { apiClient } from '../lib/api/client';
 import { PASSWORD_HINT } from '../lib/passwordRule';
 
 /**
@@ -40,15 +41,15 @@ describe('student change-password dialog', () => {
     const close = () => { open = false; };
     const { rerender } = render(<StudentChangePasswordModal isOpen={open} onClose={close} />);
 
-    await userEvent.type(screen.getByLabelText(/password/i), 'Old-Secret-12');
+    await userEvent.type(screen.getByLabelText('Password'), 'Old-Secret-12');
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     rerender(<StudentChangePasswordModal isOpen={open} onClose={close} />);
     open = true;
     rerender(<StudentChangePasswordModal isOpen={open} onClose={close} />);
 
-    expect(screen.getByLabelText(/password/i)).toHaveValue('');
+    expect(screen.getByLabelText('Password')).toHaveValue('');
 
-    await userEvent.type(screen.getByLabelText(/password/i), 'Old-Secret-12');
+    await userEvent.type(screen.getByLabelText('Password'), 'Old-Secret-12');
     await userEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(screen.getByText(PASSWORD_HINT)).toBeInTheDocument();
   });
@@ -61,5 +62,33 @@ describe('admin create-user form', () => {
     const hint = screen.getByText(PASSWORD_HINT);
     expect(hint).toHaveAttribute('id', 'create-user-password-hint');
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+});
+
+describe('show/hide password (#106)', () => {
+  test('each password field can be revealed and hidden again', async () => {
+    render(<StaffChangePasswordModal isOpen onClose={() => {}} />);
+
+    const field = screen.getByLabelText(/^New password/);
+    expect(field).toHaveAttribute('type', 'password');
+
+    const toggles = screen.getAllByRole('button', { name: 'Show password' });
+    expect(toggles).toHaveLength(3);
+
+    await userEvent.click(toggles[1]);
+    expect(field).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Hide password' })).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide password' }));
+    expect(field).toHaveAttribute('type', 'password');
+  });
+
+  test('the toggle does not submit the form', async () => {
+    render(<CreateUserModal isOpen onClose={() => {}} onSuccess={() => {}} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show password' }));
+
+    expect(screen.getByRole('button', { name: 'Hide password' })).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });

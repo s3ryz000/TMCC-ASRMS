@@ -4,6 +4,7 @@ import { adminToast } from '../../lib/notifications';
 import { parseApiError } from '../../lib/api/errors';
 import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { adminApi } from '../../lib/api/adminApi';
+import PasswordInput from '../ui/PasswordInput';
 
 const ROLES = [
   { value: 'staff', label: 'Staff' },
@@ -122,9 +123,8 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
           <div>
             <label htmlFor="create-user-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
+            <PasswordInput
               id="create-user-password"
-              type="password"
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               className={errors.password ? `${inputBase} ${inputError}` : `${inputBase} ${inputNormal}`}

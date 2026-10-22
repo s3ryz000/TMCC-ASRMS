@@ -5,6 +5,7 @@ import { parseApiError } from '../../lib/api/errors';
 import { PASSWORD_HINT, passwordProblem } from '../../lib/passwordRule';
 import { adminApi } from '../../lib/api/adminApi';
 import { useAuth } from '../../contexts/AuthContext';
+import PasswordInput from '../ui/PasswordInput';
 
 const ROLES = [
   { value: 'student', label: 'Student' },
@@ -207,9 +208,8 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                 <label htmlFor="edit-user-password" className="block text-sm font-medium text-gray-700 mb-1">
                   New password
                 </label>
-                <input
+                <PasswordInput
                   id="edit-user-password"
-                  type="password"
                   autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -226,9 +226,8 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
                 <label htmlFor="edit-user-password-confirm" className="block text-sm font-medium text-gray-700 mb-1">
                   Confirm new password
                 </label>
-                <input
+                <PasswordInput
                   id="edit-user-password-confirm"
-                  type="password"
                   autoComplete="new-password"
                   value={form.passwordConfirmation}
                   onChange={(e) => setForm((f) => ({ ...f, passwordConfirmation: e.target.value }))}
