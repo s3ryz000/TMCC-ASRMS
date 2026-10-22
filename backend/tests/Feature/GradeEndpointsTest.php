@@ -51,6 +51,19 @@ class GradeEndpointsTest extends TestCase
         return Grade::where('subject_id', $this->subjects[$code]->id)->firstOrFail();
     }
 
+    // ---------------------------------------------------------- no delete
+
+    /** A grade is corrected, never deleted, so the history stays (#103). */
+    public function test_a_grade_cannot_be_deleted(): void
+    {
+        $grade = $this->enrolledGrade();
+        $this->putJson($this->gradeUrl($grade), ["grade_value" => 2.00])->assertOk();
+
+        $this->deleteJson($this->gradeUrl($grade))->assertStatus(405);
+
+        $this->assertModelExists($grade);
+    }
+
     // ---------------------------------------------------------- single update
 
     public function test_correcting_the_value_re_derives_the_status(): void

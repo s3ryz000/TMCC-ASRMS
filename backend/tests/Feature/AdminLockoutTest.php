@@ -126,28 +126,16 @@ class AdminLockoutTest extends TestCase
 
     // ------------------------------------------------------------ delete
 
-    public function test_the_last_active_admin_cannot_be_deleted(): void
-    {
-        $adminB = $this->makeUser('admin', 'admin_b');
-        $adminB->forceFill(['status' => 'inactive'])->save();
-        Sanctum::actingAs($adminB, ['*']);
-
-        $this->deleteJson("/api/admin/users/{$this->adminA->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'At least one active administrator is required.');
-
-        $this->assertModelExists($this->adminA);
-    }
-
-    public function test_deleting_a_staff_user_or_a_second_admin_still_works(): void
+    /** Accounts are deactivated, never deleted (#103). */
+    public function test_no_account_can_be_deleted(): void
     {
         $staff = $this->makeUser('staff', 'reg01');
         $adminB = $this->makeUser('admin', 'admin_b');
 
-        $this->deleteJson("/api/admin/users/{$staff->id}")->assertOk();
-        $this->deleteJson("/api/admin/users/{$adminB->id}")->assertOk();
+        $this->deleteJson("/api/admin/users/{$staff->id}")->assertStatus(405);
+        $this->deleteJson("/api/admin/users/{$adminB->id}")->assertStatus(405);
 
-        $this->assertModelMissing($staff);
-        $this->assertModelMissing($adminB);
+        $this->assertModelExists($staff);
+        $this->assertModelExists($adminB);
     }
 }

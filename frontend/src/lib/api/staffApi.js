@@ -341,11 +341,6 @@ export const staffApi = {
     return data;
   },
 
-  deleteGrade: async (studentId, gradeId) => {
-    const { data } = await apiClient.delete(`/staff/students/${studentId}/grades/${gradeId}`);
-    return data;
-  },
-
   archiveStudent: async (studentId, payload) => {
     const { data } = await apiClient.post(`/staff/students/${studentId}/archive`, payload);
     return data;

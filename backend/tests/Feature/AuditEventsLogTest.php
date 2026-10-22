@@ -216,25 +216,13 @@ class AuditEventsLogTest extends TestCase
         // tearDown checks no row holds the password.
     }
 
-    public function test_deleting_a_user_is_logged(): void
-    {
-        $spare = $this->makeUser('staff', 'spare.staff');
-        Sanctum::actingAs($this->admin, ['*']);
-
-        $this->deleteJson("/api/admin/users/{$spare->id}")->assertOk();
-
-        $this->assertDatabaseMissing('users', ['id' => $spare->id]);
-        $this->assertSame(['User deleted: spare.staff (staff)'], $this->actions());
-    }
-
-    public function test_a_user_with_logged_activity_is_kept_and_their_log_rows_too(): void
+    /** Accounts are deactivated, never deleted (#103): the user and their log rows stay. */
+    public function test_a_user_cannot_be_deleted_and_their_log_rows_stay(): void
     {
         $this->login('uat.staff', self::PASSWORD)->assertOk();
         Sanctum::actingAs($this->admin, ['*']);
 
-        $this->deleteJson("/api/admin/users/{$this->staff->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'This account has activity in the system log and cannot be deleted. Deactivate it instead.');
+        $this->deleteJson("/api/admin/users/{$this->staff->id}")->assertStatus(405);
 
         $this->assertDatabaseHas('users', ['id' => $this->staff->id]);
         $this->assertSame(['Login: uat.staff'], $this->actions());

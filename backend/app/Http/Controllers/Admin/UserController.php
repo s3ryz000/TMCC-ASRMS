@@ -194,48 +194,6 @@ class UserController extends Controller
     }
 
     /**
-     * Delete user (admin only).
-     */
-    public function destroy(Request $request, int $id): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles($request->user(), ['admin'])) {
-            return $err;
-        }
-
-        $user = User::find($id);
-        if (! $user) {
-            return response()->json(['message' => 'User not found.'], 404);
-        }
-
-        if ((int) $id === (int) $request->user()->id) {
-            return response()->json(['message' => 'You cannot delete your own account.'], 422);
-        }
-
-        if ($refusal = $this->refuseAdminLockout($request->user(), $user, deleting: true)) {
-            return $refusal;
-        }
-
-        // The system log is append-only (#95): an account that appears in it
-        // stays, so its entries keep their name. Deactivate it instead.
-        if (SystemLog::where('user_id', $user->id)->exists()) {
-            return response()->json([
-                'message' => 'This account has activity in the system log and cannot be deleted. Deactivate it instead.',
-            ], 422);
-        }
-
-        $username = $user->username;
-        $role = $user->role;
-        $user->delete();
-
-        AuditLog::write("User deleted: {$username} ({$role})", $request->user());
-
-        return response()->json(['message' => 'User deleted successfully.']);
-    }
-
-    /**
      * Logs what an update changed (#95): activation or deactivation as its
      * own entry, then the role (old → new) and the names of other changed
      * fields. Password resets are logged separately and never shown.
@@ -263,16 +221,16 @@ class UserController extends Controller
     /**
      * The one place that keeps administrators from locking everyone out (#81):
      * nobody changes their own role or status, and the last active admin
-     * (users.role = admin, status = active) can't be deactivated, demoted or
-     * deleted. Returns the 422 response to send, or null when the change is
+     * (users.role = admin, status = active) can't be deactivated or demoted.
+     * Accounts are never deleted (#103). Returns the 422 response to send, or null when the change is
      * allowed. Submitting a user's current role and status is not a change.
      */
-    private function refuseAdminLockout(User $actor, User $target, ?string $newRole = null, ?string $newStatus = null, bool $deleting = false): ?JsonResponse
+    private function refuseAdminLockout(User $actor, User $target, ?string $newRole = null, ?string $newStatus = null): ?JsonResponse
     {
-        $roleAfter = $deleting ? null : ($newRole ?? $target->role);
-        $statusAfter = $deleting ? null : ($newStatus ?? $target->status);
+        $roleAfter = $newRole ?? $target->role;
+        $statusAfter = $newStatus ?? $target->status;
 
-        if (! $deleting && (int) $actor->id === (int) $target->id
+        if ((int) $actor->id === (int) $target->id
             && ($roleAfter !== $target->role || $statusAfter !== $target->status)) {
             return response()->json(['message' => 'You cannot change your own status or role.'], 422);
         }

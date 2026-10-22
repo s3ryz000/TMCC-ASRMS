@@ -76,7 +76,6 @@ class DataAccessMatrixTest extends TestCase
         ['PATCH', '/api/staff/students/{A}/program'],
         ['PATCH', '/api/staff/students/{A}/student-number'],
         ['POST', '/api/staff/students/{A}/documents'],
-        ['DELETE', '/api/staff/students/{A}/documents/999999'],
         ['POST', '/api/staff/students/{A}/enrollments'],
         ['POST', '/api/staff/students/{A}/enrollments/add-next-term'],
         ['PUT', '/api/staff/students/{A}/enrollments/999999'],
@@ -84,7 +83,6 @@ class DataAccessMatrixTest extends TestCase
         ['POST', '/api/staff/students/{A}/grades'],
         ['PUT', '/api/staff/students/{A}/grades/bulk-update'],
         ['PUT', '/api/staff/students/{A}/grades/999999'],
-        ['DELETE', '/api/staff/students/{A}/grades/999999'],
         ['PATCH', '/api/staff/pending-profile-updates/{A.update}/approve'],
         ['PATCH', '/api/staff/pending-profile-updates/{A.update}/reject'],
         ['PATCH', '/api/staff/pending-profile-updates/{A.update}/return'],
@@ -127,7 +125,6 @@ class DataAccessMatrixTest extends TestCase
         ['GET', '/api/admin/settings'],
         ['POST', '/api/admin/users'],
         ['PUT', '/api/admin/users/999999'],
-        ['DELETE', '/api/admin/users/999999'],
         ['PUT', '/api/admin/settings'],
     ];
 

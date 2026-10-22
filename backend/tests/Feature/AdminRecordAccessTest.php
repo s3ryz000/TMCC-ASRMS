@@ -130,7 +130,6 @@ class AdminRecordAccessTest extends TestCase
             'delete enrollment' => ['DELETE', '/enrollments/1', []],
             'add grade'         => ['POST', '/grades', []],
             'update grade'      => ['PUT', '/grades/1', []],
-            'delete grade'      => ['DELETE', '/grades/1', []],
             'bulk grades'       => ['PUT', '/grades/bulk-update', []],
             'add next term'     => ['POST', '/enrollments/add-next-term', []],
         ];

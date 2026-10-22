@@ -263,39 +263,18 @@ class StaffDocumentUploadTest extends TestCase
 
     // --------------------------------------------------------------- deleting
 
-    public function test_registrar_can_delete_a_document(): void
+    /** Attached documents are part of the record and are never deleted (#103). */
+    public function test_nobody_can_delete_a_document(): void
     {
         $document = $this->seedDocument();
-        Sanctum::actingAs($this->staff, ['*']);
 
-        $this->deleteJson($this->documentsUrl(null, "/{$document->id}"))->assertOk();
-
-        $this->assertModelMissing($document);
-        Storage::disk('local')->assertMissing($document->file_path);
-        $this->assertStringContainsString(
-            'Deleted Birth Certificate for 2026-0042',
-            SystemLog::latest('log_id')->first()->action
-        );
-    }
-
-    public function test_admin_cannot_delete_a_document(): void
-    {
-        $document = $this->seedDocument();
-        Sanctum::actingAs($this->admin, ['*']);
-
-        $this->deleteJson($this->documentsUrl(null, "/{$document->id}"))->assertForbidden();
+        foreach ([$this->staff, $this->admin] as $user) {
+            Sanctum::actingAs($user, ['*']);
+            $status = $this->deleteJson($this->documentsUrl(null, "/{$document->id}"))->status();
+            $this->assertContains($status, [404, 405]);
+        }
 
         $this->assertModelExists($document);
         Storage::disk('local')->assertExists($document->file_path);
-    }
-
-    public function test_document_cannot_be_deleted_through_another_students_record(): void
-    {
-        $document = $this->seedDocument($this->otherRecord);
-        Sanctum::actingAs($this->staff, ['*']);
-
-        $this->deleteJson($this->documentsUrl($this->record, "/{$document->id}"))->assertNotFound();
-
-        $this->assertModelExists($document);
     }
 }

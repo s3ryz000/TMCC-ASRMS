@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Digital forms and files attached to a student record (§3.9.2).
  *
- * Uploading and deleting are record-keeping, so they are registrar staff only.
+ * Uploading is record-keeping, so it is registrar staff only; documents are
+ * never deleted (TMCC IT, 21 Oct 2026, #103).
  * Listing and downloading are reads, which admins keep for oversight, matching
  * the rest of the student-record endpoints.
  */
@@ -114,40 +115,6 @@ class StudentDocumentController extends Controller
         }
 
         return Storage::disk('local')->download($document->file_path, $document->original_name);
-    }
-
-    /**
-     * Remove a document from a student record, e.g. one uploaded in error.
-     */
-    public function destroy(Request $request, int $id, int $documentId): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        $user = $request->user();
-        if ($err = $this->requireRoles($user, ['staff'])) {
-            return $err;
-        }
-
-        $document = $this->findForStudent($id, $documentId);
-        if (!$document) {
-            return response()->json(['message' => 'Document not found.'], 404);
-        }
-
-        $student = $document->student;
-
-        // Row first: if the file delete then fails we leave an orphaned file,
-        // not a listed document whose download 404s.
-        $document->delete();
-        Storage::disk('local')->delete($document->file_path);
-
-        SystemLog::create([
-            'action' => "Deleted {$document->document_type} for {$student->student_number} ({$student->first_name} {$student->last_name}): {$document->original_name}",
-            'user_id' => $user->id,
-            'role' => $this->userRole($user) ?? 'staff',
-        ]);
-
-        return response()->json(['message' => 'Document deleted successfully.']);
     }
 
     /**

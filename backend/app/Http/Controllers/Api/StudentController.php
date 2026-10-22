@@ -969,38 +969,6 @@ class StudentController extends Controller
         return response()->json(['message' => 'Grade updated.', 'grade' => $grade]);
     }
 
-    /**
-     * Delete a grade (staff/admin).
-     */
-    public function destroyGrade(Request $request, int $id, int $gradeId): JsonResponse
-    {
-        if ($err = $this->requireAuth()) {
-            return $err;
-        }
-        if ($err = $this->requireRoles($request->user(), ['staff'])) {
-            return $err;
-        }
-        $grade = Grade::where('student_id', $id)->where('id', $gradeId)->first();
-        if (! $grade) {
-            return response()->json(['message' => 'Grade not found.'], 404);
-        }
-        $grade->delete();
-
-        // Recalculate GWA
-        $student = Student::find($id);
-        if ($student) {
-            $standingService = app(\App\Services\AcademicStandingService::class);
-            $standingService->recomputeAndCacheOverallGwa($student);
-        }
-
-        SystemLog::create([
-            'action' => 'Grade removed',
-            'user_id' => $request->user()->id,
-            'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
-        ]);
-        return response()->json(['message' => 'Grade removed.']);
-    }
-
     /*
      *  Archive a student
     */

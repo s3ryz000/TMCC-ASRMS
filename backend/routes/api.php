@@ -98,9 +98,7 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::delete('/students/{id}/enrollments/{enrollmentId}', [StudentController::class, 'destroyEnrollment']);
     Route::post('/students/{id}/grades', [StudentController::class, 'storeGrade']);
     Route::put('/students/{id}/grades/{gradeId}', [StudentController::class, 'updateGrade']);
-    Route::delete('/students/{id}/grades/{gradeId}', [StudentController::class, 'destroyGrade']);
     Route::post('/students/{id}/documents', [StudentDocumentController::class, 'store']);
-    Route::delete('/students/{id}/documents/{documentId}', [StudentDocumentController::class, 'destroy']);
 
     // Subject and program catalogue (§3.9.2)
     Route::post('/subjects', [SubjectController::class, 'store']);
@@ -163,13 +161,14 @@ Route::middleware(['auth:sanctum', 'role:staff,admin'])->prefix('staff')->group(
     Route::get('/my-activity', MyActivityController::class);
 });
 
-// ---- Admin only: Users CRUD ----
+// ---- Admin only: Users ----
+// No delete: accounts are deactivated, never removed, so the record and the
+// audit trail stay whole (TMCC IT, 21 Oct 2026, #103).
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::get('/logs', [SystemLogController::class, 'index']);
     Route::get('/logs/export-pdf', [SystemLogController::class, 'exportPdf']);
     Route::get('/logs/users', [SystemLogController::class, 'users']);

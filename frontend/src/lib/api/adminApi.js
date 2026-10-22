@@ -26,11 +26,6 @@ export const adminApi = {
     return data;
   },
 
-  deleteUser: async (id) => {
-    const { data } = await apiClient.delete(`/admin/users/${id}`);
-    return data;
-  },
-
   // ---- System settings ----
   getSettings: async () => {
     const { data } = await apiClient.get('/admin/settings');

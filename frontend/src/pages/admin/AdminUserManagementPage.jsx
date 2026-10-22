@@ -5,7 +5,6 @@ import {
   FiSearch,
   FiEye,
   FiEdit2,
-  FiTrash2,
   FiChevronUp,
   FiChevronDown,
   FiChevronLeft,
@@ -14,10 +13,7 @@ import {
 import CreateUserModal from '../../components/admin/CreateUserModal';
 import EditUserModal from '../../components/admin/EditUserModal';
 import ViewUserModal from '../../components/admin/ViewUserModal';
-import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import { adminToast } from '../../lib/notifications';
 import { parseApiError } from '../../lib/api/errors';
-import { adminApi } from '../../lib/api/adminApi';
 import { queryKeys } from '../../lib/react-query/queryKeys';
 import { useAdminUsersListQuery } from '../../hooks/useAdminUsersListQuery';
 import {
@@ -40,8 +36,6 @@ const AdminUserManagementPage = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [viewUser, setViewUser] = useState(null);
-  const [deleteUser, setDeleteUser] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), ADMIN_USERS_SEARCH_DEBOUNCE_MS);
@@ -122,22 +116,6 @@ const AdminUserManagementPage = () => {
 
   const goPrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
   const goNext = useCallback(() => setPage((p) => Math.min(lastPage, p + 1)), [lastPage]);
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteUser) return;
-    setDeleteLoading(true);
-    try {
-      await adminApi.deleteUser(deleteUser.id);
-      setDeleteUser(null);
-      adminToast.warning('User deleted', `${deleteUser.name} has been removed from the system.`);
-      await invalidateUsers();
-    } catch (err) {
-      const { message } = parseApiError(err);
-      adminToast.error('Delete failed', message);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
 
   const roleBadge = (role) => {
     const c =
@@ -266,14 +244,6 @@ const AdminUserManagementPage = () => {
                         >
                           <FiEdit2 /> Edit
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteUser(u)}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm bg-staff-red text-white hover:opacity-90"
-                          aria-label={`Delete ${u.name}`}
-                        >
-                          <FiTrash2 /> Delete
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -336,17 +306,6 @@ const AdminUserManagementPage = () => {
           setViewUser(null);
           setEditUser(u);
         }}
-      />
-      <ConfirmDialog
-        isOpen={!!deleteUser}
-        onClose={() => !deleteLoading && setDeleteUser(null)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete user"
-        message={deleteUser ? `Permanently delete ${deleteUser.name}? This action cannot be undone.` : ''}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        loading={deleteLoading}
       />
     </>
   );
