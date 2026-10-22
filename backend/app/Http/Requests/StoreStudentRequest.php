@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ContactRules;
 use App\Support\StudentNumber;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,6 +21,10 @@ class StoreStudentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        if ($this->has('contact_number')) {
+            $this->merge(['contact_number' => ContactRules::normalizeMobile($this->input('contact_number'))]);
+        }
+
         $number = $this->input('student_number');
         if (! is_string($number)) {
             return;
@@ -48,8 +53,8 @@ class StoreStudentRequest extends FormRequest
             'middle_name' => ['nullable', 'string', 'max:50'],
             'last_name' => ['required', 'string', 'max:50'],
             'date_of_birth' => ['required', 'date', 'before:today'],
-            'email' => ['required', 'string', 'email', 'max:100', 'unique:students,email', 'unique:users,email'],
-            'contact_number' => ['nullable', 'string', 'max:15'],
+            'email' => ['required', 'string', ContactRules::EMAIL, 'max:100', 'unique:students,email', 'unique:users,email'],
+            'contact_number' => ContactRules::mobile(),
             'address' => ['nullable', 'string', 'max:150'],
             'place_of_birth' => ['nullable', 'string', 'max:120'],
             'sex' => ['required', 'string', 'in:M,F'],
@@ -76,6 +81,8 @@ class StoreStudentRequest extends FormRequest
         return [
             'student_number.regex' => StudentNumber::FORMAT_MESSAGE,
             'email.unique' => 'This email is already registered.',
+            'email.email' => ContactRules::EMAIL_MESSAGE,
+            'contact_number.regex' => ContactRules::MOBILE_MESSAGE,
         ];
     }
 

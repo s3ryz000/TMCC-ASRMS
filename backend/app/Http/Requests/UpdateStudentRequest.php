@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ContactRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,6 +16,13 @@ class UpdateStudentRequest extends FormRequest
     /**
      * Rules aligned with students table schema. Unique rules ignore current student.
      */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('contact_number')) {
+            $this->merge(['contact_number' => ContactRules::normalizeMobile($this->input('contact_number'))]);
+        }
+    }
+
     public function rules(): array
     {
         $studentId = $this->route('id');
@@ -41,12 +49,12 @@ class UpdateStudentRequest extends FormRequest
             'email' => [
                 'required',
                 'string',
-                'email',
+                ContactRules::EMAIL,
                 'max:100',
                 Rule::unique('students', 'email')->ignore($studentId, 'student_id'),
                 Rule::unique('users', 'email')->ignore($userId),
             ],
-            'contact_number' => ['nullable', 'string', 'max:15'],
+            'contact_number' => ContactRules::mobile(),
             'address' => ['nullable', 'string', 'max:150'],
             'place_of_birth' => ['nullable', 'string', 'max:120'],
             'sex' => ['nullable', 'string', 'in:M,F'],
@@ -68,6 +76,8 @@ class UpdateStudentRequest extends FormRequest
     {
         return [
             'email.unique' => 'This email is already registered.',
+            'email.email' => ContactRules::EMAIL_MESSAGE,
+            'contact_number.regex' => ContactRules::MOBILE_MESSAGE,
         ];
     }
 }

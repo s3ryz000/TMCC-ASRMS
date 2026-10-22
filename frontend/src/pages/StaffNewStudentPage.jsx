@@ -8,6 +8,7 @@ import { staffApi } from "../lib/api/staffApi";
 import { parseApiError } from "../lib/api/errors";
 import { queryKeys } from "../lib/react-query/queryKeys";
 import { localDateString } from "../lib/tools";
+import { emailProblem, mobileProblem } from "../lib/contactRules";
 import StudentNumberField from "../components/staff/StudentNumberField";
 import StudentNumberConflictCard from "../components/staff/StudentNumberConflictCard";
 import { composeStudentNumber, isCompletePart, partOf, yearPrefix } from "../features/students/studentNumber";
@@ -136,8 +137,8 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     }
     if (phase === 2) {
       if (!form.email?.trim()) err.email = "Email is required.";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-        err.email = "Enter a valid email.";
+      else if (emailProblem(form.email)) err.email = emailProblem(form.email);
+      if (mobileProblem(form.contact_number)) err.contact_number = mobileProblem(form.contact_number);
     }
     if (phase === 3) {
       if (!form.program_id) err.program_id = "Program is required.";
@@ -165,8 +166,8 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
     if (!form.sex) err.sex = "Sex is required.";
     if (!form.email?.trim()) err.email = "Email is required.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      err.email = "Enter a valid email.";
+    else if (emailProblem(form.email)) err.email = emailProblem(form.email);
+    if (mobileProblem(form.contact_number)) err.contact_number = mobileProblem(form.contact_number);
     if (!form.program_id) err.program_id = "Program is required.";
     if (!form.enrollment_date) {
       err.enrollment_date = "Enrollment date is required.";
@@ -566,10 +567,16 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                       type="tel"
                       value={form.contact_number}
                       onChange={handleChange}
-                      placeholder="09XXXXXXXXX"
-                      maxLength={15}
-                      className={`${inputBase} ${inputNormal}`}
+                      placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+                      maxLength={17}
+                      className={`${inputBase} ${errors.contact_number ? inputError : inputNormal}`}
+                      aria-invalid={!!errors.contact_number}
                     />
+                    {errors.contact_number && (
+                      <span className="text-xs text-red-600">
+                        {errors.contact_number}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">

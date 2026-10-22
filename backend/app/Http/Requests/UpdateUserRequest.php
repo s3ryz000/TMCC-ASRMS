@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\User;
 use App\Rules\StrongPassword;
+use App\Support\ContactRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +21,7 @@ class UpdateUserRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'email' => ['required', 'string', ContactRules::EMAIL, 'max:255', Rule::unique('users', 'email')->ignore($userId)],
             'role' => ['required', 'string', 'in:student,staff,admin'],
             'department' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
@@ -37,6 +38,13 @@ class UpdateUserRequest extends FormRequest
                     is_string($this->input('email')) ? $this->input('email') : null,
                 ),
             ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'email.email' => ContactRules::EMAIL_MESSAGE,
         ];
     }
 }

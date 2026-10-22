@@ -6,6 +6,7 @@ import { staffApi } from "../../lib/api/staffApi";
 import { staffToast } from "../../lib/notifications";
 import { parseApiError } from "../../lib/api/errors";
 import { localDateString, toDateInputValue } from "../../lib/tools";
+import { emailProblem, mobileProblem } from "../../lib/contactRules";
 import { queryKeys } from "../../lib/react-query/queryKeys";
 import ChangeStudentNumberDialog from "../../components/staff/ChangeStudentNumberDialog";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
@@ -135,8 +136,8 @@ const StaffEditStudentInformationPage = () => {
     if (!form.date_of_birth) err.date_of_birth = "Date of birth is required.";
     if (!form.sex) err.sex = "Sex is required.";
     if (!form.email?.trim()) err.email = "Email is required.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      err.email = "Enter a valid email.";
+    else if (emailProblem(form.email)) err.email = emailProblem(form.email);
+    if (mobileProblem(form.contact_number)) err.contact_number = mobileProblem(form.contact_number);
     if (!form.enrollment_date) {
       err.enrollment_date = "Enrollment date is required.";
     } else {
@@ -418,10 +419,16 @@ const StaffEditStudentInformationPage = () => {
                   type="tel"
                   value={form.contact_number}
                   onChange={handleChange}
-                  placeholder="09XXXXXXXXX"
-                  maxLength={15}
-                  className={`${inputBase} ${inputNormal}`}
+                  placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+                  maxLength={17}
+                  className={`${inputBase} ${errors.contact_number ? inputError : inputNormal}`}
+                  aria-invalid={!!errors.contact_number}
                 />
+                {errors.contact_number && (
+                  <span className="text-xs text-red-600">
+                    {errors.contact_number}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex flex-col gap-1.5">

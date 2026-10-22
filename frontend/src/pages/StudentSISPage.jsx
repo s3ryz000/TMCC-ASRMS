@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { studentApi } from '../lib/api/studentApi';
 import { queryKeys } from '../lib/react-query/queryKeys';
+import { mobileProblem } from '../lib/contactRules';
 import ProfileUpdateStatusBadge from '../components/ProfileUpdateStatusBadge';
 
 const CITIZENSHIP_OPTIONS = [
@@ -99,6 +100,11 @@ const StudentSISPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const contactProblem = mobileProblem(form.contact_number);
+    if (contactProblem) {
+      setSaveStatus({ type: 'error', message: contactProblem });
+      return;
+    }
     setSaving(true);
     setSaveStatus(null);
     try {
@@ -347,9 +353,10 @@ const StudentSISPage = () => {
               <label className="block text-sm font-semibold mb-1">Contact Number</label>
               <input
                 name="contact_number"
-                type="text"
+                type="tel"
                 value={form.contact_number}
                 onChange={onChange}
+                placeholder="09XXXXXXXXX"
                 className="w-full rounded-md border border-gray-300 px-3 py-2"
               />
             </div>

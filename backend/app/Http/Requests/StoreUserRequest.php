@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\StrongPassword;
+use App\Support\ContactRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreUserRequest extends FormRequest
@@ -17,7 +18,7 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', 'unique:users,username'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'string', ContactRules::EMAIL, 'max:255', 'unique:users,email'],
             'password' => [
                 'required', 'string', 'confirmed',
                 new StrongPassword($this->stringInput('username'), $this->stringInput('email')),
@@ -40,6 +41,7 @@ class StoreUserRequest extends FormRequest
         return [
             'username.unique' => 'This username is already taken.',
             'email.unique' => 'This email is already registered.',
+            'email.email' => ContactRules::EMAIL_MESSAGE,
         ];
     }
 }

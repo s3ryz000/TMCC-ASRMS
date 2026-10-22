@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ContactRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateStudentSisRequest extends FormRequest
@@ -11,11 +12,17 @@ class UpdateStudentSisRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('contact_number')) {
+            $this->merge(['contact_number' => ContactRules::normalizeMobile($this->input('contact_number'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
-           
-            'contact_number' => ['nullable', 'string', 'max:15'],
+            'contact_number' => ContactRules::mobile(),
             'address' => ['nullable', 'string', 'max:150'],
             'place_of_birth' => ['nullable', 'string', 'max:120'],
             'sex' => ['nullable', 'string', 'in:M,F'],
@@ -35,6 +42,13 @@ class UpdateStudentSisRequest extends FormRequest
                 'mimes:png,jpg,jpeg,pdf,docx',
                 'max:5120', // 5 MB max
             ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'contact_number.regex' => ContactRules::MOBILE_MESSAGE,
         ];
     }
 }
