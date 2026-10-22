@@ -27,6 +27,8 @@ class RoleSeeder extends Seeder
         Permission::firstOrCreate(['name' => 'create-user']);
         Permission::firstOrCreate(['name' => 'edit-user']);
         Permission::firstOrCreate(['name' => 'delete-user']);
+        // Grade double approval (#107). Same guard as the roles and User::$guard_name.
+        Permission::firstOrCreate(['name' => 'approve-grades', 'guard_name' => 'api']);
         echo "Permissions created successfully\n";
     }
 }

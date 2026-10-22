@@ -57,7 +57,8 @@ class GradeEndpointsTest extends TestCase
     public function test_a_grade_cannot_be_deleted(): void
     {
         $grade = $this->enrolledGrade();
-        $this->putJson($this->gradeUrl($grade), ["grade_value" => 2.00])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ["grade_value" => 2.00])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
 
         $this->deleteJson($this->gradeUrl($grade))->assertStatus(405);
 
@@ -69,13 +70,14 @@ class GradeEndpointsTest extends TestCase
     public function test_correcting_the_value_re_derives_the_status(): void
     {
         $grade = $this->enrolledGrade();
-        $this->putJson($this->gradeUrl($grade), ['grade_value' => 5.00])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ['grade_value' => 5.00])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
         $this->assertSame('Failed', $grade->fresh()->status);
 
-        $this->putJson($this->gradeUrl($grade), ['grade_value' => 2.00])
-            ->assertOk()
-            ->assertJsonPath('grade.status', 'Passed')
-            ->assertJsonPath('grade.remarks', 'Passed');
+        $this->putJson($this->gradeUrl($grade), ['grade_value' => 2.00])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
+        $this->assertSame('Passed', $grade->fresh()->status);
+        $this->assertSame('Passed', $grade->fresh()->remarks);
 
         $this->assertContains($this->subjects['A']->id, app(AcademicRecordQuery::class)->passedSubjectIds($this->student));
     }
@@ -84,16 +86,17 @@ class GradeEndpointsTest extends TestCase
     {
         $grade = $this->enrolledGrade();
 
-        $this->putJson($this->gradeUrl($grade), ['status' => 'INC'])
-            ->assertOk()
-            ->assertJsonPath('grade.status', 'INC');
+        $this->putJson($this->gradeUrl($grade), ['status' => 'INC'])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
+        $this->assertSame('INC', $grade->fresh()->status);
     }
 
     public function test_the_enrollment_status_follows_the_grade(): void
     {
         $grade = $this->enrolledGrade();
 
-        $this->putJson($this->gradeUrl($grade), ['grade_value' => 5.00])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ['grade_value' => 5.00])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
 
         $this->assertSame('Failed', Enrollment::findOrFail($grade->enrollment_id)->status);
     }
@@ -101,9 +104,11 @@ class GradeEndpointsTest extends TestCase
     public function test_the_audit_row_records_the_previous_status(): void
     {
         $grade = $this->enrolledGrade();
-        $this->putJson($this->gradeUrl($grade), ['status' => 'INC'])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ['status' => 'INC'])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
 
-        $this->putJson($this->gradeUrl($grade), ['grade_value' => 2.00])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ['grade_value' => 2.00])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
 
         $audit = EnrollmentAuditLog::where('subject_id', $this->subjects['A']->id)->latest('id')->firstOrFail();
         $this->assertSame('INC', $audit->old_status);
@@ -124,9 +129,9 @@ class GradeEndpointsTest extends TestCase
         $this->assertSame('Enrolled', $grade->status);
         $this->assertSame('2026-2027', $grade->academic_year);
 
-        $this->putJson($this->gradeUrl($grade), ['status' => 'Credited', 'supporting_document_reference' => 'TOR-OLD-SCHOOL'])
-            ->assertOk()
-            ->assertJsonPath('grade.status', 'Credited');
+        $this->putJson($this->gradeUrl($grade), ['status' => 'Credited', 'supporting_document_reference' => 'TOR-OLD-SCHOOL'])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
+        $this->assertSame('Credited', $grade->fresh()->status);
     }
 
     public function test_unknown_status_is_rejected(): void
@@ -141,7 +146,8 @@ class GradeEndpointsTest extends TestCase
     public function test_a_term_only_change_leaves_the_grade_alone(): void
     {
         $grade = $this->enrolledGrade();
-        $this->putJson($this->gradeUrl($grade), ['grade_value' => 1.50])->assertOk();
+        $this->putJson($this->gradeUrl($grade), ['grade_value' => 1.50])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
 
         $this->putJson($this->gradeUrl($grade), ['semester' => '2'])->assertOk();
 
@@ -166,14 +172,16 @@ class GradeEndpointsTest extends TestCase
     {
         $this->enrollmentWithoutGrade('B');
 
-        $this->postJson($this->gradeUrl(), [
+        $id = $this->postJson($this->gradeUrl(), [
             'subject_id'    => $this->subjects['B']->id,
             'academic_year' => '2026-2027',
             'semester'      => '1',
             'grade_value'   => 1.75,
-        ])->assertCreated()
-            ->assertJsonPath('grade.status', 'Passed')
-            ->assertJsonPath('grade.remarks', 'Passed');
+        ])->assertCreated()->json('grade.id');
+        $this->approvePendingGrades()->assertOk();
+
+        $this->assertSame('Passed', Grade::findOrFail($id)->status);
+        $this->assertSame('Passed', Grade::findOrFail($id)->remarks);
     }
 
     public function test_a_grade_needs_an_enrollment_for_that_subject_and_term(): void

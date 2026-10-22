@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\CurriculumController;
 use App\Http\Controllers\Api\CurriculumEntryController;
+use App\Http\Controllers\Api\GradeSubmissionController;
 use App\Http\Controllers\Api\MyActivityController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\StudentController;
@@ -43,7 +44,7 @@ Route::get('/user', function (Request $request) {
     if (! $user) {
         return response()->json(['message' => 'Unauthenticated.'], 401);
     }
-    return response()->json($user->load('roles'));
+    return response()->json($user->load('roles')->append('can_approve_grades'));
 })->middleware('auth:sanctum');
 
 // ---- Dashboard (role-based data; all authenticated) ----
@@ -99,6 +100,14 @@ Route::middleware(['auth:sanctum', 'role:staff'])->prefix('staff')->group(functi
     Route::post('/students/{id}/grades', [StudentController::class, 'storeGrade']);
     Route::put('/students/{id}/grades/{gradeId}', [StudentController::class, 'updateGrade']);
     Route::post('/students/{id}/documents', [StudentDocumentController::class, 'store']);
+
+    // Grade double approval (#107): approvers also need the approve-grades
+    // permission (checked in the controller); the encoder may cancel.
+    Route::get('/grade-submissions', [GradeSubmissionController::class, 'index']);
+    Route::get('/grade-submissions/{id}', [GradeSubmissionController::class, 'show']);
+    Route::patch('/grade-submissions/{id}/approve', [GradeSubmissionController::class, 'approve']);
+    Route::patch('/grade-submissions/{id}/return', [GradeSubmissionController::class, 'returnToEncoder']);
+    Route::patch('/grade-submissions/{id}/cancel', [GradeSubmissionController::class, 'cancel']);
 
     // Subject and program catalogue (§3.9.2)
     Route::post('/subjects', [SubjectController::class, 'store']);

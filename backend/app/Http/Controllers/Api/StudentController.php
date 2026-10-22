@@ -12,6 +12,8 @@ use App\Models\Curriculum;
 use App\Services\OfficialTranscriptExportService;
 use App\Services\AcademicProgressionService;
 use App\Services\CurriculumTotals;
+use App\Services\GradeChangeService;
+use App\Services\GradeSubmissionService;
 use App\Services\Enrollment\EnrollmentPolicy;
 use App\Services\Enrollment\EnrollmentService;
 use App\Services\Enrollment\EnrollmentTerm;
@@ -754,6 +756,13 @@ class StudentController extends Controller
             ], 422);
         }
 
+        // A grade waiting for approval (#107) must be decided first.
+        if ($grade && app(GradeSubmissionService::class)->gradeIsPending($grade)) {
+            return response()->json([
+                'message' => 'A grade for this subject is waiting for approval. Cancel or decide that submission before cancelling the enrollment.',
+            ], 409);
+        }
+
         // No final grade — allow cancellation
         if (!$reason) {
             return response()->json([
@@ -871,32 +880,52 @@ class StudentController extends Controller
         if ($exists) {
             return response()->json(['message' => 'A grade already exists for this subject, academic year, and semester.', 'errors' => ['subject_id' => ['Duplicate grade.']]], 422);
         }
+        // The row is created without a result; a value or remarks sent with
+        // it wait for approval like grade entry (#107).
+        $proposed = array_intersect_key($validated, array_flip(['grade_value', 'remarks']));
+        $proposed = array_filter($proposed, fn ($v) => $v !== null && $v !== '');
+        $open = $proposed ? app(GradeSubmissionService::class)->pendingFor($student, $validated['academic_year'], $validated['semester']) : null;
+        if ($open && (int) $open->submitted_by !== (int) $request->user()->id) {
+            return response()->json(['message' => GradeSubmissionService::CONFLICT_MESSAGE], 409);
+        }
+
         // Every rule that reads grades keys off the status, so derive it here
         // the same way bulk grade entry does.
         $progression = app(AcademicProgressionService::class);
-        $gradeValue = $validated['grade_value'] ?? null;
-        $validated['status'] = $progression->autoStatusFromGrade($gradeValue, null);
-        $validated['remarks'] = $validated['remarks'] ?? $progression->autoGenerateRemarks($gradeValue, $validated['status']);
+        $validated['grade_value'] = null;
+        $validated['status'] = $progression->autoStatusFromGrade(null, null);
+        $validated['remarks'] = $progression->autoGenerateRemarks(null, $validated['status']);
         $grade = Grade::create($validated);
         $grade->load('subject');
-        
-        // Recalculate GWA
-        $student = Student::find($id);
-        if ($student) {
-            $standingService = app(\App\Services\AcademicStandingService::class);
-            $standingService->recomputeAndCacheOverallGwa($student);
-        }
 
         SystemLog::create([
             'action' => 'Grade added',
             'user_id' => $request->user()->id,
             'role' => $request->user()->roles->first()?->name ?? $request->user()->role ?? null,
         ]);
+
+        if ($proposed) {
+            $submitted = $this->submitForApproval($student, [['grade_id' => $grade->id] + $proposed], $request->user(), ['grade' => $grade]);
+            if ($submitted->getStatusCode() === 202) {
+                $body = $submitted->getData(true);
+                $body['message'] = 'Grade added. Its value is waiting for approval.';
+
+                return response()->json($body, 201);
+            }
+
+            return $submitted;
+        }
+
         return response()->json(['message' => 'Grade added.', 'grade' => $grade], 201);
     }
 
     /**
-     * Update a grade (staff/admin).
+     * Update a grade (registrar staff). A change to the value, status or
+     * remarks is submitted for approval like grade entry (#107) and answers
+     * 202; the grade itself changes only when it is approved. Moving a grade
+     * to another term (academic_year / semester only) stays direct: it
+     * changes no result, so it does not need a second check, but it is
+     * refused while the grade is waiting for approval.
      */
     public function updateGrade(Request $request, int $id, int $gradeId): JsonResponse
     {
@@ -920,40 +949,41 @@ class StudentController extends Controller
         ]);
 
         $user = $request->user();
-        $role = $this->userRole($user);
         $changesGrade = array_intersect_key($validated, array_flip(['grade_value', 'status', 'remarks'])) !== [];
+        $termFields = array_intersect_key($validated, array_flip(['academic_year', 'semester']));
 
-        $error = DB::transaction(function () use ($grade, $validated, $user, $role, $changesGrade) {
-            // Grade change first: applyGradeChange refuses before writing
-            // anything, so a refused change leaves the term untouched too.
-            if ($changesGrade) {
-                // Unspecified fields keep their current values; a new grade
-                // value with no explicit status re-derives the status.
-                $error = $this->applyGradeChange($grade, [
-                    'grade_value' => array_key_exists('grade_value', $validated) ? $validated['grade_value'] : $grade->grade_value,
-                    'status' => $validated['status'] ?? (array_key_exists('grade_value', $validated) ? null : $grade->status),
-                    'remarks' => $validated['remarks'] ?? null,
-                    'supporting_document_reference' => $validated['supporting_document_reference'] ?? $grade->supporting_document_reference,
-                ], $user, $role);
+        if ($changesGrade) {
+            // Unspecified fields keep their current values; a new grade
+            // value with no explicit status re-derives the status.
+            $row = [
+                'grade_id' => $grade->id,
+                'grade_value' => array_key_exists('grade_value', $validated) ? $validated['grade_value'] : $grade->grade_value,
+                'status' => $validated['status'] ?? (array_key_exists('grade_value', $validated) ? null : $grade->status),
+                'remarks' => $validated['remarks'] ?? null,
+                'supporting_document_reference' => $validated['supporting_document_reference'] ?? $grade->supporting_document_reference,
+            ];
 
-                if ($error !== null) {
-                    return $error;
-                }
+            // Refused as a whole: a term change in the same request is not saved either.
+            if ($error = app(GradeChangeService::class)->problem($grade, $row)) {
+                return response()->json(['message' => $error, 'errors' => ['status' => [$error]]], 422);
             }
-
-            $termFields = array_intersect_key($validated, array_flip(['academic_year', 'semester']));
             if ($termFields !== []) {
-                $grade->update($termFields);
+                $message = 'Move the grade to another term and change its value in separate saves.';
+
+                return response()->json(['message' => $message, 'errors' => ['academic_year' => [$message]]], 422);
             }
 
-            return null;
-        });
+            return $this->submitForApproval($grade->student, [$row], $user, ['grade' => $grade->load('subject')]);
+        }
 
-        if ($error !== null) {
-            return response()->json(['message' => $error, 'errors' => ['status' => [$error]]], 422);
+        if ($termFields !== []) {
+            if (app(GradeSubmissionService::class)->gradeIsPending($grade)) {
+                return response()->json(['message' => 'This grade is waiting for approval. Its term can be changed once it is approved or returned.'], 409);
+            }
+            $grade->update($termFields);
         }
         $grade->refresh()->load('subject');
-        
+
         // Recalculate GWA
         $student = Student::find($id);
         if ($student) {
@@ -1076,7 +1106,7 @@ class StudentController extends Controller
         }
 
         $service = app(AcademicProgressionService::class);
-        $progress = $service->getAcademicProgress($student);
+        $progress = app(GradeSubmissionService::class)->withApprovalState($service->getAcademicProgress($student), $student);
 
         return response()->json($progress);
     }
@@ -1254,7 +1284,7 @@ class StudentController extends Controller
         ]);
 
         $student->refresh();
-        $progress = $service->getAcademicProgress($student);
+        $progress = app(GradeSubmissionService::class)->withApprovalState($service->getAcademicProgress($student), $student);
 
         return response()->json([
             'message'        => "{$total} subject(s) enrolled successfully for Year {$data['year_level']}, Semester {$data['semester']}, A.Y. {$data['academic_year']} ({$enrolledCount} new, {$retakeCount} retake).",
@@ -1264,10 +1294,11 @@ class StudentController extends Controller
         ], 201);
     }
 
-
     /**
      * PUT /api/staff/students/{id}/grades/bulk-update
-     * Bulk update grades for enrolled subjects.
+     * Grade entry (#107): the rows are checked without saving and, when all
+     * pass, wait in a pending submission (one per term) until a registrar
+     * with "approve-grades" approves them. Nothing in grades changes here.
      */
     public function bulkUpdateGrades(Request $request, int $id): JsonResponse
     {
@@ -1292,178 +1323,34 @@ class StudentController extends Controller
             'grades.*.supporting_document_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user = $request->user();
-        $role = $user->roles->first()?->name ?? $user->role ?? null;
-        $errors = [];
-        $updatedCount = 0;
-
-        DB::transaction(function () use ($validated, $student, $user, $role, &$errors, &$updatedCount) {
-            foreach ($validated['grades'] as $gradeData) {
-                $grade = Grade::where('id', $gradeData['grade_id'])
-                    ->where('student_id', $student->student_id)
-                    ->first();
-
-                if (!$grade) {
-                    $errors[] = "Grade #{$gradeData['grade_id']} not found for this student.";
-                    continue;
-                }
-
-                if ($error = $this->applyGradeChange($grade, $gradeData, $user, $role)) {
-                    $errors[] = $error;
-                    continue;
-                }
-
-                $updatedCount++;
-            }
-        });
-
-        if (!empty($errors) && $updatedCount === 0) {
-            return response()->json([
-                'message' => 'Grade update failed.',
-                'errors'  => ['validation' => $errors],
-            ], 422);
-        }
-        $studentName = trim($student->first_name . ' ' . $student->last_name);
-        $studentIdent = $student->student_number ? "{$student->student_number} ({$studentName})" : $studentName;
-
-        SystemLog::create([
-            'action'  => "Bulk updated {$updatedCount} grade(s) for student {$studentIdent}",
-            'user_id' => $user->id,
-            'role'    => $role,
-        ]);
-
-        try {
-            // Return updated progress
-            $student->refresh();
-            
-            // Recalculate GWA
-            $standingService = app(\App\Services\AcademicStandingService::class);
-            $standingService->recomputeAndCacheOverallGwa($student);
-
-            $service = app(AcademicProgressionService::class);
-            $progress = $service->getAcademicProgress($student);
-
-            return response()->json([
-                'message'       => "{$updatedCount} grade(s) updated successfully.",
-                'updated_count' => $updatedCount,
-                'errors'        => $errors,
-                'progress'      => $progress,
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('bulkUpdateGrades failed: ' . SafeLog::describe($e), SafeLog::context($e));
-            return response()->json([
-                'message' => 'Exception after saving grades: ' . $e->getMessage()
-            ], 500);
-        }
+        return $this->submitForApproval($student, $validated['grades'], $request->user());
     }
 
     /**
-     * Apply one grade change the way every grade-writing endpoint must: derive
-     * the status and remarks from the grade value, refuse Credited without a
-     * supporting document, keep the enrollment row in step, and write the
-     * audit trail. Callers own the surrounding transaction.
-     *
-     * @param array{grade_value?: mixed, status?: ?string, remarks?: ?string, supporting_document_reference?: ?string} $data
-     * @return string|null An error message, or null once the change is saved.
+     * Puts grade rows into a pending submission and answers 202, or 422 with
+     * every refused row (nothing created), or 409 when another user's
+     * submission for the term is still waiting.
      */
-    private function applyGradeChange(Grade $grade, array $data, User $user, ?string $role): ?string
+    private function submitForApproval(Student $student, array $rows, User $user, array $extra = []): JsonResponse
     {
-        $service = app(AcademicProgressionService::class);
+        $result = app(GradeSubmissionService::class)->submit($student, $rows, $user);
 
-        $gradeValue = isset($data['grade_value']) && $data['grade_value'] !== ''
-            ? round((float) $data['grade_value'], 2)
-            : null;
-
-        $newStatus = $service->autoStatusFromGrade($gradeValue, $data['status'] ?? null);
-
-        $remarks = !empty($data['remarks'])
-            ? $data['remarks']
-            : $service->autoGenerateRemarks($gradeValue, $newStatus);
-
-        if ($newStatus === AcademicStatus::CREDITED && empty($data['supporting_document_reference'])) {
-            return "Grade #{$grade->id}: Credited status requires a supporting document reference.";
+        if ($result['errors']) {
+            return response()->json([
+                'message' => 'Grade update failed.',
+                'errors'  => ['validation' => $result['errors']],
+            ], 422);
+        }
+        if ($result['conflict']) {
+            return response()->json(['message' => $result['conflict']], 409);
         }
 
-        // Captured before the update: once saved, Eloquent re-syncs the
-        // "original" attributes, so reading them afterwards returns the new
-        // values and every audit row would show old status = new status.
-        $oldStatus = $grade->status;
-        $oldValue = json_encode([
-            'grade_value' => $grade->grade_value,
-            'status'      => $grade->status,
-            'remarks'     => $grade->remarks,
-        ]);
+        $count = count($rows);
 
-        // TMCC: a 4.0 (Conditional) can only become 3.0 or 5.0 (#104).
-        if ($oldStatus === AcademicStatus::CONDITIONAL && $newStatus !== AcademicStatus::CONDITIONAL) {
-            $resolved = ($newStatus === AcademicStatus::PASSED && $gradeValue !== null && abs($gradeValue - 3.00) < 0.001)
-                || ($newStatus === AcademicStatus::FAILED && $gradeValue !== null && abs($gradeValue - 5.00) < 0.001);
-            if (! $resolved) {
-                return "Grade #{$grade->id}: a Conditional (4.0) grade can only be resolved to 3.00 (Passed) or 5.00 (Failed).";
-            }
-        }
-
-        $convertedFrom = null;
-        $convertedAt = null;
-        if ($oldStatus === AcademicStatus::INC && $newStatus === AcademicStatus::PASSED) {
-            $convertedFrom = AcademicStatus::INC;
-            $convertedAt = now();
-        } elseif ($oldStatus === AcademicStatus::CONDITIONAL && $newStatus !== AcademicStatus::CONDITIONAL) {
-            $convertedFrom = AcademicStatus::CONDITIONAL;
-            $convertedAt = now();
-        }
-
-        $grade->update([
-            'grade_value'                   => $gradeValue,
-            'status'                        => $newStatus,
-            'remarks'                       => $remarks,
-            'supporting_document_reference' => $data['supporting_document_reference'] ?? $grade->supporting_document_reference,
-            'converted_from_status'         => $convertedFrom ?? $grade->converted_from_status,
-            'converted_at'                  => $convertedAt ?? $grade->converted_at,
-        ]);
-
-        if ($grade->enrollment_id) {
-            Enrollment::where('id', $grade->enrollment_id)->update(['status' => $newStatus]);
-        } else {
-            Enrollment::where('student_id', $grade->student_id)
-                ->where('subject_id', $grade->subject_id)
-                ->where('academic_year', $grade->academic_year)
-                ->where('semester', $grade->semester)
-                ->whereNull('deleted_at')
-                ->update(['status' => $newStatus]);
-        }
-
-        $action = 'grade_updated';
-        if ($convertedFrom === AcademicStatus::INC) {
-            $action = 'inc_to_passed';
-        } elseif ($convertedFrom === AcademicStatus::CONDITIONAL) {
-            $action = 'conditional_resolved';
-        } elseif ($newStatus === AcademicStatus::CREDITED) {
-            $action = 'marked_credited';
-        }
-
-        EnrollmentAuditLog::create([
-            'student_id'                    => $grade->student_id,
-            'enrollment_id'                 => $grade->enrollment_id ?? 0,
-            'subject_id'                    => $grade->subject_id,
-            'academic_year'                 => $grade->academic_year,
-            'semester'                      => $grade->semester,
-            'old_status'                    => $oldStatus,
-            'new_status'                    => $newStatus,
-            'changed_by'                    => $user->id,
-            'action'                        => $action,
-            'reason'                        => null,
-            'had_grade'                     => true,
-            'old_value'                     => $oldValue,
-            'new_value'                     => json_encode([
-                'grade_value' => $gradeValue,
-                'status'      => $newStatus,
-                'remarks'     => $remarks,
-            ]),
-            'supporting_document_reference' => $data['supporting_document_reference'] ?? null,
-            'user_role'                     => $role,
-        ]);
-
-        return null;
+        return response()->json(array_merge([
+            'message'     => "{$count} grade(s) submitted for approval.",
+            'submission'  => $result['submissions'][0] ?? null,
+            'submissions' => $result['submissions'],
+        ], $extra), 202);
     }
 }

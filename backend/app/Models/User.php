@@ -57,6 +57,21 @@ class User extends Authenticatable
         ];
     }
 
+    /** The spatie permission that lets registrar staff approve encoded grades (#107). */
+    public const APPROVE_GRADES = 'approve-grades';
+
+    /**
+     * Whether this account may approve grade submissions (#107): staff only.
+     * Appended to the user JSON on login, /api/user and the admin user screens.
+     */
+    public function getCanApproveGradesAttribute(): bool
+    {
+        $role = $this->roles->first()?->name ?? $this->role;
+
+        // checkPermissionTo is false (not an exception) before the permission exists.
+        return $role === 'staff' && $this->checkPermissionTo(self::APPROVE_GRADES, 'api');
+    }
+
     public function student(): HasOne
     {
         return $this->hasOne(\App\Models\Student::class);

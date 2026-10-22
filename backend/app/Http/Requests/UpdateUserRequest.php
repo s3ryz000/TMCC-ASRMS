@@ -25,6 +25,8 @@ class UpdateUserRequest extends FormRequest
             'role' => ['required', 'string', 'in:student,staff,admin'],
             'department' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
+            // Grade double approval (#107): staff accounts only (checked in the controller).
+            'can_approve_grades' => ['sometimes', 'boolean'],
 
             // Optional administrative password reset. The system is deployed on
             // an isolated LAN with no mail server, so a self-service "forgot

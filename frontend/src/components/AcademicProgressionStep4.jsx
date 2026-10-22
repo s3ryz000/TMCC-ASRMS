@@ -3,9 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiPlus, FiSave, FiAlertCircle, FiTrash2, FiClock, FiCheckCircle, FiAlertTriangle, FiXCircle, FiInfo } from 'react-icons/fi';
 
 import { staffApi } from '../lib/api/staffApi';
+import { parseApiError } from '../lib/api/errors';
 import { staffToast } from '../lib/notifications';
 import { queryKeys } from '../lib/react-query/queryKeys';
 import { prerequisiteNote } from '../features/enrollment/prerequisites';
+import { useAuth } from '../contexts/AuthContext';
+
+const formatDate = (value) => (value ? new Date(value).toLocaleString() : '');
 
 const NOTE_TONE = {
   blocked: 'text-red-600 font-medium',
@@ -24,6 +28,7 @@ export default function AcademicProgressionStep4({
   inputError,
 }) {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   // Fetch Academic Progress
   const { data: progress, isLoading, error } = useQuery({
@@ -53,7 +58,7 @@ export default function AcademicProgressionStep4({
       staffToast.success('Enrollments added successfully.');
       queryClient.invalidateQueries({ queryKey: ['academicProgress', studentId] });
       queryClient.invalidateQueries({ queryKey: ['academicSummary', studentId] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.student(studentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff.studentDetail(studentId) });
       setSelectedSubjects([]);
     },
     onError: () => {
@@ -62,17 +67,30 @@ export default function AcademicProgressionStep4({
     },
   });
 
+  // Saving grades submits them for approval (#107); nothing changes on the
+  // record until a registrar with "Can approve grades" approves them.
   const bulkUpdateGradesMutation = useMutation({
     mutationFn: (payload) => staffApi.bulkUpdateGrades(studentId, payload),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      staffToast.success('Submitted for approval', data?.message);
       queryClient.invalidateQueries({ queryKey: ['academicProgress', studentId] });
-      queryClient.invalidateQueries({ queryKey: ['academicSummary', studentId] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.student(studentId) });
       setEditingGrades({});
     },
-    onError: () => {
-      // Silent failure — no toast shown
+    onError: (err) => {
+      const parsed = parseApiError(err);
+      const details = parsed.errors?.validation;
+      staffToast.error('Grades not submitted', Array.isArray(details) && details.length ? details.join(' ') : parsed.message);
     },
+  });
+
+  const cancelSubmissionMutation = useMutation({
+    mutationFn: (submissionId) => staffApi.cancelGradeSubmission(submissionId),
+    onSuccess: () => {
+      staffToast.success('Submission cancelled', 'The grades can be edited again.');
+      queryClient.invalidateQueries({ queryKey: ['academicProgress', studentId] });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.staff.all, 'grade-submissions'] });
+    },
+    onError: (err) => staffToast.error('Cancel failed', parseApiError(err).message),
   });
 
   const cancelEnrollmentMutation = useMutation({
@@ -80,7 +98,7 @@ export default function AcademicProgressionStep4({
     onSuccess: () => {
       staffToast.success('Enrollment cancelled successfully.');
       queryClient.invalidateQueries({ queryKey: ['academicProgress', studentId] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.student(studentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff.studentDetail(studentId) });
     },
     onError: (err) => {
       const msg = err.response?.data?.message || 'Failed to cancel enrollment.';
@@ -290,6 +308,13 @@ export default function AcademicProgressionStep4({
               const termSummary = summary?.terms?.find(
                 (t) => t.academic_year === group.academic_year && String(t.semester) === String(group.semester)
               );
+              // Grade double approval (#107): a pending term is locked until decided.
+              const pending = group.pending_submission;
+              const returned = !pending ? group.last_returned : null;
+              const isLocked = Boolean(pending);
+              const isMine = Boolean(pending && currentUser && String(pending.submitted_by?.id) === String(currentUser.id));
+              const proposedFor = (gradeId) => pending?.items?.find((i) => String(i.grade_id) === String(gradeId));
+              const hasEdits = Object.keys(editingGrades).some(id => group.subjects.some(s => String(s.grade_id) === String(id)));
 
               return (
                 <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -300,11 +325,21 @@ export default function AcademicProgressionStep4({
                       </h5>
                     </div>
                   <div className="flex items-center gap-2">
+                    {isMine && (
+                      <button
+                        type="button"
+                        onClick={() => cancelSubmissionMutation.mutate(pending.id)}
+                        disabled={cancelSubmissionMutation.isPending}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-amber-300 bg-white text-amber-800 hover:bg-amber-50 disabled:opacity-60"
+                      >
+                        <FiXCircle /> Cancel submission
+                      </button>
+                    )}
                     <button
                       onClick={() => handleSaveGrades(group)}
-                      disabled={bulkUpdateGradesMutation.isLoading || !Object.keys(editingGrades).some(id => group.subjects.some(s => String(s.grade_id) === String(id)))}
+                      disabled={bulkUpdateGradesMutation.isPending || isLocked || !hasEdits}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded shadow transition-colors ${
-                        Object.keys(editingGrades).some(id => group.subjects.some(s => String(s.grade_id) === String(id)))
+                        hasEdits && !isLocked
                           ? 'bg-tmcc text-white hover:bg-tmcc-dark'
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
@@ -313,6 +348,24 @@ export default function AcademicProgressionStep4({
                     </button>
                   </div>
                 </div>
+                {pending && (
+                  <div role="status" className="px-4 py-2.5 bg-yellow-50 border-b border-yellow-200 text-sm text-yellow-900 flex items-start gap-2">
+                    <FiClock className="mt-0.5 shrink-0 text-yellow-600" />
+                    <span>
+                      Waiting for approval: submitted by {pending.submitted_by?.name ?? 'staff'} on {formatDate(pending.submitted_at)}.
+                      {' '}The grades below can&apos;t be edited until a registrar approves or returns them.
+                    </span>
+                  </div>
+                )}
+                {returned && (
+                  <div role="alert" className="px-4 py-2.5 bg-red-50 border-b border-red-200 text-sm text-red-900 flex items-start gap-2">
+                    <FiAlertCircle className="mt-0.5 shrink-0 text-red-600" />
+                    <span>
+                      Returned by {returned.decided_by ?? 'the registrar'} on {formatDate(returned.decided_at)}: {returned.remarks}
+                      {' '}Correct the grades and save them again.
+                    </span>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-white text-gray-500 border-b border-gray-200">
@@ -329,6 +382,7 @@ export default function AcademicProgressionStep4({
                     <tbody className="divide-y divide-gray-100">
                       {group.subjects.map((subj) => {
                         const editState = subj.grade_id ? editingGrades[subj.grade_id] : null;
+                        const proposed = subj.grade_id ? proposedFor(subj.grade_id) : null;
                         const currentGrade = editState?.grade_value ?? subj.grade_value ?? '';
                         const currentStatus = editState?.status ?? subj.grade_status ?? 'Enrolled';
                         const currentRemarks = editState?.remarks ?? subj.remarks ?? '';
@@ -356,20 +410,28 @@ export default function AcademicProgressionStep4({
                             <td className="py-2.5 px-4 text-center text-gray-600">{subj.units}</td>
                             <td className="py-2.5 px-4">
                               <select
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc disabled:bg-gray-100 disabled:text-gray-500"
                                 value={currentGrade}
                                 onChange={(e) => handleGradeSelect(subj.grade_id, e.target.value)}
+                                disabled={isLocked}
+                                aria-label={`Grade for ${subj.subject_code}`}
                               >
                                 {gradeOptions.map(opt => (
                                   <option key={opt} value={opt}>{opt === '4.00' ? '4.00 (Conditional)' : (opt || '—')}</option>
                                 ))}
                               </select>
+                              {proposed && (
+                                <p className="m-0 mt-1 text-xs font-medium text-yellow-800">
+                                  {subj.grade_value ?? '—'} → pending {proposed.grade_value ?? proposed.status ?? '—'}
+                                </p>
+                              )}
                             </td>
                             <td className="py-2.5 px-4">
                               <select
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc bg-white"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc bg-white disabled:bg-gray-100 disabled:text-gray-500"
                                 value={currentStatus}
                                 onChange={(e) => handleStatusSelect(subj.grade_id, e.target.value, currentGrade)}
+                                disabled={isLocked}
                               >
                                 {availableStatuses.map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
@@ -379,16 +441,18 @@ export default function AcademicProgressionStep4({
                             <td className="py-2.5 px-4">
                               <input
                                 type="text"
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-tmcc focus:border-tmcc disabled:bg-gray-100 disabled:text-gray-500"
                                 placeholder="—"
                                 value={currentRemarks}
                                 onChange={(e) => handleGradeChange(subj.grade_id, 'remarks', e.target.value)}
+                                disabled={isLocked}
                               />
                             </td>
                             <td className="py-2.5 px-4 text-right">
                               <button
                                 onClick={() => handleCancelEnrollment(subj)}
-                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                disabled={isLocked}
+                                className="text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:hover:text-gray-400"
                                 title="Cancel Enrollment"
                               >
                                 <FiTrash2 />

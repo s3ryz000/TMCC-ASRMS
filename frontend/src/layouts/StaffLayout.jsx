@@ -18,11 +18,15 @@ import {
   FiBook,
   FiLayers,
   FiActivity,
+  FiCheckSquare,
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePasswordModal from '../components/staff/ChangePasswordModal';
 import { dashboardApi } from '../lib/api/dashboardApi';
 import { useCurrentTermQuery } from '../hooks/useCurrentTermQuery';
+import { useQuery } from '@tanstack/react-query';
+import { staffApi } from '../lib/api/staffApi';
+import { queryKeys } from '../lib/react-query/queryKeys';
 
 const StaffLayout = () => {
   const { user, role, logout, logoutMutation } = useAuth();
@@ -39,6 +43,14 @@ const StaffLayout = () => {
   });
 
   const { data: term, isLoading: termLoading } = useCurrentTermQuery();
+
+  // Grade approvals (#107): only for staff with "Can approve grades".
+  const canApproveGrades = role === 'staff' && Boolean(user?.can_approve_grades);
+  const { data: pendingGradeSubmissions = [] } = useQuery({
+    queryKey: queryKeys.staff.gradeSubmissions('pending'),
+    queryFn: () => staffApi.getGradeSubmissions({ status: 'pending' }),
+    enabled: canApproveGrades,
+  });
 
   const fetchKpis = useCallback(() => {
     dashboardApi.getDashboard().then((res) => {
@@ -190,6 +202,14 @@ const StaffLayout = () => {
               {kpi.pendingRequests}
             </span>
           )}
+          {id === 'grade-approvals' && pendingGradeSubmissions.length > 0 && (
+            <span
+              className="inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-full bg-white text-[#1ac76a] text-xs font-semibold"
+              aria-label={`${pendingGradeSubmissions.length} waiting`}
+            >
+              {pendingGradeSubmissions.length}
+            </span>
+          )}
         </span>
         <FiChevronRight className="w-4 h-4 shrink-0 opacity-80" />
       </Link>
@@ -265,6 +285,7 @@ const StaffLayout = () => {
               </div>
             )}
           </div>
+          {canApproveGrades && renderNavLink({ id: 'grade-approvals', label: 'Grade Approvals', icon: FiCheckSquare, path: '/staff/grade-approvals' })}
           {renderNavLink({ id: 'my-activity', label: 'My Activity', icon: FiActivity, path: '/staff/my-activity' })}
         </nav>
 

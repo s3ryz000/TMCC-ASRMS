@@ -4,11 +4,14 @@ namespace Tests\Concerns;
 
 use App\Models\Curriculum;
 use App\Models\Grade;
+use App\Models\GradeSubmission;
 use App\Models\Program;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Testing\TestResponse;
+use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 /**
@@ -147,7 +150,50 @@ trait BuildsAcademicRecords
                 : ['grade_id' => $grade->id, 'grade_value' => $value];
         }
 
-        return $this->putJson("/api/staff/students/{$student->student_id}/grades/bulk-update", ['grades' => $rows]);
+        $submitted = $this->putJson("/api/staff/students/{$student->student_id}/grades/bulk-update", ['grades' => $rows]);
+
+        // Grades wait for approval (#107): approve them as a second registrar,
+        // so callers see them applied. A refused submission is returned as is.
+        return $submitted->status() === 202 ? $this->approvePendingGrades() : $submitted;
+    }
+
+    /** A second registrar who holds "approve-grades" (#107). */
+    protected function gradeApprover(): User
+    {
+        $approver = User::where('username', 'grade.approver')->first();
+        if (! $approver) {
+            Role::findOrCreate('staff', 'api');
+            $approver = $this->makeUser('staff', 'grade.approver');
+            $approver->givePermissionTo(Permission::findOrCreate(User::APPROVE_GRADES, 'api'));
+        }
+
+        return $approver;
+    }
+
+    /**
+     * Approves every pending grade submission as gradeApprover(), then acts as
+     * the original user again. Returns the last approve response (or the
+     * first that failed).
+     */
+    protected function approvePendingGrades(): TestResponse
+    {
+        $actor = auth()->user();
+        Sanctum::actingAs($this->gradeApprover(), ['*']);
+
+        $response = null;
+        foreach (GradeSubmission::where('status', GradeSubmission::STATUS_PENDING)->orderBy('id')->pluck('id') as $id) {
+            $response = $this->patchJson("/api/staff/grade-submissions/{$id}/approve");
+            if (! $response->isSuccessful()) {
+                break;
+            }
+        }
+
+        if ($actor) {
+            Sanctum::actingAs($actor, ['*']);
+        }
+        $this->assertNotNull($response, 'There were no pending grade submissions to approve.');
+
+        return $response;
     }
 
     protected function academicProgress(Student $student): array

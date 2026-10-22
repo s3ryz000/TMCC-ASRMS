@@ -13,6 +13,7 @@ use App\Support\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
 
 class UserController extends Controller
 {
@@ -59,6 +60,8 @@ class UserController extends Controller
         $perPage = min(max((int) $request->input('per_page', 15), 5), 100);
         $users = $query->paginate($perPage);
 
+        $users->getCollection()->each(fn (User $u) => $u->append('can_approve_grades'));
+
         return response()->json($users);
     }
 
@@ -99,7 +102,7 @@ class UserController extends Controller
 
         AuditLog::write("User created: {$user->username} ({$user->role})", $request->user());
 
-        $user->load('roles');
+        $user->load('roles')->append('can_approve_grades');
 
         return response()->json([
             'message' => 'User created successfully.',
@@ -124,7 +127,7 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
-        $user->load('roles');
+        $user->load('roles')->append('can_approve_grades');
         $user->makeHidden(['password']);
 
         return response()->json(['user' => $user]);
@@ -148,10 +151,17 @@ class UserController extends Controller
         }
 
         $validated = $request->validated();
+        $canApproveGrades = array_key_exists('can_approve_grades', $validated) ? (bool) $validated['can_approve_grades'] : null;
+        unset($validated['can_approve_grades']);
 
         // Checked before anything is saved, so a refusal changes nothing (#81).
         if ($refusal = $this->refuseAdminLockout($request->user(), $user, $validated['role'] ?? null, $validated['status'] ?? null)) {
             return $refusal;
+        }
+        if ($canApproveGrades && ($validated['role'] ?? $user->role) !== 'staff') {
+            $message = 'Only staff accounts can approve grades.';
+
+            return response()->json(['message' => $message, 'errors' => ['can_approve_grades' => [$message]]], 422);
         }
 
         // A blank password field means "leave the credential alone"; only hash
@@ -175,6 +185,7 @@ class UserController extends Controller
         if (isset($validated['role'])) {
             $user->syncRoles([$validated['role']]);
         }
+        $this->syncGradeApproval($request->user(), $user->fresh(), $canApproveGrades);
 
         if ($passwordWasReset) {
             SystemLog::create([
@@ -184,13 +195,34 @@ class UserController extends Controller
             ]);
         }
 
-        $user->load('roles');
+        $user->load('roles', 'permissions')->append('can_approve_grades');
         $user->makeHidden(['password']);
 
         return response()->json([
             'message' => 'User updated successfully.',
             'user' => $user,
         ]);
+    }
+
+    /**
+     * Grants or revokes "approve-grades" (#107). Only staff can hold it, so a
+     * user moved off staff loses it. The permission is created on first use,
+     * so the live server needs no seeder run.
+     */
+    private function syncGradeApproval(User $actor, User $user, ?bool $wanted): void
+    {
+        $had = $user->checkPermissionTo(User::APPROVE_GRADES, 'api');
+        $should = $user->role === 'staff' ? ($wanted ?? $had) : false;
+
+        if ($should && ! $had) {
+            $user->givePermissionTo(Permission::findOrCreate(User::APPROVE_GRADES, 'api'));
+        } elseif (! $should && $had) {
+            $user->revokePermissionTo(User::APPROVE_GRADES);
+        }
+
+        if ($should !== $had) {
+            AuditLog::write("User updated: {$user->username}: can approve grades " . AuditLog::value($should), $actor);
+        }
     }
 
     /**

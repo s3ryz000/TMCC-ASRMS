@@ -20,6 +20,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
     role: 'staff',
     department: '',
     status: 'active',
+    canApproveGrades: false,
     password: '',
     passwordConfirmation: '',
   });
@@ -37,6 +38,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
         role: user.role || 'staff',
         department: user.department || '',
         status: user.status || 'active',
+        canApproveGrades: Boolean(user.can_approve_grades),
         // Never pre-filled: an empty field means "leave the password alone".
         password: '',
         passwordConfirmation: '',
@@ -77,6 +79,8 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
         role: form.role,
         department: ['staff', 'admin'].includes(form.role) ? form.department?.trim() || null : null,
         status: form.status,
+        // Grade double approval (#107): staff accounts only.
+        can_approve_grades: form.role === 'staff' ? form.canApproveGrades : false,
         // Only sent when the administrator actually typed a new password, so a
         // routine edit never touches the stored credential.
         ...(passwordWasReset && {
@@ -195,6 +199,26 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
               </p>
             )}
           </div>
+          {form.role === 'staff' && (
+            <div>
+              <label htmlFor="edit-user-approve-grades" className="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                  id="edit-user-approve-grades"
+                  type="checkbox"
+                  checked={form.canApproveGrades}
+                  onChange={(e) => setForm((f) => ({ ...f, canApproveGrades: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-tmcc focus:ring-tmcc"
+                />
+                <span>
+                  <span className="font-medium">Can approve grades</span>
+                  <span className="block text-xs text-gray-500">
+                    Grades encoded by other staff wait for this account&apos;s approval. Nobody can approve grades they encoded.
+                  </span>
+                </span>
+              </label>
+              {errors.can_approve_grades && <p className="mt-1 text-xs text-red-600">{errors.can_approve_grades}</p>}
+            </div>
+          )}
 
           <div className="pt-4 border-t border-gray-200">
             <h3 className="text-sm font-semibold text-gray-800">Reset password</h3>

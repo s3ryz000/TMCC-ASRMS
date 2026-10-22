@@ -8,7 +8,9 @@ use App\Models\PendingStudentUpdate;
 use App\Models\RecordRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
+use App\Models\User;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 use Tests\Concerns\SeedsTwoStudentRecords;
 use Tests\TestCase;
 
@@ -104,6 +106,19 @@ class DataAccessMatrixTest extends TestCase
         ['POST', '/api/staff/curriculums'],
     ];
 
+    /** Grade approvals (#107): registrar staff holding approve-grades only. */
+    private const GRADE_APPROVER = [
+        ['GET', '/api/staff/grade-submissions'],
+        ['GET', '/api/staff/grade-submissions/999999'],
+        ['PATCH', '/api/staff/grade-submissions/999999/approve'],
+        ['PATCH', '/api/staff/grade-submissions/999999/return'],
+    ];
+
+    /** The encoder withdraws their own pending submission (#107): any registrar may call it. */
+    private const GRADE_ENCODER = [
+        ['PATCH', '/api/staff/grade-submissions/999999/cancel'],
+    ];
+
     /** Record-request handling: registrar and admin (document release stays with admins). */
     private const SHARED_WRITES = [
         ['PATCH', '/api/staff/requests/999999/approve'],
@@ -195,7 +210,7 @@ class DataAccessMatrixTest extends TestCase
     private function allEndpoints(): array
     {
         return array_merge(self::SHARED_READS, self::ANY_ROLE_READS, self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::SHARED_WRITES,
-            self::ADMIN_ENDPOINTS, self::STUDENT_READS, self::STUDENT_WRITES,
+            self::ADMIN_ENDPOINTS, self::STUDENT_READS, self::STUDENT_WRITES, self::GRADE_APPROVER, self::GRADE_ENCODER,
             [['POST', '/api/auth/logout'], ['POST', '/api/auth/change-password']]);
     }
 
@@ -207,6 +222,17 @@ class DataAccessMatrixTest extends TestCase
 
         $this->assertSame([], $this->violations(array_merge(self::SHARED_READS, self::ANY_ROLE_READS, self::REGISTRAR_READS), fn ($s) => $s === 200));
         $this->assertSame([], $this->violations(array_merge(self::REGISTRAR_WRITES, self::SHARED_WRITES), fn ($s) => ! in_array($s, [401, 403], true)));
+    }
+
+    public function test_grade_approvals_need_the_approve_grades_permission(): void
+    {
+        Sanctum::actingAs($this->registrar, ['*']);
+        $this->assertSame([], $this->violations(self::GRADE_APPROVER, fn ($s) => $s === 403));
+        $this->assertSame([], $this->violations(self::GRADE_ENCODER, fn ($s) => ! in_array($s, [401, 403], true)));
+
+        $this->registrar->givePermissionTo(Permission::findOrCreate(User::APPROVE_GRADES, 'api'));
+        $this->assertSame([], $this->violations([self::GRADE_APPROVER[0]], fn ($s) => $s === 200));
+        $this->assertSame([], $this->violations(self::GRADE_APPROVER, fn ($s) => ! in_array($s, [401, 403], true)));
     }
 
     public function test_the_registrar_is_refused_admin_and_student_portal_endpoints(): void
@@ -223,7 +249,7 @@ class DataAccessMatrixTest extends TestCase
         Sanctum::actingAs($this->admin, ['*']);
 
         $this->assertSame([], $this->violations(array_merge(self::SHARED_READS, self::ANY_ROLE_READS), fn ($s) => $s === 200));
-        $this->assertSame([], $this->violations(array_merge(self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::STUDENT_READS, self::STUDENT_WRITES), fn ($s) => $s === 403));
+        $this->assertSame([], $this->violations(array_merge(self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::STUDENT_READS, self::STUDENT_WRITES, self::GRADE_APPROVER, self::GRADE_ENCODER), fn ($s) => $s === 403));
         // Document release stays with admins by design.
         $this->assertSame([], $this->violations(self::SHARED_WRITES, fn ($s) => ! in_array($s, [401, 403], true)));
         $this->assertSame([], $this->violations(self::ADMIN_ENDPOINTS, fn ($s) => ! in_array($s, [401, 403], true)));
@@ -239,7 +265,7 @@ class DataAccessMatrixTest extends TestCase
 
         $this->assertSame([], $this->violations(array_merge(self::STUDENT_READS, self::ANY_ROLE_READS), fn ($s) => $s === 200));
         $this->assertSame([], $this->violations(
-            array_merge(self::SHARED_READS, self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::SHARED_WRITES, self::ADMIN_ENDPOINTS),
+            array_merge(self::SHARED_READS, self::REGISTRAR_READS, self::REGISTRAR_WRITES, self::SHARED_WRITES, self::ADMIN_ENDPOINTS, self::GRADE_APPROVER, self::GRADE_ENCODER),
             fn ($s) => $s === 403,
         ));
     }

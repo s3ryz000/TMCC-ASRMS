@@ -91,7 +91,8 @@ class RecomputedValuesTest extends TestCase
 
         $this->putJson("/api/staff/students/{$this->student->student_id}/grades/{$grade->id}", [
             'grade_value' => $value, 'supporting_document_reference' => "Completion form {$code}",
-        ])->assertOk();
+        ])->assertStatus(202);
+        $this->approvePendingGrades()->assertOk();
     }
 
     public function test_corrections_show_the_same_recomputed_values_everywhere(): void

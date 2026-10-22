@@ -25,6 +25,7 @@ import StaffEditStudentHubPage from '../pages/staff/StaffEditStudentHubPage';
 import StaffEditStudentInformationPage from '../pages/staff/StaffEditStudentInformationPage';
 import StaffEditStudentGradesPage from '../pages/staff/StaffEditStudentGradesPage';
 import StaffPendingProfileUpdatesPage from '../pages/staff/StaffPendingProfileUpdatesPage';
+import StaffGradeApprovalsPage from '../pages/staff/StaffGradeApprovalsPage';
 import StaffMyActivityPage from '../pages/staff/StaffMyActivityPage';
 import StaffCatalogPage from '../pages/staff/StaffCatalogPage';
 import StaffCatalogLandingPage from '../pages/staff/StaffCatalogLandingPage';
@@ -123,6 +124,8 @@ export const routes = [
           { index: true, element: <StaffDashboardPage /> },
           { path: 'requests', element: <StaffPendingRequestsPage /> },
           { path: 'profile-updates', element: <StaffPendingProfileUpdatesPage /> },
+          // Grade double approval (#107): staff with "Can approve grades".
+          { path: 'grade-approvals', element: <StaffGradeApprovalsPage /> },
           // The signed-in user's own system log, read-only (#94).
           { path: 'my-activity', element: <StaffMyActivityPage /> },
           // Manage Records (#57); the old Student Records and View Records URLs land there.

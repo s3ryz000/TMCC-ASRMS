@@ -392,9 +392,40 @@ export const staffApi = {
     return data;
   },
 
-  /** Bulk update grades for enrolled subjects. */
+  /** Grade entry: submits the grades for approval (202) (#107). */
   bulkUpdateGrades: async (studentId, payload) => {
     const { data } = await apiClient.put(`/staff/students/${studentId}/grades/bulk-update`, payload);
+    return data;
+  },
+
+  // ── Grade approvals (#107): staff with "Can approve grades" ──
+
+  /** Submissions by status (default pending): { data: [...] }. */
+  getGradeSubmissions: async (params = {}) => {
+    const { data } = await apiClient.get('/staff/grade-submissions', { params });
+    return data.data ?? [];
+  },
+
+  /** One submission with its items, old → new. */
+  getGradeSubmission: async (id) => {
+    const { data } = await apiClient.get(`/staff/grade-submissions/${id}`);
+    return data.data;
+  },
+
+  approveGradeSubmission: async (id) => {
+    const { data } = await apiClient.patch(`/staff/grade-submissions/${id}/approve`);
+    return data;
+  },
+
+  /** Back to the encoder; remarks are required. */
+  returnGradeSubmission: async (id, payload) => {
+    const { data } = await apiClient.patch(`/staff/grade-submissions/${id}/return`, payload);
+    return data;
+  },
+
+  /** The encoder withdraws their own pending submission. */
+  cancelGradeSubmission: async (id) => {
+    const { data } = await apiClient.patch(`/staff/grade-submissions/${id}/cancel`);
     return data;
   },
 };

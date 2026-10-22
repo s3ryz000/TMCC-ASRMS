@@ -37,5 +37,7 @@ export const queryKeys = {
     studentNumberCheck: (number) => [...queryKeys.staff.all, 'student-number-check', number],
     studentNumberMismatches: () => [...queryKeys.staff.all, 'student-number-mismatches'],
     myActivity: (filters) => [...queryKeys.staff.all, 'my-activity', filters],
+    gradeSubmissions: (status) => [...queryKeys.staff.all, 'grade-submissions', status],
+    gradeSubmission: (id) => [...queryKeys.staff.all, 'grade-submission', String(id)],
   },
 };

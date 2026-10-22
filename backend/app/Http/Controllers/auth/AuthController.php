@@ -26,7 +26,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'Login successful.',
-                'user' => $result['user']->load('roles'),
+                'user' => $result['user']->load('roles')->append('can_approve_grades'),
                 'token' => $result['token'],
                 'token_type' => 'Bearer',
             ]);
