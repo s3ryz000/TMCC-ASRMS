@@ -1,0 +1,2 @@
+# Shell scripts run on the Ubuntu server: keep LF even on Windows checkouts (#108).
+deploy/*.sh text eol=lf

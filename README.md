@@ -120,6 +120,8 @@ To avoid overlapping work:
 
 ## 5. Notes for deployment on the campus network (LAN)
 
+**Updating the live site (DigitalOcean):** push to `main`, then type `sudo asrms-update` in the server console. See [deploy/UPDATE.md](deploy/UPDATE.md).
+
 The production plan (server checklist, daily backups, off-machine copy, restore drill) is tracked in tickets #59–#67. When the system runs on a server instead of a laptop:
 
 - Backend `.env`: set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` to the server address, `FRONTEND_URL` to the address users open (needed for CORS), and the MySQL `DB_*` settings.
