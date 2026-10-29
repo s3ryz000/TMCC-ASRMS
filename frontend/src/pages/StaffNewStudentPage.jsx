@@ -235,7 +235,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
       setCreatedAccount({
         ...(res?.account
           ? { username: res.account.username, password: res.account.password }
-          : { username: payload.student_number, password: "password123" }),
+          : { username: payload.student_number, password: "(not returned; reset it in User Management)" }),
         // For "Open the record" (#57); the record page loads the student itself.
         studentId: res?.student?.student_id ?? null,
       });
@@ -608,14 +608,6 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                   </span>
                   Enrollment Information
                 </h4>
-                {/* <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
-                <h5 className="m-0 mb-3 text-sm font-semibold text-amber-900">Account for Student</h5>
-                <p className="m-0 mb-2 text-sm text-amber-800">A login account will be created automatically:</p>
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <span><strong>Username:</strong> <code className="px-1.5 py-0.5 rounded bg-amber-100 font-mono">{form.student_number || '(student number from Phase 1)'}</code></span>
-                  <span><strong>Password:</strong> <code className="px-1.5 py-0.5 rounded bg-amber-100 font-mono">password123</code> <span className="text-amber-700">(mock, auto-generated later)</span></span>
-                </div>
-              </div> */}
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-6">
                   <div className="flex flex-col gap-1.5 md:col-span-2">
                     <label htmlFor="program_id" className="text-sm font-medium text-gray-600">

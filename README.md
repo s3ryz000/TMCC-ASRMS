@@ -63,12 +63,14 @@ Close both windows to stop. To start them by hand instead: `php artisan serve` i
 
 | Role | Username | Password |
 |---|---|---|
-| Admin | `admin` | `password123` |
-| Registrar staff | `staff` | `password123` |
+| Admin | `admin` | printed by `php artisan migrate --seed` |
+| Registrar staff | `staff` | printed by `php artisan migrate --seed` |
 | Student | create one in Registrar → New Student; the username and password are shown after saving | |
 
+The seeder makes a random password for `admin` and `staff` and prints it once, so save it. To choose your own, set `SEED_ADMIN_PASSWORD` and `SEED_STAFF_PASSWORD` in `backend\.env` before seeding. Lost it? Run `php artisan migrate:fresh --seed` (this erases your local data).
+
 Notes:
-- A new or changed password needs at least 10 characters with letters and numbers, and cannot be the username, the e-mail name or a common password such as `password123`. Existing passwords, including the test accounts above, keep working until they are changed.
+- A new or changed password needs at least 10 characters with letters and numbers, and cannot be the username, the e-mail name or a common password. Existing passwords keep working until they are changed.
 - Logging in signs that account out everywhere else. Use separate browsers or browser profiles for staff, admin and student at the same time.
 - Your database (`backend\database\database.sqlite`) is your own local copy. Test data you create does not affect anyone else.
 

@@ -179,8 +179,8 @@ C:\xampp\php\php.exe artisan optimize
 ```
 
 `db:seed` creates only what a new installation needs: the roles, **two
-starter accounts** (`admin` and `staff`, both with the password
-`password123`, which you change in step 9), the BSTM, BSHM and BSE programs
+starter accounts** (`admin` and `staff`, each with a random password that
+`db:seed` prints once: copy both now, you change them in step 9), the BSTM, BSHM and BSE programs
 with their curricula, and the default settings. It creates **no students**.
 
 > Never run `php artisan migrate:fresh`, `migrate:reset` or
@@ -188,7 +188,7 @@ with their curricula, and the default settings. It creates **no students**.
 > every record, the last adds demo students.
 
 **Success:** `migrate` ends with every migration `DONE`; `db:seed` prints
-*"Accounts created successfully"*; `optimize` ends with every line `DONE`.
+*"Accounts created successfully"* followed by the two starter passwords; `optimize` ends with every line `DONE`.
 
 > After any later change to `backend\.env`, run
 > `C:\xampp\php\php.exe artisan optimize` again, or the change is ignored.
@@ -253,10 +253,11 @@ C:\xampp\php\php.exe artisan about --only=environment,drivers
 
 ## 9. First sign-in: replace the starter passwords *(TMCC IT and the registrar)*
 
-Do this **before** anyone else uses the system. The starter password
-`password123` is written in this repository, so anyone could know it.
+Do this **before** anyone else uses the system. The starter passwords were
+shown on screen during setup, so treat them as known to others.
 
-1. Open the system in the browser and sign in as `admin` / `password123`.
+1. Open the system in the browser and sign in as `admin` with the starter
+   password from step 6.
 2. Click **Change Password** and set a strong password for `admin`. Keep it
    with TMCC IT. *Success:* you can sign out and back in with the new
    password.
@@ -265,11 +266,11 @@ Do this **before** anyone else uses the system. The starter password
       *Staff*, each with their own strong password. Never share
       one account between people: the system log records who did what.
    2. Open the starter account **`staff`** and **deactivate** it (Status:
-      *Inactive*), or delete it. It must not stay active with `password123`.
+      *Inactive*), or delete it. It must not stay active with its starter password.
 4. Sign out. Sign in as one of the new registrar accounts and change its
    password via **Change Password** (so only that person knows it).
 
-**Success:** `admin` and `staff` no longer accept `password123`; each
+**Success:** `admin` and `staff` no longer accept their starter passwords; each
 registrar signs in with their own account.
 
 ## 10. The safety net: backups
