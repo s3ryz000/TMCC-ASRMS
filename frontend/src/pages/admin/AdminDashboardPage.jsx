@@ -10,6 +10,9 @@ const ROLE_ROWS = [
   ['admin', 'Administrators'],
   ['staff', 'Registrar staff'],
   ['student', 'Students'],
+  ['faculty', 'Faculty'],
+  ['coordinator', 'Program coordinators'],
+  ['dean', 'Deans'],
 ];
 
 const thClass = 'py-2 px-3 text-left font-semibold text-gray-600 border-b border-gray-200';

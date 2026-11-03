@@ -20,6 +20,10 @@ class RoleSeeder extends Seeder
         Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'api']);
         Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'api']);
         Role::firstOrCreate(['name' => 'student', 'guard_name' => 'api']);
+        // Phase 2: faculty, program coordinators and deans (TMCC letter, 27 Oct 2026).
+        foreach (\App\Support\Roles::ACADEMIC as $role) {
+            Role::firstOrCreate(['name' => $role, 'guard_name' => 'api']);
+        }
         echo "Roles created successfully\n";
 
         // create permissions

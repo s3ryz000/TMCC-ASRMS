@@ -26,6 +26,47 @@ export const adminApi = {
     return data;
   },
 
+  // ---- Schools, programs, coordinators, faculty (Phase 2) ----
+  getSchools: async () => {
+    const { data } = await apiClient.get('/admin/schools');
+    return data;
+  },
+
+  createSchool: async (payload) => {
+    const { data } = await apiClient.post('/admin/schools', payload);
+    return data;
+  },
+
+  updateSchool: async (id, payload) => {
+    const { data } = await apiClient.put(`/admin/schools/${id}`, payload);
+    return data;
+  },
+
+  archiveSchool: async (id) => {
+    const { data } = await apiClient.patch(`/admin/schools/${id}/archive`);
+    return data;
+  },
+
+  unarchiveSchool: async (id) => {
+    const { data } = await apiClient.patch(`/admin/schools/${id}/unarchive`);
+    return data;
+  },
+
+  assignProgramSchool: async (programId, schoolId) => {
+    const { data } = await apiClient.put(`/admin/programs/${programId}/school`, { school_id: schoolId });
+    return data;
+  },
+
+  setProgramCoordinators: async (programId, userIds) => {
+    const { data } = await apiClient.put(`/admin/programs/${programId}/coordinators`, { user_ids: userIds });
+    return data;
+  },
+
+  setFacultyProfile: async (userId, payload) => {
+    const { data } = await apiClient.put(`/admin/faculty/${userId}/profile`, payload);
+    return data;
+  },
+
   // ---- System settings ----
   getSettings: async () => {
     const { data } = await apiClient.get('/admin/settings');

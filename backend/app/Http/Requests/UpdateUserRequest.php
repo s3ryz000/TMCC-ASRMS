@@ -22,7 +22,7 @@ class UpdateUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', ContactRules::EMAIL, 'max:255', Rule::unique('users', 'email')->ignore($userId)],
-            'role' => ['required', 'string', 'in:student,staff,admin'],
+            'role' => ['required', 'string', 'in:' . implode(',', \App\Support\Roles::ALL)],
             'department' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
             // Grade double approval (#107): staff accounts only (checked in the controller).

@@ -161,7 +161,7 @@ class ReportFigures
     public function dashboardTotals(): array
     {
         $users = [];
-        foreach (['admin', 'staff', 'student'] as $role) {
+        foreach (\App\Support\Roles::ALL as $role) {
             $users[$role] = ['active' => 0, 'inactive' => 0, 'total' => 0];
         }
 

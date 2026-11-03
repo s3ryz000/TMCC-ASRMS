@@ -15,6 +15,11 @@ export const queryKeys = {
     logsList: (filters) => [...queryKeys.admin.all, 'systemLogs', filters],
     logUsers: () => [...queryKeys.admin.all, 'systemLogUsers'],
     backupStatus: () => [...queryKeys.admin.all, 'backupStatus'],
+    schools: () => [...queryKeys.admin.all, 'schools'],
+  },
+  academic: {
+    all: ['academic'],
+    me: () => [...queryKeys.academic.all, 'me'],
   },
   student: {
     all: ['student'],

@@ -18,7 +18,7 @@ class SystemLogReport
 {
     public const TIMEZONE = 'Asia/Manila';
 
-    public const ROLES = ['admin', 'staff', 'student', 'guest', 'system'];
+    public const ROLES = [...\App\Support\Roles::ALL, 'guest', 'system'];
 
     /** Validation rules for the filters; $withUser is false for "my activity". */
     public static function rules(bool $withUser = true): array

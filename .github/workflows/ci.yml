@@ -1,12 +1,12 @@
 # Runs the backend tests, the frontend tests and the frontend build for every
-# push and pull request to main (#38). No secrets are used and nothing deploys.
+# push and pull request to main and phase-2 (#38). No secrets are used and nothing deploys.
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, phase-2]
   pull_request:
-    branches: [main]
+    branches: [main, phase-2]
 
 permissions:
   contents: read

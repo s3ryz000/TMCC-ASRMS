@@ -53,7 +53,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 // ---- System settings: current term (read-only; staff, admin, student) ----
 Route::get('/settings/current', [SystemSettingsController::class, 'current'])
-    ->middleware(['auth:sanctum', 'role:staff,admin,student']);
+    ->middleware(['auth:sanctum', 'role:staff,admin,student,faculty,coordinator,dean']);
 
 // ---- Staff & Admin: Students (READ-ONLY) ----
 // Admins may read and report on student records but may not modify them. Per
@@ -195,6 +195,23 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/reports/export', [ReportController::class, 'export']);
     Route::get('/reports/requests', [ReportController::class, 'requestsReport']);
     Route::get('/reports/activity', [ReportController::class, 'activityReport']);
+});
+
+// ---- Admin only: Schools, deans, program coordinators, faculty (Phase 2, TMCC letter 1A–1C) ----
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('/schools', [\App\Http\Controllers\Admin\SchoolController::class, 'index']);
+    Route::post('/schools', [\App\Http\Controllers\Admin\SchoolController::class, 'store']);
+    Route::put('/schools/{id}', [\App\Http\Controllers\Admin\SchoolController::class, 'update']);
+    Route::patch('/schools/{id}/archive', [\App\Http\Controllers\Admin\SchoolController::class, 'archive']);
+    Route::patch('/schools/{id}/unarchive', [\App\Http\Controllers\Admin\SchoolController::class, 'unarchive']);
+    Route::put('/programs/{programId}/school', [\App\Http\Controllers\Admin\SchoolController::class, 'assignProgram']);
+    Route::put('/programs/{programId}/coordinators', [\App\Http\Controllers\Admin\SchoolController::class, 'setCoordinators']);
+    Route::put('/faculty/{userId}/profile', [\App\Http\Controllers\Admin\SchoolController::class, 'setFacultyProfile']);
+});
+
+// ---- Faculty, program coordinators, deans: their own assignments (Phase 2) ----
+Route::middleware(['auth:sanctum', 'role:faculty,coordinator,dean'])->prefix('academic')->group(function () {
+    Route::get('/me', [\App\Http\Controllers\Academic\AcademicProfileController::class, 'show']);
 });
 
 // ---- Student: Profile, COR, subjects, grades, curriculum ----

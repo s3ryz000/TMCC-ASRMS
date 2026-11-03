@@ -7,8 +7,12 @@ import { adminApi } from '../../lib/api/adminApi';
 import PasswordInput from '../ui/PasswordInput';
 
 const ROLES = [
-  { value: 'staff', label: 'Staff' },
+  { value: 'staff', label: 'Registrar Staff' },
   { value: 'admin', label: 'Admin' },
+  // Phase 2 (TMCC letter, 27 Oct 2026)
+  { value: 'faculty', label: 'Faculty' },
+  { value: 'coordinator', label: 'Program Coordinator' },
+  { value: 'dean', label: 'Dean' },
 ];
 
 const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {

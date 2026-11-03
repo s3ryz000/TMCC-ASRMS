@@ -13,7 +13,8 @@ import {
   FiCheckCircle,
   FiSettings,
   FiUserPlus,
-  FiClock
+  FiClock,
+  FiLayers
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePasswordModal from '../components/staff/ChangePasswordModal';
@@ -96,6 +97,7 @@ const AdminLayout = () => {
   const navItemsBeforeRegistrar = [
     { id: 'dashboard', label: 'Dashboard', icon: FiGrid, path: '/admin' },
     { id: 'users', label: 'User Management', icon: FiUserPlus, path: '/admin/users' },
+    { id: 'schools', label: 'Schools & Programs', icon: FiLayers, path: '/admin/schools' },
   ];
 
 

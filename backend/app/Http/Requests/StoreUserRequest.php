@@ -23,7 +23,7 @@ class StoreUserRequest extends FormRequest
                 'required', 'string', 'confirmed',
                 new StrongPassword($this->stringInput('username'), $this->stringInput('email')),
             ],
-            'role' => ['required', 'string', 'in:student,staff,admin'],
+            'role' => ['required', 'string', 'in:' . implode(',', \App\Support\Roles::CREATABLE)],
             'department' => ['nullable', 'string', 'max:100'],
             
         ];

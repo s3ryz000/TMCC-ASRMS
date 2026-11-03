@@ -236,6 +236,10 @@ class ReportFiguresTest extends TestCase
                 'admin'   => ['active' => 1, 'inactive' => 1, 'total' => 2],
                 'staff'   => ['active' => 1, 'inactive' => 1, 'total' => 2],
                 'student' => ['active' => 1, 'inactive' => 0, 'total' => 1],
+                // Phase 2 roles are listed even before anyone holds them.
+                'faculty'     => ['active' => 0, 'inactive' => 0, 'total' => 0],
+                'coordinator' => ['active' => 0, 'inactive' => 0, 'total' => 0],
+                'dean'        => ['active' => 0, 'inactive' => 0, 'total' => 0],
             ])
             ->assertJsonPath('totals.students', 2)
             ->assertJsonPath('totals.requests', ['pending' => 1, 'approved' => 2, 'rejected' => 2, 'released' => 2]);

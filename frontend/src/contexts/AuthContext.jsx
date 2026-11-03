@@ -35,6 +35,10 @@ export const ROLE_ROUTES = {
   admin: '/admin',
   staff: '/staff',
   student: '/dashboard',
+  // Phase 2: faculty, program coordinators and deans
+  faculty: '/academic',
+  coordinator: '/academic',
+  dean: '/academic',
 };
 
 export const AuthProvider = ({ children }) => {

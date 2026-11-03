@@ -40,6 +40,8 @@ import StudentAcademicRecordsPage from '../pages/StudentAcademicRecordsPage';
 import { AuthProvider, useAuth, ROLE_ROUTES } from '../contexts/AuthContext';
 import { queryClient } from '../lib/react-query/queryClient';
 import AdminSystemLogsPage from '../pages/admin/AdminSystemLogsPage';
+import AdminSchoolsPage from '../pages/admin/AdminSchoolsPage';
+import AcademicHomePage from '../pages/academic/AcademicHomePage';
 
 function RootLayout() {
   const location = useLocation();
@@ -47,12 +49,13 @@ function RootLayout() {
   const isStudentArea = location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/');
   const isStaffArea = location.pathname.startsWith('/staff');
   const isAdminArea = location.pathname.startsWith('/admin');
+  const isAcademicArea = location.pathname.startsWith('/academic');
 
   return (
     <>
       <Toaster position="top-right" theme="light" />
-      {!isFullPage && !isStudentArea && !isStaffArea && !isAdminArea && <Navbar />}
-      {isFullPage || isStudentArea || isStaffArea || isAdminArea ? (
+      {!isFullPage && !isStudentArea && !isStaffArea && !isAdminArea && !isAcademicArea && <Navbar />}
+      {isFullPage || isStudentArea || isStaffArea || isAdminArea || isAcademicArea ? (
         <Outlet />
       ) : (
         <div className="container">
@@ -163,6 +166,7 @@ export const routes = [
         children: [
           { index: true, element: <AdminDashboardPage /> },
           { path: 'users', element: <AdminUserManagementPage /> },
+          { path: 'schools', element: <AdminSchoolsPage /> },
           // { path: 'requests', element: <AdminPendingRequestsPage /> },
           // { path: 'students/new', element: <AdminNewStudentPage /> },
           // { path: 'students/:id/edit', element: <AdminEditStudentPage /> },
@@ -171,6 +175,14 @@ export const routes = [
           { path: 'settings', element: <AdminSystemSettingsPage /> },
           { path: 'logs', element: <AdminSystemLogsPage /> },
         ],
+      },
+      {
+        path: 'academic',
+        element: (
+          <ProtectedRoute allowedRoles={['faculty', 'coordinator', 'dean']}>
+            <AcademicHomePage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'request',

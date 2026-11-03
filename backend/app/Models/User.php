@@ -72,6 +72,24 @@ class User extends Authenticatable
         return $role === 'staff' && $this->checkPermissionTo(self::APPROVE_GRADES, 'api');
     }
 
+    /** Phase 2: the faculty member's school and employee number. */
+    public function facultyProfile(): HasOne
+    {
+        return $this->hasOne(FacultyProfile::class);
+    }
+
+    /** Phase 2: the school this dean leads, if any. */
+    public function deanOf(): HasOne
+    {
+        return $this->hasOne(School::class, 'dean_user_id');
+    }
+
+    /** Phase 2: the programs this coordinator coordinates. */
+    public function coordinatedPrograms(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Program::class, 'program_coordinators')->withTimestamps();
+    }
+
     public function student(): HasOne
     {
         return $this->hasOne(\App\Models\Student::class);

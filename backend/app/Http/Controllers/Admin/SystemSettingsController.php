@@ -63,7 +63,7 @@ class SystemSettingsController extends Controller
         if ($err = $this->requireAuth()) {
             return $err;
         }
-        if ($err = $this->requireRoles($request->user(), ['admin', 'staff', 'student'])) {
+        if ($err = $this->requireRoles($request->user(), \App\Support\Roles::ALL)) {
             return $err;
         }
 
