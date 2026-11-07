@@ -11,11 +11,13 @@ import { localDateString } from "../lib/tools";
 import { emailProblem, mobileProblem } from "../lib/contactRules";
 import StudentNumberField from "../components/staff/StudentNumberField";
 import StudentNumberConflictCard from "../components/staff/StudentNumberConflictCard";
-import { composeStudentNumber, isCompletePart, partOf, yearPrefix } from "../features/students/studentNumber";
+import { DEFAULT_LETTER, composeStudentNumber, isCompletePart, letterOf, partOf, yearPrefix } from "../features/students/studentNumber";
 import { RECORDS_PATH, recordPath } from "../features/students/studentRoutes";
 
 const defaultForm = {
   student_number: "",
+  // The letter before the year (#56): A for current TMCC students.
+  student_number_letter: DEFAULT_LETTER,
   first_name: "",
   last_name: "",
   date_of_birth: "",
@@ -49,10 +51,15 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
   // A refused save's holder of the number, for the comparison card (#56).
   const [conflict, setConflict] = useState(null);
 
-  // form.student_number holds the registrar's 4 digits; the year prefix comes
-  // from the enrollment date and both are joined when saving (#56).
+  // form.student_number holds the registrar's 4 digits and
+  // form.student_number_letter the letter; the year comes from the enrollment
+  // date, and all three are joined when saving: A26-0001 (#56).
   const handleNumberPart = (part) => {
     setForm((prev) => ({ ...prev, student_number: part }));
+    if (errors.student_number) setErrors((prev) => ({ ...prev, student_number: null }));
+  };
+  const handleNumberLetter = (letter) => {
+    setForm((prev) => ({ ...prev, student_number_letter: letter }));
     if (errors.student_number) setErrors((prev) => ({ ...prev, student_number: null }));
   };
 
@@ -208,7 +215,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
     setLoading(true);
     try {
       const payload = {
-        student_number: composeStudentNumber(yearPrefix(form.enrollment_date), form.student_number),
+        student_number: composeStudentNumber(form.student_number_letter, yearPrefix(form.enrollment_date), form.student_number),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         date_of_birth: form.date_of_birth,
@@ -385,6 +392,7 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                     }}
                     nextAvailable={conflict.next_available}
                     onUseNext={() => {
+                      if (letterOf(conflict.next_available)) handleNumberLetter(letterOf(conflict.next_available));
                       handleNumberPart(partOf(conflict.next_available));
                     }}
                     onDismiss={() => setConflict(null)}
@@ -417,6 +425,8 @@ const StaffNewStudentPage = ({ basePath = "/staff" }) => {
                   </div>
                   <StudentNumberField
                     id="student_number"
+                    letter={form.student_number_letter}
+                    onLetterChange={handleNumberLetter}
                     prefix={yearPrefix(form.enrollment_date)}
                     part={form.student_number}
                     onPartChange={handleNumberPart}

@@ -3,7 +3,7 @@ import Modal from '../ui/Modal';
 import StudentNumberField from './StudentNumberField';
 import { staffApi } from '../../lib/api/staffApi';
 import { parseApiError } from '../../lib/api/errors';
-import { composeStudentNumber, yearPrefix } from '../../features/students/studentNumber';
+import { DEFAULT_LETTER, composeStudentNumber, letterOf, yearPrefix } from '../../features/students/studentNumber';
 
 /**
  * Change Student Number (#56, registrar only): a new number with the live
@@ -15,6 +15,8 @@ import { composeStudentNumber, yearPrefix } from '../../features/students/studen
  */
 const ChangeStudentNumberDialog = ({ studentId, currentNumber, enrollmentDate, onChanged, onClose }) => {
   const prefix = yearPrefix(enrollmentDate);
+  // Starts with the current number's letter, A when it has none.
+  const [letter, setLetter] = useState(() => letterOf(currentNumber) || DEFAULT_LETTER);
   const [part, setPart] = useState('');
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState({});
@@ -22,7 +24,7 @@ const ChangeStudentNumberDialog = ({ studentId, currentNumber, enrollmentDate, o
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
 
-  const number = composeStudentNumber(prefix, part);
+  const number = composeStudentNumber(letter, prefix, part);
 
   const save = async (e) => {
     e.preventDefault();
@@ -76,6 +78,11 @@ const ChangeStudentNumberDialog = ({ studentId, currentNumber, enrollmentDate, o
           <StudentNumberField
             id="change-student-number"
             label="New student number *"
+            letter={letter}
+            onLetterChange={(value) => {
+              setLetter(value);
+              setErrors((prev) => ({ ...prev, student_number: null }));
+            }}
             prefix={prefix}
             part={part}
             onPartChange={(value) => {
@@ -96,7 +103,7 @@ const ChangeStudentNumberDialog = ({ studentId, currentNumber, enrollmentDate, o
               }}
               rows={3}
               maxLength={255}
-              placeholder="e.g. Typed 260004 instead of 260005 on the enrollment form"
+              placeholder="e.g. Typed A26-0004 instead of A26-0005 on the enrollment form"
               className={`w-full py-2.5 px-4 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-tmcc/20 focus:border-tmcc ${errors.reason ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
               aria-invalid={!!errors.reason}
             />

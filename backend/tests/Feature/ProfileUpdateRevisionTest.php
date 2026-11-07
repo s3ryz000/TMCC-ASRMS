@@ -61,7 +61,7 @@ class ProfileUpdateRevisionTest extends TestCase
         $this->assertSame(['revision_required'], array_column($update->review_history, 'event'));
         // The record itself is untouched until an approval.
         $this->assertSame(self::PERSONAL['A']['address'], $this->people['A']['student']->fresh()->address);
-        $this->assertTrue(SystemLog::where('action', 'like', 'Returned for revision profile update for 260001%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Returned for revision profile update for A26-0001%')->exists());
     }
 
     public function test_remarks_are_required_to_return_an_update(): void
@@ -149,7 +149,7 @@ class ProfileUpdateRevisionTest extends TestCase
         $this->assertSame('clear-proof.pdf', $update->supporting_document_original_name);
         Storage::disk('local')->assertExists($update->supporting_document_path);
         Storage::disk('local')->assertMissing('pending-profile-updates/proof-A.pdf');
-        $this->assertTrue(SystemLog::where('action', 'like', 'Student 260001 % resubmitted a returned profile update%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Student A26-0001 % resubmitted a returned profile update%')->exists());
 
         // The student's list shows it pending again, and the registrar's pending list has it.
         Sanctum::actingAs($this->people['A']['user'], ['*']);
@@ -207,13 +207,13 @@ class ProfileUpdateRevisionTest extends TestCase
         $this->patchJson("/api/staff/pending-profile-updates/{$this->update('A')->id}/approve")->assertOk();
         $this->assertSame('approved', $this->update('A')->status);
         $this->assertSame('New address A', $this->people['A']['student']->fresh()->address);
-        $this->assertTrue(SystemLog::where('action', 'like', 'Approved profile update for 260001%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Approved profile update for A26-0001%')->exists());
 
         $this->patchJson("/api/staff/pending-profile-updates/{$this->update('B')->id}/reject", ['rejection_reason' => 'Document does not match.'])->assertOk();
         $this->assertSame('rejected', $this->update('B')->status);
         $this->assertSame('Document does not match.', $this->update('B')->rejection_reason);
         $this->assertSame(self::PERSONAL['B']['address'], $this->people['B']['student']->fresh()->address);
-        $this->assertTrue(SystemLog::where('action', 'like', 'Rejected profile update for 260002%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Rejected profile update for A26-0002%')->exists());
 
         Sanctum::actingAs($this->people['B']['user'], ['*']);
         $this->getJson('/api/student/profile-updates')

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { staffApi } from '../../lib/api/staffApi';
 import { queryKeys } from '../../lib/react-query/queryKeys';
 import { useAuth } from '../../contexts/AuthContext';
-import { cleanPart, composeStudentNumber, partOf } from '../../features/students/studentNumber';
+import { DEFAULT_LETTER, LETTERS, cleanPart, composeStudentNumber, letterOf, partOf } from '../../features/students/studentNumber';
 
 /** Waits until typing pauses before checking. */
 function useDebounced(value, delay = 350) {
@@ -16,16 +16,20 @@ function useDebounced(value, delay = 350) {
 }
 
 /**
- * The student number as the registrar enters it (#56): a fixed, read-only
- * 2-digit year prefix from the enrollment date and a 4-digit input, checked
- * live against the server. A taken number offers "Use next available".
+ * The student number as the registrar enters it (#56), TMCC's A26-0001: a
+ * letter (A unless the registrar picks another), the read-only 2-digit year
+ * from the enrollment date with its hyphen, and a 4-digit input, checked live
+ * against the server. A taken number offers "Use next available".
  *
- * part / onPartChange: the 4 digits; prefix: "26" ('' until there is a date)
+ * letter / onLetterChange: the leading letter (onLetterChange omitted: fixed)
+ * part / onPartChange: the 4 digits; prefix: the year "26" ('' until there is a date)
  * ignore: a number that counts as free (the student's own, when changing)
  */
-const StudentNumberField = ({ id, label = 'Student Number *', prefix, part, onPartChange, error, ignore, hint }) => {
+const StudentNumberField = ({
+  id, label = 'Student Number *', letter = DEFAULT_LETTER, onLetterChange, prefix, part, onPartChange, error, ignore, hint,
+}) => {
   const { role } = useAuth();
-  const number = composeStudentNumber(prefix, part);
+  const number = composeStudentNumber(letter, prefix, part);
   const checked = useDebounced(number);
 
   // The check is registrar-only on the server (#56); admins don't call it.
@@ -47,12 +51,31 @@ const StudentNumberField = ({ id, label = 'Student Number *', prefix, part, onPa
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-gray-600">{label}</label>
       <div className="flex items-stretch">
+        {onLetterChange ? (
+          <select
+            id={`${id}-letter`}
+            value={letter}
+            onChange={(e) => onLetterChange(e.target.value)}
+            className="py-2.5 pl-2 pr-1 rounded-l-lg border border-r-0 border-gray-300 bg-white text-base font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-tmcc/20 focus:border-tmcc"
+            title="The letter before the year; A for current students"
+            aria-label="Student number letter"
+          >
+            {LETTERS.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+        ) : (
+          <span
+            className="inline-flex items-center pl-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-base font-semibold text-gray-700 select-none"
+            aria-label={`Student number letter ${letter}`}
+          >
+            {letter}
+          </span>
+        )}
         <span
-          className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-base font-semibold tracking-widest text-gray-700 select-none"
+          className="inline-flex items-center px-2 border border-x-0 border-gray-300 bg-gray-100 text-base font-semibold tracking-widest text-gray-700 select-none"
           title="The enrollment year; set by the Enrollment Date"
           aria-label={prefix ? `Year prefix ${prefix}` : 'Year prefix: choose the enrollment date first'}
         >
-          {prefix || '––'}
+          {prefix || '––'}-
         </span>
         <input
           id={id}
@@ -84,7 +107,10 @@ const StudentNumberField = ({ id, label = 'Student Number *', prefix, part, onPa
             {result.next_available && (
               <button
                 type="button"
-                onClick={() => onPartChange(partOf(result.next_available))}
+                onClick={() => {
+                  if (onLetterChange && letterOf(result.next_available)) onLetterChange(letterOf(result.next_available));
+                  onPartChange(partOf(result.next_available));
+                }}
                 className="py-1 px-2 rounded-md bg-tmcc text-white font-medium hover:bg-tmcc-dark focus:outline-none focus:ring-2 focus:ring-tmcc/30"
               >
                 Use next available: {result.next_available}

@@ -58,7 +58,7 @@ class AcademicRecordChainTest extends TestCase
         Sanctum::actingAs($this->staff, ['*']);
 
         $created = $this->postJson('/api/staff/students', [
-            'student_number'  => '260100',
+            'student_number'  => 'A26-0100',
             'first_name'      => 'Ana',
             'last_name'       => 'Reyes',
             'date_of_birth'   => '2006-02-02',
@@ -84,7 +84,7 @@ class AcademicRecordChainTest extends TestCase
         $this->postJson('/api/auth/login', $credentials)
             ->assertOk()
             ->assertJsonPath('user.roles.0.name', 'student');
-        $studentUser = User::where('username', '260100')->firstOrFail();
+        $studentUser = User::where('username', 'A26-0100')->firstOrFail();
 
         // ── 3. First-term grades; the next term only opens after this ────────
         Sanctum::actingAs($this->staff, ['*']);

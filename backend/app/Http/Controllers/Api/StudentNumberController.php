@@ -22,7 +22,7 @@ class StudentNumberController extends Controller
 {
     use AuthorizesRole;
 
-    /** GET /staff/student-numbers/check?number=260004 */
+    /** GET /staff/student-numbers/check?number=A26-0004 */
     public function check(Request $request): JsonResponse
     {
         if ($err = $this->requireAuth()) {
@@ -32,8 +32,11 @@ class StudentNumberController extends Controller
             return $err;
         }
 
+        if (is_string($number = $request->query('number'))) {
+            $request->merge(['number' => StudentNumber::normalize($number)]);
+        }
         $validated = $request->validate(
-            ['number' => ['required', 'string', 'regex:' . StudentNumber::PATTERN]],
+            ['number' =>['required', 'string', 'regex:' . StudentNumber::PATTERN]],
             ['number.regex' => StudentNumber::FORMAT_MESSAGE],
         );
         $number = $validated['number'];
@@ -42,7 +45,7 @@ class StudentNumberController extends Controller
         return response()->json(array_filter([
             'number'         => $number,
             'available'      => $available,
-            'next_available' => StudentNumber::nextAvailable(substr($number, 0, 2)),
+            'next_available' => StudentNumber::nextAvailable(StudentNumber::prefixOf($number)),
             'conflict'       => $available ? null : StudentNumber::conflict($number, false),
         ], fn ($value) => $value !== null));
     }
@@ -71,14 +74,14 @@ class StudentNumberController extends Controller
         }
 
         if (is_string($number = $request->input('student_number'))) {
-            $request->merge(['student_number' => preg_replace('/\s+/', '', $number)]);
+            $request->merge(['student_number' => StudentNumber::normalize($number)]);
         }
         $prefix = StudentNumber::yearPrefix($student->getRawOriginal('enrollment_date'));
         $validated = $request->validate([
             'student_number' => ['required', 'string', 'regex:' . StudentNumber::PATTERN, function (string $attribute, mixed $value, Closure $fail) use ($student, $prefix) {
                 if ($value === $student->student_number) {
                     $fail("{$value} is already this student's number.");
-                } elseif ($prefix !== null && substr($value, 0, 2) !== $prefix) {
+                } elseif ($prefix !== null && StudentNumber::isValid($value) && StudentNumber::yearOf($value) !== $prefix) {
                     $fail(StudentNumber::wrongYearMessage($prefix));
                 }
             }],
@@ -143,8 +146,8 @@ class StudentNumberController extends Controller
 
     /**
      * GET /staff/student-numbers/mismatches: the ID check (#56). Students whose
-     * number doesn't start with their enrollment year, or isn't in the YY+4
-     * format at all.
+     * number's year digits aren't their enrollment year, or whose number isn't in
+     * TMCC's letter + YY + 4-digit format (A26-0001) at all.
      */
     public function mismatches(Request $request): JsonResponse
     {
@@ -164,9 +167,9 @@ class StudentNumberController extends Controller
                 $number = (string) $student->student_number;
 
                 $problem = match (true) {
-                    ! StudentNumber::isValid($number) => 'Not in the YY+4 format',
+                    ! StudentNumber::isValid($number) => 'Not in the A26-0001 format',
                     $expected === null                => 'No enrollment date',
-                    substr($number, 0, 2) !== $expected => "Starts with " . substr($number, 0, 2) . ", enrolled in 20{$expected}",
+                    StudentNumber::yearOf($number) !== $expected => 'Shows year ' . StudentNumber::yearOf($number) . ", enrolled in 20{$expected}",
                     default                           => null,
                 };
 

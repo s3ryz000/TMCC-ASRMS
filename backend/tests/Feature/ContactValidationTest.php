@@ -58,7 +58,7 @@ class ContactValidationTest extends TestCase
     {
         $this->newStudent(['contact_number' => $typed])->assertCreated();
 
-        $this->assertSame('09171234567', Student::where('student_number', '260004')->value('contact_number'));
+        $this->assertSame('09171234567', Student::where('student_number', 'A26-0004')->value('contact_number'));
     }
 
     public static function acceptedNumbers(): array
@@ -98,7 +98,7 @@ class ContactValidationTest extends TestCase
     {
         $this->newStudent(['contact_number' => ''])->assertCreated();
 
-        $this->assertNull(Student::where('student_number', '260004')->value('contact_number'));
+        $this->assertNull(Student::where('student_number', 'A26-0004')->value('contact_number'));
     }
 
     public function test_an_email_without_a_domain_is_refused(): void
@@ -110,8 +110,8 @@ class ContactValidationTest extends TestCase
 
     public function test_the_student_information_sheet_checks_the_number_too(): void
     {
-        $account = $this->makeUser('student', '260001');
-        $this->makeStudent($this->program, ['student_number' => '260001'], $account);
+        $account = $this->makeUser('student', 'A26-0001');
+        $this->makeStudent($this->program, ['student_number' => 'A26-0001'], $account);
         Sanctum::actingAs($account, ['*']);
 
         $this->postJson('/api/student/sis', ['contact_number' => '12345'])

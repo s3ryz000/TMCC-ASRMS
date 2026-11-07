@@ -26,8 +26,8 @@ class RecordRequestPurposeTest extends TestCase
         parent::setUp();
 
         $this->seedRoles();
-        $this->account = $this->makeUser('student', '260001');
-        $this->makeStudent($this->makeProgram(), ['student_number' => '260001'], $this->account);
+        $this->account = $this->makeUser('student', 'A26-0001');
+        $this->makeStudent($this->makeProgram(), ['student_number' => 'A26-0001'], $this->account);
         Sanctum::actingAs($this->account, ['*']);
     }
 

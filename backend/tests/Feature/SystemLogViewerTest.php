@@ -39,7 +39,7 @@ class SystemLogViewerTest extends TestCase
         $this->registrar->forceFill(['name' => 'Rita Registrar'])->save();
         $this->otherRegistrar = $this->makeUser('staff', 'other.staff');
         $this->otherRegistrar->forceFill(['name' => 'Omar Other'])->save();
-        $this->student = $this->makeUser('student', '260001');
+        $this->student = $this->makeUser('student', 'A26-0001');
 
         // Out of order on purpose; times are Manila wall-clock as stored.
         $this->log('Login: uat.staff', $this->registrar, '2026-10-05 08:00:00');
@@ -47,7 +47,7 @@ class SystemLogViewerTest extends TestCase
         $this->log('Settings changed: academic year 2025-2026 → 2026-2027', $this->admin, '2026-10-07 09:15:30');
         $this->log('Login: other.staff', $this->otherRegistrar, '2026-10-07 00:00:00');
         $this->log("Failed login: unknown user 'adm1n'", null, '2026-10-04 12:00:00', 'guest');
-        $this->log('Grade 100% corrected for 260001', $this->otherRegistrar, '2026-10-06 10:00:00');
+        $this->log('Grade 100% corrected for A26-0001', $this->otherRegistrar, '2026-10-06 10:00:00');
     }
 
     private function log(string $action, ?User $user, string $at, ?string $role = null): SystemLog
@@ -80,7 +80,7 @@ class SystemLogViewerTest extends TestCase
             'Settings changed: academic year 2025-2026 → 2026-2027',
             'Login: other.staff',
             'Subject created: IT101 — Intro',
-            'Grade 100% corrected for 260001',
+            'Grade 100% corrected for A26-0001',
             'Login: uat.staff',
             "Failed login: unknown user 'adm1n'",
         ], $this->actions($response));
@@ -105,7 +105,7 @@ class SystemLogViewerTest extends TestCase
     public function test_filter_by_user(): void
     {
         $this->assertSame(
-            ['Login: other.staff', 'Grade 100% corrected for 260001'],
+            ['Login: other.staff', 'Grade 100% corrected for A26-0001'],
             $this->actions($this->adminLog(['user_id' => $this->otherRegistrar->id])),
         );
     }
@@ -120,14 +120,14 @@ class SystemLogViewerTest extends TestCase
     {
         $this->assertSame(['Login: other.staff'], $this->actions($this->adminLog(['q' => ' LOGIN: OTHER '])));
         $this->assertCount(3, $this->adminLog(['q' => 'login'])->json('data'));
-        $this->assertSame(['Grade 100% corrected for 260001'], $this->actions($this->adminLog(['q' => '100%'])));
+        $this->assertSame(['Grade 100% corrected for A26-0001'], $this->actions($this->adminLog(['q' => '100%'])));
         $this->assertSame([], $this->actions($this->adminLog(['q' => '_ogin'])));
     }
 
     public function test_filter_by_date_range_includes_both_whole_days(): void
     {
         $this->assertSame(
-            ['Subject created: IT101 — Intro', 'Grade 100% corrected for 260001'],
+            ['Subject created: IT101 — Intro', 'Grade 100% corrected for A26-0001'],
             $this->actions($this->adminLog(['date_from' => '2026-10-06', 'date_to' => '2026-10-06'])),
         );
         $this->assertSame(
@@ -139,7 +139,7 @@ class SystemLogViewerTest extends TestCase
 
     public function test_filters_combine(): void
     {
-        $this->assertSame(['Grade 100% corrected for 260001'], $this->actions($this->adminLog([
+        $this->assertSame(['Grade 100% corrected for A26-0001'], $this->actions($this->adminLog([
             'user_id' => $this->otherRegistrar->id, 'role' => 'staff', 'q' => 'grade', 'date_from' => '2026-10-06', 'date_to' => '2026-10-06',
         ])));
     }

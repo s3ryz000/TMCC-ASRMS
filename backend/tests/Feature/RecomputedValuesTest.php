@@ -37,8 +37,8 @@ class RecomputedValuesTest extends TestCase
         $this->registrar = $this->makeUser('staff');
         $program = $this->makeProgram('BSTM', 'BS Tourism Management');
         $this->makeCurriculum($program, ['GEC4' => [1, 1], 'TPC1' => [1, 1], 'TPC2' => [1, 1, 4]]);
-        $this->studentUser = $this->makeUser('student', '260001');
-        $this->student = $this->makeStudent($program, ['student_number' => '260001'], $this->studentUser);
+        $this->studentUser = $this->makeUser('student', 'A26-0001');
+        $this->student = $this->makeStudent($program, ['student_number' => 'A26-0001'], $this->studentUser);
 
         foreach (['GEC4' => [1.25, 'Passed'], 'TPC1' => [null, 'INC'], 'TPC2' => [5.00, 'Failed']] as $code => [$value, $status]) {
             $enrollment = Enrollment::create([

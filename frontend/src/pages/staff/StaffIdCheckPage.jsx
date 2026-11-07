@@ -11,8 +11,8 @@ const thClass = 'py-2.5 px-4 text-left border-b-2 border-gray-200 bg-gray-100 fo
 const tdClass = 'py-2.5 px-4 border-b border-gray-100 align-top';
 
 /**
- * ID check (#56, registrar): students whose number doesn't start with their
- * enrollment year, or isn't in the YY+4 format, each linking to the student
+ * ID check (#56, registrar): students whose number's year digits aren't their
+ * enrollment year, or isn't in TMCC's A26-0001 format, each linking to the student
  * so it can be corrected with Change Student Number.
  */
 const StaffIdCheckPage = () => {

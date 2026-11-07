@@ -266,7 +266,7 @@ class GradeSubmissionService
         return $academicYear . '|' . (EnrollmentTerm::normaliseSemester($semester) ?? $semester);
     }
 
-    /** "260001 (Juan Dela Cruz), A.Y. 2026-2027 sem 1", as SystemLog already records students. */
+    /** "A26-0001 (Juan Dela Cruz), A.Y. 2026-2027 sem 1", as SystemLog already records students. */
     public static function describe(?Student $student, GradeSubmission $submission): string
     {
         $name = trim(($student?->first_name ?? '') . ' ' . ($student?->last_name ?? ''));

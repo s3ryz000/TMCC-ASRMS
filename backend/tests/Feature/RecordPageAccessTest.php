@@ -39,12 +39,12 @@ class RecordPageAccessTest extends TestCase
 
         $program = $this->makeProgram('BSTM', 'BS Tourism Management');
         $this->makeCurriculum($program, ['GEC4' => [1, 1], 'TPC1' => [1, 1], 'TPC2' => [1, 2]]);
-        $this->student = $this->makeStudent($program, ['student_number' => '260001'], $this->makeUser('student', '260001'));
+        $this->student = $this->makeStudent($program, ['student_number' => 'A26-0001'], $this->makeUser('student', 'A26-0001'));
         $this->recordGrade($this->student, 'GEC4', '2026-2027', 1, 1.25, 'Passed');
         $this->recordGrade($this->student, 'TPC1', '2026-2027', 1, 1.5, 'Passed');
         ArchiveRecord::create([
             'student_id' => $this->student->student_id, 'record_type' => 'Form 137', 'cabinet_no' => 'C1',
-            'shelf_no' => 'S2', 'folder_code' => 'F-260001', 'document_status' => 'Complete',
+            'shelf_no' => 'S2', 'folder_code' => 'F-A26-0001', 'document_status' => 'Complete',
         ]);
 
         $path = "student-documents/{$this->student->student_id}/form137.pdf";
@@ -78,8 +78,8 @@ class RecordPageAccessTest extends TestCase
         $this->assertSame($asRegistrar, $asAdmin);
 
         // What the four sections show.
-        $this->assertSame('260001', $asAdmin['student']['student']['student_number']);
-        $this->assertSame('F-260001', $asAdmin['student']['student']['archive_records']['folder_code']);
+        $this->assertSame('A26-0001', $asAdmin['student']['student']['student_number']);
+        $this->assertSame('F-A26-0001', $asAdmin['student']['student']['archive_records']['folder_code']);
         $this->assertSame(1.38, $asAdmin['summary']['summary']['overall_gwa']);
         $this->assertArrayHasKey('latin_honors', $asAdmin['summary']['summary']);
         $this->assertSame(['GEC4', 'TPC1', 'TPC2'], array_column($asAdmin['summary']['curriculum']['roadmap'], 'subject_code'));
@@ -105,7 +105,7 @@ class RecordPageAccessTest extends TestCase
         Sanctum::actingAs($this->admin, ['*']);
 
         $this->putJson("/api/staff/students/{$id}", [
-            'student_number' => '260001', 'first_name' => 'Changed', 'last_name' => 'Name', 'date_of_birth' => '2005-01-01',
+            'student_number' => 'A26-0001', 'first_name' => 'Changed', 'last_name' => 'Name', 'date_of_birth' => '2005-01-01',
             'email' => 'juan@tmcc.test', 'enrollment_date' => '2026-06-01',
         ])->assertForbidden();
         $this->postJson("/api/staff/students/{$id}/archive", [

@@ -14,7 +14,7 @@ use Tests\Concerns\BuildsAcademicRecords;
 use Tests\TestCase;
 
 /**
- * #91: a first-year student with 3 terms on record (demo student 260003) was
+ * #91: a first-year student with 3 terms on record (demo student A26-0003) was
  * shown "Enrollment Ineligible – Maximum Residency Period Reached". The term
  * count used ->select(year_level, semester)->distinct()->count(), which
  * Laravel runs as "select distinct count(*)": every enrollment row (one per
@@ -45,8 +45,8 @@ class ResidencyStatusTest extends TestCase
         }
         $this->makeCurriculum($this->program, $defs);
 
-        $this->account = $this->makeUser('student', '260003');
-        $this->student = $this->makeStudent($this->program, ['student_number' => '260003'], $this->account);
+        $this->account = $this->makeUser('student', 'A26-0003');
+        $this->student = $this->makeStudent($this->program, ['student_number' => 'A26-0003'], $this->account);
     }
 
     /** One Enrolled row per subject of the term, as the enrollment flows write them. */
@@ -154,7 +154,7 @@ class ResidencyStatusTest extends TestCase
                 'copies' => 1, 'status' => $status, 'requested_at' => now(),
             ]);
         }
-        $other = $this->makeStudent($this->program, ['student_number' => '260004', 'email' => 'other@tmcc.test']);
+        $other = $this->makeStudent($this->program, ['student_number' => 'A26-0004', 'email' => 'other@tmcc.test']);
         RecordRequest::create([
             'student_id' => $other->student_id, 'record_type' => 'transcript', 'purpose' => 'Employment',
             'copies' => 1, 'status' => 'pending', 'requested_at' => now(),

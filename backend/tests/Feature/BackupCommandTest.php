@@ -83,7 +83,7 @@ class BackupCommandTest extends TestCase
         foreach ($expectedCounts as $table => $count) {
             $this->assertSame($count, (int) $pdo->query("select count(*) from {$table}")->fetchColumn(), $table);
         }
-        $this->assertSame('Anabel', $pdo->query("select first_name from students where student_number = '260001'")->fetchColumn());
+        $this->assertSame('Anabel', $pdo->query("select first_name from students where student_number = 'A26-0001'")->fetchColumn());
         $pdo = null;
 
         // It passes the restore check, and the run is recorded everywhere.

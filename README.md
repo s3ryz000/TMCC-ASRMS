@@ -65,7 +65,7 @@ Close both windows to stop. To start them by hand instead: `php artisan serve` i
 |---|---|---|
 | Admin | `admin` | `password123` |
 | Registrar staff | `staff` | `password123` |
-| Student | create one in Registrar → New Student; the username and password are shown after saving | |
+| Student | create one in Registrar → New Student; the username is the student number (TMCC format, e.g. A26-0001) and both are shown after saving | |
 
 Notes:
 - A new or changed password needs at least 10 characters with letters and numbers, and cannot be the username, the e-mail name or a common password such as `password123`. Existing passwords, including the test accounts above, keep working until they are changed.

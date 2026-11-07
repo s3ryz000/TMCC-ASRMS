@@ -15,7 +15,7 @@ const input = {
     by_role: [{ role: 'staff', total: 2 }],
     top_actions: [{ action: 'Request <approved>', total: 2 }],
   },
-  exportRows: [{ student_number: '2026-00001', student_name: 'Dela Cruz, "Juan"', record_type: 'transcript', status: 'released' }],
+  exportRows: [{ student_number: 'A26-0001', student_name: 'Dela Cruz, "Juan"', record_type: 'transcript', status: 'released' }],
 };
 
 describe('Report export (#96)', () => {

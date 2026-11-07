@@ -31,8 +31,8 @@ class StudentCorTest extends TestCase
         $this->seedRoles();
         $program = $this->makeProgram();
         $this->makeCurriculum($program, ['A' => [1, 1], 'B' => [1, 1], 'C' => [1, 2], 'D' => [1, 2], 'E' => [1, 2]]);
-        $this->account = $this->makeUser('student', '260001');
-        $this->student = $this->makeStudent($program, ['student_number' => '260001'], $this->account);
+        $this->account = $this->makeUser('student', 'A26-0001');
+        $this->student = $this->makeStudent($program, ['student_number' => 'A26-0001'], $this->account);
 
         $this->enroll('A', '2026-2027', '1', 'Passed');
         $this->enroll('B', '2026-2027', '1', 'Passed');
@@ -90,7 +90,7 @@ class StudentCorTest extends TestCase
 
     public function test_only_the_signed_in_students_subjects_are_listed(): void
     {
-        $other = $this->makeStudent($this->student->program()->first(), ['student_number' => '260002', 'email' => 'o@tmcc.test']);
+        $other = $this->makeStudent($this->student->program()->first(), ['student_number' => 'A26-0002', 'email' => 'o@tmcc.test']);
         Enrollment::create([
             'student_id' => $other->student_id, 'subject_id' => $this->subjects['E']->id,
             'academic_year' => '2026-2027', 'semester' => '2', 'year_level' => 1, 'status' => 'Enrolled',
