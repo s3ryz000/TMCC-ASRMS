@@ -29,8 +29,8 @@ class StudentArchivedSubjectTest extends TestCase
         $this->seedRoles();
         $program = $this->makeProgram();
         $this->makeCurriculum($program, ['A' => [1, 1], 'B' => [1, 1], 'C' => [1, 2]]);
-        $this->account = $this->makeUser('student', '260001');
-        $this->student = $this->makeStudent($program, ['student_number' => '260001'], $this->account);
+        $this->account = $this->makeUser('student', 'A26-0001');
+        $this->student = $this->makeStudent($program, ['student_number' => 'A26-0001'], $this->account);
 
         $this->subjects['B']->forceFill(['archived_at' => now()])->save();
         $this->subjects['C']->forceFill(['archived_at' => now()])->save();

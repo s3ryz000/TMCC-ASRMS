@@ -30,9 +30,9 @@ class StudentRequestViewTest extends TestCase
 
         $this->seedRoles();
         $program = $this->makeProgram();
-        $this->account = $this->makeUser('student', '260001');
-        $this->student = $this->makeStudent($program, ['student_number' => '260001'], $this->account);
-        $this->other = $this->makeStudent($program, ['student_number' => '260002', 'email' => 'other@tmcc.test'], $this->makeUser('student', '260002'));
+        $this->account = $this->makeUser('student', 'A26-0001');
+        $this->student = $this->makeStudent($program, ['student_number' => 'A26-0001'], $this->account);
+        $this->other = $this->makeStudent($program, ['student_number' => 'A26-0002', 'email' => 'other@tmcc.test'], $this->makeUser('student', 'A26-0002'));
 
         Sanctum::actingAs($this->account, ['*']);
     }

@@ -15,7 +15,7 @@ jest.mock('./lib/api/client', () => ({
 }));
 
 const STAFF = { id: 1, name: 'Rita Registrar', username: 'uat.staff', role: 'staff', roles: [{ name: 'staff' }] };
-const STUDENT = { id: 2, name: 'Ana Reyes', username: '260001', role: 'student', roles: [{ name: 'student' }] };
+const STUDENT = { id: 2, name: 'Ana Reyes', username: 'A26-0001', role: 'student', roles: [{ name: 'student' }] };
 
 /** GET responses by URL; anything else answers with an empty object. */
 let responses = {};

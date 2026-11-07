@@ -42,8 +42,8 @@ class GradeApprovalTest extends TestCase
         $this->seedRoles();
         $this->program = $this->makeProgram();
         $this->makeCurriculum($this->program, ['A' => [1, 1], 'B' => [1, 1], 'C' => [1, 2]], ['C' => ['A']]);
-        $this->studentUser = $this->makeUser('student', '260001');
-        $this->student = $this->makeStudent($this->program, ['student_number' => '260001'], $this->studentUser);
+        $this->studentUser = $this->makeUser('student', 'A26-0001');
+        $this->student = $this->makeStudent($this->program, ['student_number' => 'A26-0001'], $this->studentUser);
 
         $this->encoder = $this->makeUser('staff', 'encoder');
         Sanctum::actingAs($this->encoder, ['*']);
@@ -134,7 +134,7 @@ class GradeApprovalTest extends TestCase
         $this->assertEqualsCanonicalizing(['1.25', '1.50'], array_column($term['pending_submission']['items'], 'grade_value'));
         $this->assertNull($term['last_returned']);
 
-        $this->assertDatabaseHas('system_logs', ['action' => 'Submitted 2 grade(s) for approval for student 260001 (Juan Dela Cruz), A.Y. 2026-2027 sem 1']);
+        $this->assertDatabaseHas('system_logs', ['action' => 'Submitted 2 grade(s) for approval for student A26-0001 (Juan Dela Cruz), A.Y. 2026-2027 sem 1']);
     }
 
     // ------------------------------------------------------------- approve
@@ -157,7 +157,7 @@ class GradeApprovalTest extends TestCase
         $this->assertSame('approved', $submission->status);
         $this->assertSame($this->gradeApprover()->id, (int) $submission->decided_by);
         $this->assertNotNull($submission->decided_at);
-        $this->assertTrue(SystemLog::where('action', 'like', 'Approved 2 grade(s) for student 260001 (Juan Dela Cruz)%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Approved 2 grade(s) for student A26-0001 (Juan Dela Cruz)%')->exists());
 
         $this->assertNull($this->termOf($this->academicProgress($this->student))['pending_submission']);
     }
@@ -170,7 +170,7 @@ class GradeApprovalTest extends TestCase
         $this->getJson('/api/staff/grade-submissions')
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.student_number', '260001')
+            ->assertJsonPath('data.0.student_number', 'A26-0001')
             ->assertJsonPath('data.0.student_name', 'Juan Dela Cruz')
             ->assertJsonPath('data.0.program', 'BSIT')
             ->assertJsonPath('data.0.submitted_by.name', 'Staff User')
@@ -239,7 +239,7 @@ class GradeApprovalTest extends TestCase
 
         $this->assertSame('returned', GradeSubmission::findOrFail($id)->status);
         $this->assertNull($this->grade('A')->grade_value);
-        $this->assertTrue(SystemLog::where('action', 'like', 'Returned 1 grade(s) to the encoder for student 260001%')->exists());
+        $this->assertTrue(SystemLog::where('action', 'like', 'Returned 1 grade(s) to the encoder for student A26-0001%')->exists());
         $this->patchJson($this->url($id, 'approve'))->assertStatus(409);
 
         $this->as($this->encoder);

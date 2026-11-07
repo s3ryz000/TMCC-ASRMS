@@ -119,7 +119,7 @@ export const staffApi = {
 
   // ── Student numbers (registrar, #56) ──
 
-  /** Is a 6-digit number free? { number, available, next_available, conflict?: { student_number, name, program } } */
+  /** Is a student number (A26-0001) free? { number, available, next_available, conflict?: { student_number, name, program } } */
   checkStudentNumber: async (number) => {
     const { data } = await apiClient.get('/staff/student-numbers/check', { params: { number } });
     return data;

@@ -30,9 +30,9 @@ trait SeedsTwoStudentRecords
 
     /** Personal values that must never reach another student. */
     protected const PERSONAL = [
-        'A' => ['number' => '260001', 'first' => 'Anabel', 'last' => 'Reyesta', 'email' => 'anabel.reyesta@tmcc.test',
+        'A' => ['number' => 'A26-0001', 'first' => 'Anabel', 'last' => 'Reyesta', 'email' => 'anabel.reyesta@tmcc.test',
             'dob' => '2005-02-02', 'address' => 'Blk 1 Lot 2 Cabezas Trece Martires', 'contact' => '09171110001'],
-        'B' => ['number' => '260002', 'first' => 'Benedict', 'last' => 'Cruzado', 'email' => 'benedict.cruzado@tmcc.test',
+        'B' => ['number' => 'A26-0002', 'first' => 'Benedict', 'last' => 'Cruzado', 'email' => 'benedict.cruzado@tmcc.test',
             'dob' => '2004-09-09', 'address' => 'Blk 9 Lot 9 Sahud Ulan Tanza', 'contact' => '09172220002'],
     ];
 

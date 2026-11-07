@@ -24,21 +24,21 @@ jest.mock('../lib/api/client', () => ({
 const USERS = {
   staff: { id: 1, name: 'Rita Registrar', username: 'uat.staff', role: 'staff', roles: [{ name: 'staff' }] },
   admin: { id: 2, name: 'Ada Admin', username: 'uat.admin', role: 'admin', roles: [{ name: 'admin' }] },
-  student: { id: 3, name: 'Test Student', username: '269901', role: 'student', roles: [{ name: 'student' }] },
+  student: { id: 3, name: 'Test Student', username: 'A26-9901', role: 'student', roles: [{ name: 'student' }] },
 };
 
 const STUDENT = {
-  student_id: 3, student_number: '269901', first_name: 'Tess', last_name: 'Tester', middle_name: null,
+  student_id: 3, student_number: 'A26-9901', first_name: 'Tess', last_name: 'Tester', middle_name: null,
   date_of_birth: '2006-01-02', email: 'tess@example.test', contact_number: '09170000000', address: 'Test Street',
   enrollment_date: '2026-08-10', sex: 'F', program_id: 1,
   program: { id: 1, code: 'BSTM', name: 'BS Tourism Management' },
-  user: { id: 30, name: 'Tess Tester', username: '269901', email: 'tess@example.test' },
+  user: { id: 30, name: 'Tess Tester', username: 'A26-9901', email: 'tess@example.test' },
   archive_records: { archive_id: 1, student_id: 3, record_type: 'Form 137', cabinet_no: 'C1', shelf_no: 'S1', folder_code: 'F1', document_status: 'Complete' },
   enrollments: [], grades: [],
 };
 
 const ACADEMIC = {
-  student: { student_number: '269901', name: 'Tess Tester', program: 'BS Tourism Management', program_code: 'BSTM', enrollment_date: '2026-08-10' },
+  student: { student_number: 'A26-9901', name: 'Tess Tester', program: 'BS Tourism Management', program_code: 'BSTM', enrollment_date: '2026-08-10' },
   summary: {
     overall_gwa: 1.4,
     latin_honors: { eligible: true, reason: 'Meets all requirements.', honor: 'Magna Cum Laude' },
@@ -73,9 +73,9 @@ beforeEach(() => {
     if (url === '/staff/student-numbers/check') {
       const number = config?.params?.number;
       return Promise.resolve({
-        data: number === '269903'
-          ? { number, available: false, conflict: { name: 'Carl Holder', program: 'BSTM' }, next_available: '269904' }
-          : { number, available: true, next_available: '269904' },
+        data: number === 'A26-9903'
+          ? { number, available: false, conflict: { name: 'Carl Holder', program: 'BSTM' }, next_available: 'A26-9904' }
+          : { number, available: true, next_available: 'A26-9904' },
       });
     }
     return Promise.resolve({ data: responses[url] ?? {} });
@@ -112,7 +112,7 @@ describe('#57 Manage Records', () => {
     const row = name.closest('tr');
     expect(within(row).queryAllByRole('button')).toHaveLength(0);
 
-    await userEvent.click(within(row).getByText('269901'));
+    await userEvent.click(within(row).getByText('A26-9901'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/staff/records/3'));
   });
 
@@ -211,29 +211,34 @@ describe('#55 Edit Student hub', () => {
 // ------------------------------------------------------------------ #56
 
 describe('#56 student number', () => {
-  test('New Student: the year prefix comes from the enrollment date, a taken number offers the next one', async () => {
+  test('New Student: letter A and the year from the enrollment date, a taken number offers the next one', async () => {
     signIn('staff');
     renderAt('/staff/students/new');
 
     const date = await screen.findByLabelText('Enrollment Date *');
     fireEvent.change(date, { target: { value: '2026-08-10' } });
-    expect(screen.getByLabelText('Year prefix 26')).toHaveTextContent('26');
+    expect(screen.getByLabelText('Year prefix 26')).toHaveTextContent('26-');
+    expect(screen.getByLabelText('Student number letter')).toHaveValue('A');
 
     await userEvent.type(screen.getByLabelText('Student Number *'), '9903');
-    expect(await screen.findByText(/269903 is taken by Carl Holder \(BSTM\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/A26-9903 is taken by Carl Holder \(BSTM\)/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Use next available: 269904' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Use next available: A26-9904' }));
     expect(screen.getByLabelText('Student Number *')).toHaveValue('9904');
-    expect(await screen.findByText('269904 is available.')).toBeInTheDocument();
+    expect(await screen.findByText('A26-9904 is available.')).toBeInTheDocument();
+
+    // The registrar can pick another letter for an older record.
+    await userEvent.selectOptions(screen.getByLabelText('Student number letter'), 'B');
+    expect(await screen.findByText('B26-9904 is available.')).toBeInTheDocument();
   });
 
   test('the conflict card compares the holder with the student being entered', async () => {
     const onUseNext = jest.fn();
     render(
       <StudentNumberConflictCard
-        conflict={{ student_number: '269903', name: 'Carl Holder', program: 'BSTM', enrollment_date: '2026-08-10', date_of_birth: '2005-05-05' }}
+        conflict={{ student_number: 'A26-9903', name: 'Carl Holder', program: 'BSTM', enrollment_date: '2026-08-10', date_of_birth: '2005-05-05' }}
         entered={{ name: 'Tess Tester', program: 'BSTM', enrollment_date: '2026-08-11', date_of_birth: '2006-01-02' }}
-        nextAvailable="269904"
+        nextAvailable="A26-9904"
         onUseNext={onUseNext}
         onDismiss={() => {}}
       />,
@@ -244,7 +249,7 @@ describe('#56 student number', () => {
     for (const value of ['Carl Holder', 'Tess Tester', '2005-05-05', '2006-01-02']) {
       expect(screen.getByText(value)).toBeInTheDocument();
     }
-    await userEvent.click(screen.getByRole('button', { name: 'Use next available: 269904' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Use next available: A26-9904' }));
     expect(onUseNext).toHaveBeenCalled();
   });
 
@@ -252,12 +257,13 @@ describe('#56 student number', () => {
     signIn('staff');
     renderAt('/staff/students/3/edit/information');
 
-    const field = await screen.findByDisplayValue('269901');
+    const field = await screen.findByDisplayValue('A26-9901');
     expect(field).toHaveAttribute('readonly');
     await userEvent.click(screen.getByRole('button', { name: 'Change Student Number' }));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText('Year prefix 26')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Student number letter')).toHaveValue('A');
     expect(within(dialog).getByLabelText('Reason *')).toBeInTheDocument();
   });
 });

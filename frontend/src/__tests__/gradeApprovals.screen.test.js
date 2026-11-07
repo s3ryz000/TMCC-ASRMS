@@ -31,7 +31,7 @@ const USERS = {
 };
 
 const SUBMISSION = {
-  id: 7, status: 'pending', step: 'registrar', student_id: 3, student_number: '269901', student_name: 'Tess Tester',
+  id: 7, status: 'pending', step: 'registrar', student_id: 3, student_number: 'A26-9901', student_name: 'Tess Tester',
   program: 'BSTM', academic_year: '2026-2027', semester: '1',
   submitted_by: { id: 1, name: 'Rita Registrar' }, submitted_at: '2026-10-22T09:00:00+08:00',
   decided_by: null, decided_at: null, remarks: null, item_count: 1,
@@ -48,11 +48,11 @@ const DETAIL = {
 };
 
 const STUDENT = {
-  student_id: 3, student_number: '269901', first_name: 'Tess', last_name: 'Tester', middle_name: null,
+  student_id: 3, student_number: 'A26-9901', first_name: 'Tess', last_name: 'Tester', middle_name: null,
   date_of_birth: '2006-01-02', email: 'tess@example.test', contact_number: '09170000000', address: 'Test Street',
   enrollment_date: '2026-08-10', sex: 'F', program_id: 1,
   program: { id: 1, code: 'BSTM', name: 'BS Tourism Management' },
-  user: { id: 30, name: 'Tess Tester', username: '269901', email: 'tess@example.test' },
+  user: { id: 30, name: 'Tess Tester', username: 'A26-9901', email: 'tess@example.test' },
   enrollments: [], grades: [],
 };
 
@@ -104,7 +104,7 @@ afterEach(() => {
 });
 
 const openSubmission = async () => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Review grades for 269901' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Review grades for A26-9901' }));
   return screen.findByRole('dialog', { name: 'Review grades' });
 };
 

@@ -65,7 +65,7 @@ class DataAccessMatrixTest extends TestCase
 
     /** Registrar-only reads (student numbers, #56). */
     private const REGISTRAR_READS = [
-        ['GET', '/api/staff/student-numbers/check?number=260009'],
+        ['GET', '/api/staff/student-numbers/check?number=A26-0009'],
         ['GET', '/api/staff/student-numbers/mismatches'],
     ];
 

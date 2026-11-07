@@ -28,7 +28,7 @@ beforeAll(() => {
 });
 
 const USERS = {
-  student: { id: 30, name: 'Tess Tester', username: '269901', role: 'student', roles: [{ name: 'student' }] },
+  student: { id: 30, name: 'Tess Tester', username: 'A26-9901', role: 'student', roles: [{ name: 'student' }] },
   staff: { id: 1, name: 'Rita Registrar', username: 'uat.staff', role: 'staff', roles: [{ name: 'staff' }] },
 };
 
@@ -38,7 +38,7 @@ const roadmapRow = (code, status, extra = {}) => ({
 });
 
 const ACADEMIC = {
-  student: { student_number: '269901', name: 'Tess Tester', program: 'BS Tourism Management', program_code: 'BSTM', enrollment_date: '2026-08-10' },
+  student: { student_number: 'A26-9901', name: 'Tess Tester', program: 'BS Tourism Management', program_code: 'BSTM', enrollment_date: '2026-08-10' },
   summary: { overall_gwa: 1.5, latin_honors: { eligible: false, reason: '', honor: null }, terms: [], years: [] },
   curriculum: {
     roadmap: [roadmapRow('TPC4', 'Archived', { archived: true }), roadmapRow('TPC5', 'Eligible to Take')],
@@ -61,7 +61,7 @@ const renderAt = (path) => {
 
 beforeEach(() => {
   responses = {
-    '/student/profile': { student: { student_id: 3, first_name: 'Tess', last_name: 'Tester', student_number: '269901' }, academic_year: '2026-2027', semester: '1st Semester' },
+    '/student/profile': { student: { student_id: 3, first_name: 'Tess', last_name: 'Tester', student_number: 'A26-9901' }, academic_year: '2026-2027', semester: '1st Semester' },
     '/student/academic-summary': ACADEMIC,
     '/dashboard': { kpis: { pending_requests: 1, approved: 2, rejected: 3, released: 4 }, my_requests: [] },
     '/student/record-requests': { data: [] },
@@ -141,7 +141,7 @@ test('#93 Request Document opens a form with purpose and copies before anything 
 
 test('#44 approving asks for confirmation only: no calendar, no date sent', async () => {
   responses['/staff/pending-requests'] = {
-    data: [{ id: 21, record_type: 'transcript', status: 'pending', purpose: 'Employment', copies: 1, requested_at: '2026-10-08T01:00:00Z', student: { student_number: '269901', first_name: 'Tess', last_name: 'Tester' } }],
+    data: [{ id: 21, record_type: 'transcript', status: 'pending', purpose: 'Employment', copies: 1, requested_at: '2026-10-08T01:00:00Z', student: { student_number: 'A26-9901', first_name: 'Tess', last_name: 'Tester' } }],
   };
   apiClient.patch.mockResolvedValue({ data: { message: 'Request approved.' } });
   signIn('staff');
@@ -205,7 +205,7 @@ test('#34 Academic Records downloads the unofficial report card for the chosen s
 
 test('#88 the SIS page lists update requests with remarks and offers Correct and resubmit', async () => {
   responses['/student/profile'] = {
-    student: { student_id: 3, first_name: 'Tess', last_name: 'Tester', student_number: '269901', address: 'Old Street' },
+    student: { student_id: 3, first_name: 'Tess', last_name: 'Tester', student_number: 'A26-9901', address: 'Old Street' },
   };
   responses['/student/profile-updates'] = {
     data: [{

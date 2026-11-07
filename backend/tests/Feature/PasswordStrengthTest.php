@@ -176,9 +176,9 @@ class PasswordStrengthTest extends TestCase
     public function test_generated_student_passwords_always_pass_the_rule(): void
     {
         for ($i = 0; $i < 50; $i++) {
-            $password = User::generatePassword('260100', 'ana@tmcc.test');
+            $password = User::generatePassword('A26-0100', 'ana@tmcc.test');
 
-            $this->assertNull(StrongPassword::problem($password, '260100', 'ana@tmcc.test'), $password);
+            $this->assertNull(StrongPassword::problem($password, 'A26-0100', 'ana@tmcc.test'), $password);
         }
     }
 
@@ -188,7 +188,7 @@ class PasswordStrengthTest extends TestCase
         Sanctum::actingAs($this->makeUser('staff'), ['*']);
 
         $account = $this->postJson('/api/staff/students', [
-            'student_number'  => '260100',
+            'student_number'  => 'A26-0100',
             'first_name'      => 'Ana',
             'last_name'       => 'Reyes',
             'date_of_birth'   => '2006-02-02',

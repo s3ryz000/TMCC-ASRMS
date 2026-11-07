@@ -259,7 +259,7 @@ The existing dictionary documents 13 modules. These 7 are implemented but undocu
 | Field Name | Data Type | Nullable | Default | Constraints / Keys | Relationships |
 |---|---|---|---|---|---|
 | student_id | BIGINT UNSIGNED | No | — | PK, NOT NULL, AUTO_INCREMENT | — |
-| student_number | VARCHAR(20) | No | — | UNIQUE, NOT NULL | — |
+| student_number | VARCHAR(20) | No | — | UNIQUE, NOT NULL; TMCC format A26-0001 (letter + 2-digit enrollment year + "-" + 4 digits), also the login username | — |
 | first_name | VARCHAR(50) | No | — | NOT NULL | — |
 | last_name | VARCHAR(50) | No | — | NOT NULL | — |
 | date_of_birth | DATE | No | — | NOT NULL | — |

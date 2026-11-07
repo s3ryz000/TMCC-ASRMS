@@ -60,7 +60,8 @@ return new class extends Migration
     {
         DB::transaction(function () {
             $before = $this->snapshot();
-            $changes = DB::table('student_number_changes')->where('source', 'migration')->orderByDesc('id')->get();
+            // Only this conversion's rows: the later TMCC-format one (2026_11_07_000001) sets a reason.
+            $changes = DB::table('student_number_changes')->where('source', 'migration')->whereNull('reason')->orderByDesc('id')->get();
 
             foreach ($changes as $change) {
                 $student = DB::table('students')->where('student_id', $change->student_id)->first();
@@ -97,8 +98,8 @@ return new class extends Migration
 
         foreach ($students as $student) {
             $number = (string) $student->student_number;
-            if (preg_match('/^\d{6}$/', $number)) {
-                continue; // already converted
+            if (preg_match('/^\d{6}$/', $number) || preg_match('/^[A-Z]\d{2}-\d{4}$/', $number)) {
+                continue; // already converted (or in the later TMCC format)
             }
 
             $new = null;

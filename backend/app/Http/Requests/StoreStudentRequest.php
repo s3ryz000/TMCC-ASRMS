@@ -15,9 +15,10 @@ class StoreStudentRequest extends FormRequest
     }
 
     /**
-     * The student number is the enrollment year's 2 digits plus 4 the
-     * registrar types (#56). Either the full 6 digits or just the 4-digit part
-     * may be sent; the part gets the prefix from enrollment_date.
+     * The student number is a letter, the enrollment year's 2 digits, a hyphen
+     * and 4 digits the registrar types (#56), e.g. A26-0001. Either the full
+     * number or just the 4-digit part may be sent; the part gets the prefix
+     * from student_number_letter (default "A") and enrollment_date.
      */
     protected function prepareForValidation(): void
     {
@@ -30,10 +31,12 @@ class StoreStudentRequest extends FormRequest
             return;
         }
 
-        $number = preg_replace('/\s+/', '', $number);
-        $prefix = StudentNumber::yearPrefix($this->input('enrollment_date'));
-        if (preg_match('/^\d{4}$/', $number) && $prefix !== null) {
-            $number = StudentNumber::compose($prefix, $number);
+        $number = StudentNumber::normalize($number);
+        $year = StudentNumber::yearPrefix($this->input('enrollment_date'));
+        $letter = $this->input('student_number_letter');
+        $letter = is_string($letter) && preg_match('/^[A-Za-z]$/', trim($letter)) ? trim($letter) : StudentNumber::DEFAULT_LETTER;
+        if (preg_match('/^\d{4}$/', $number) && $year !== null) {
+            $number = StudentNumber::compose(StudentNumber::prefix($year, $letter), $number);
         }
 
         $this->merge(['student_number' => $number]);
@@ -86,11 +89,11 @@ class StoreStudentRequest extends FormRequest
         ];
     }
 
-    /** The first two digits are the enrollment year's. */
+    /** The 2 digits after the letter are the enrollment year's. */
     private function matchesEnrollmentYear(string $attribute, mixed $value, Closure $fail): void
     {
         $prefix = StudentNumber::yearPrefix($this->input('enrollment_date'));
-        if ($prefix !== null && StudentNumber::isValid($value) && substr($value, 0, 2) !== $prefix) {
+        if ($prefix !== null && StudentNumber::isValid($value) && StudentNumber::yearOf($value) !== $prefix) {
             $fail(StudentNumber::wrongYearMessage($prefix));
         }
     }
